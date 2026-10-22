@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in Platebook doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please don't include real client names, addresses or other personal data.
+        Security problems go through a private report instead (see SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag or commit (e.g. v0.1.0).
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How do you run it?
+      options:
+        - docker-compose.selfhost.yml
+        - Docker image on a platform (Railway, Render, …)
+        - From source (npm run dev / npm start)
+        - Other
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: e.g. Safari on iPhone 15, Chrome 141 on Windows
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Server log lines (`docker compose logs app`) or screenshots, with personal data removed.

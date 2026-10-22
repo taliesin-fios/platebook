@@ -1,0 +1,1266 @@
+{
+ "recipes": [
+  {
+   "name": "Lemon-Herb Roast Chicken Thighs",
+   "category": "Families",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 15,
+   "cook_time_min": 40,
+   "hold_quality": 4,
+   "reheat_quality": 4,
+   "key_overlap_ingredients": [
+    "chicken",
+    "lemon",
+    "garlic",
+    "thyme",
+    "olive oil"
+   ],
+   "chef_notes": "Bone-in thighs stay juicy on reheat; pack pan juices separately",
+   "ingredients": [
+    {
+     "name": "bone-in chicken thighs",
+     "qty_4_serving": "2.5lb",
+     "qty_6_serving": "3.75lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "lemons",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "garlic cloves",
+     "qty_4_serving": "6",
+     "qty_6_serving": "9",
+     "store_section": "Produce"
+    },
+    {
+     "name": "fresh thyme",
+     "qty_4_serving": "6sprigs",
+     "qty_6_serving": "9sprigs",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "olive oil",
+     "qty_4_serving": "3tbsp",
+     "qty_6_serving": "4.5tbsp",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "baby potatoes",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Produce"
+    }
+   ]
+  },
+  {
+   "name": "Turkey and Black Bean Chili",
+   "category": "Families",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 20,
+   "cook_time_min": 60,
+   "hold_quality": 5,
+   "reheat_quality": 5,
+   "key_overlap_ingredients": [
+    "onion",
+    "garlic",
+    "cumin",
+    "tomato",
+    "black beans"
+   ],
+   "chef_notes": "Better on day 2; keep toppings on the side",
+   "ingredients": [
+    {
+     "name": "ground turkey",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "black beans",
+     "qty_4_serving": "2cans",
+     "qty_6_serving": "3cans",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "crushed tomatoes",
+     "qty_4_serving": "28oz",
+     "qty_6_serving": "42oz",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1.5",
+     "store_section": "Produce"
+    },
+    {
+     "name": "garlic cloves",
+     "qty_4_serving": "4",
+     "qty_6_serving": "6",
+     "store_section": "Produce"
+    },
+    {
+     "name": "chili powder",
+     "qty_4_serving": "2tbsp",
+     "qty_6_serving": "3tbsp",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "ground cumin",
+     "qty_4_serving": "2tsp",
+     "qty_6_serving": "3tsp",
+     "store_section": "Herbs & Spices"
+    }
+   ]
+  },
+  {
+   "name": "Beef and Vegetable Stew",
+   "category": "Families",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 25,
+   "cook_time_min": 120,
+   "hold_quality": 5,
+   "reheat_quality": 5,
+   "key_overlap_ingredients": [
+    "beef",
+    "carrot",
+    "onion",
+    "thyme",
+    "stock"
+   ],
+   "chef_notes": "Freezes well; thicken with a little flour slurry if needed",
+   "ingredients": [
+    {
+     "name": "beef chuck, cubed",
+     "qty_4_serving": "2lb",
+     "qty_6_serving": "3lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "carrots",
+     "qty_4_serving": "4",
+     "qty_6_serving": "6",
+     "store_section": "Produce"
+    },
+    {
+     "name": "celery stalks",
+     "qty_4_serving": "3",
+     "qty_6_serving": "4",
+     "store_section": "Produce"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "2",
+     "store_section": "Produce"
+    },
+    {
+     "name": "beef stock",
+     "qty_4_serving": "4cups",
+     "qty_6_serving": "6cups",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "tomato paste",
+     "qty_4_serving": "2tbsp",
+     "qty_6_serving": "3tbsp",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "fresh thyme",
+     "qty_4_serving": "4sprigs",
+     "qty_6_serving": "6sprigs",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "yukon gold potatoes",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Produce"
+    }
+   ]
+  },
+  {
+   "name": "Chicken Tikka-Style Curry",
+   "category": "Couples",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 20,
+   "cook_time_min": 35,
+   "hold_quality": 5,
+   "reheat_quality": 5,
+   "key_overlap_ingredients": [
+    "chicken",
+    "yogurt",
+    "garlic",
+    "ginger",
+    "tomato"
+   ],
+   "chef_notes": "Adjust heat per client; serve with rice cooked fresh or packed separately",
+   "ingredients": [
+    {
+     "name": "boneless chicken thighs",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "plain yogurt",
+     "qty_4_serving": "0.5cup",
+     "qty_6_serving": "0.75cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "crushed tomatoes",
+     "qty_4_serving": "14oz",
+     "qty_6_serving": "21oz",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "heavy cream",
+     "qty_4_serving": "0.5cup",
+     "qty_6_serving": "0.75cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "garlic cloves",
+     "qty_4_serving": "4",
+     "qty_6_serving": "6",
+     "store_section": "Produce"
+    },
+    {
+     "name": "fresh ginger",
+     "qty_4_serving": "1tbsp",
+     "qty_6_serving": "1.5tbsp",
+     "store_section": "Produce"
+    },
+    {
+     "name": "garam masala",
+     "qty_4_serving": "2tsp",
+     "qty_6_serving": "3tsp",
+     "store_section": "Herbs & Spices"
+    }
+   ]
+  },
+  {
+   "name": "Baked Salmon with Dill Yogurt Sauce",
+   "category": "Couples",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 10,
+   "cook_time_min": 15,
+   "hold_quality": 3,
+   "reheat_quality": 2,
+   "key_overlap_ingredients": [
+    "salmon",
+    "lemon",
+    "dill",
+    "yogurt"
+   ],
+   "chef_notes": "Best eaten within 2 days; label to reheat gently or serve cold",
+   "ingredients": [
+    {
+     "name": "salmon fillets",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "lemons",
+     "qty_4_serving": "1",
+     "qty_6_serving": "2",
+     "store_section": "Produce"
+    },
+    {
+     "name": "fresh dill",
+     "qty_4_serving": "0.25cup",
+     "qty_6_serving": "0.33cup",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "plain Greek yogurt",
+     "qty_4_serving": "0.75cup",
+     "qty_6_serving": "1cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "olive oil",
+     "qty_4_serving": "1tbsp",
+     "qty_6_serving": "1.5tbsp",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "green beans",
+     "qty_4_serving": "1lb",
+     "qty_6_serving": "1.5lb",
+     "store_section": "Produce"
+    }
+   ]
+  },
+  {
+   "name": "Pork Carnitas",
+   "category": "Families",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 15,
+   "cook_time_min": 180,
+   "hold_quality": 5,
+   "reheat_quality": 4,
+   "key_overlap_ingredients": [
+    "pork",
+    "orange",
+    "onion",
+    "cumin",
+    "garlic"
+   ],
+   "chef_notes": "Crisp under the broiler before packing; tortillas and salsa on the side",
+   "ingredients": [
+    {
+     "name": "pork shoulder",
+     "qty_4_serving": "3lb",
+     "qty_6_serving": "4.5lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "oranges",
+     "qty_4_serving": "1",
+     "qty_6_serving": "2",
+     "store_section": "Produce"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1.5",
+     "store_section": "Produce"
+    },
+    {
+     "name": "garlic cloves",
+     "qty_4_serving": "5",
+     "qty_6_serving": "8",
+     "store_section": "Produce"
+    },
+    {
+     "name": "ground cumin",
+     "qty_4_serving": "2tsp",
+     "qty_6_serving": "3tsp",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "dried oregano",
+     "qty_4_serving": "1tsp",
+     "qty_6_serving": "1.5tsp",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "corn tortillas",
+     "qty_4_serving": "12",
+     "qty_6_serving": "18",
+     "store_section": "Pantry & Dry Goods"
+    }
+   ]
+  },
+  {
+   "name": "Shrimp and Vegetable Fried Rice",
+   "category": "Couples",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 20,
+   "cook_time_min": 15,
+   "hold_quality": 3,
+   "reheat_quality": 3,
+   "key_overlap_ingredients": [
+    "rice",
+    "egg",
+    "scallion",
+    "soy sauce",
+    "ginger"
+   ],
+   "chef_notes": "Use day-old rice; reheat in a skillet rather than the microwave",
+   "ingredients": [
+    {
+     "name": "raw shrimp, peeled",
+     "qty_4_serving": "1lb",
+     "qty_6_serving": "1.5lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "cooked jasmine rice",
+     "qty_4_serving": "4cups",
+     "qty_6_serving": "6cups",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "eggs",
+     "qty_4_serving": "3",
+     "qty_6_serving": "4",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "frozen peas and carrots",
+     "qty_4_serving": "1.5cup",
+     "qty_6_serving": "2.25cup",
+     "store_section": "Produce"
+    },
+    {
+     "name": "scallions",
+     "qty_4_serving": "4",
+     "qty_6_serving": "6",
+     "store_section": "Produce"
+    },
+    {
+     "name": "soy sauce",
+     "qty_4_serving": "3tbsp",
+     "qty_6_serving": "4.5tbsp",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "sesame oil",
+     "qty_4_serving": "1tbsp",
+     "qty_6_serving": "1.5tbsp",
+     "store_section": "Pantry & Dry Goods"
+    }
+   ]
+  },
+  {
+   "name": "Turkey Meatballs in Marinara",
+   "category": "Families",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 25,
+   "cook_time_min": 30,
+   "hold_quality": 5,
+   "reheat_quality": 5,
+   "key_overlap_ingredients": [
+    "tomato",
+    "garlic",
+    "parmesan",
+    "basil",
+    "egg"
+   ],
+   "chef_notes": "Kid-friendly; pack pasta separately so it does not soak up the sauce",
+   "ingredients": [
+    {
+     "name": "ground turkey",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "breadcrumbs",
+     "qty_4_serving": "0.5cup",
+     "qty_6_serving": "0.75cup",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "eggs",
+     "qty_4_serving": "1",
+     "qty_6_serving": "2",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "parmesan, grated",
+     "qty_4_serving": "0.5cup",
+     "qty_6_serving": "0.75cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "marinara sauce",
+     "qty_4_serving": "24oz",
+     "qty_6_serving": "36oz",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "garlic cloves",
+     "qty_4_serving": "3",
+     "qty_6_serving": "4",
+     "store_section": "Produce"
+    },
+    {
+     "name": "fresh basil",
+     "qty_4_serving": "0.25cup",
+     "qty_6_serving": "0.33cup",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "spaghetti",
+     "qty_4_serving": "1lb",
+     "qty_6_serving": "1.5lb",
+     "store_section": "Pantry & Dry Goods"
+    }
+   ]
+  },
+  {
+   "name": "Chickpea and Spinach Coconut Curry",
+   "category": "Plant-Based",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 15,
+   "cook_time_min": 25,
+   "hold_quality": 5,
+   "reheat_quality": 5,
+   "key_overlap_ingredients": [
+    "chickpeas",
+    "coconut milk",
+    "garlic",
+    "ginger",
+    "spinach"
+   ],
+   "chef_notes": "Vegan and gluten-free; flavor deepens overnight",
+   "ingredients": [
+    {
+     "name": "chickpeas",
+     "qty_4_serving": "2cans",
+     "qty_6_serving": "3cans",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "coconut milk",
+     "qty_4_serving": "14oz",
+     "qty_6_serving": "21oz",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "baby spinach",
+     "qty_4_serving": "5oz",
+     "qty_6_serving": "8oz",
+     "store_section": "Produce"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1.5",
+     "store_section": "Produce"
+    },
+    {
+     "name": "garlic cloves",
+     "qty_4_serving": "3",
+     "qty_6_serving": "5",
+     "store_section": "Produce"
+    },
+    {
+     "name": "fresh ginger",
+     "qty_4_serving": "1tbsp",
+     "qty_6_serving": "1.5tbsp",
+     "store_section": "Produce"
+    },
+    {
+     "name": "curry powder",
+     "qty_4_serving": "1tbsp",
+     "qty_6_serving": "1.5tbsp",
+     "store_section": "Herbs & Spices"
+    }
+   ]
+  },
+  {
+   "name": "Roasted Vegetable Lasagna",
+   "category": "Plant-Based",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 30,
+   "cook_time_min": 60,
+   "hold_quality": 5,
+   "reheat_quality": 4,
+   "key_overlap_ingredients": [
+    "zucchini",
+    "tomato",
+    "ricotta",
+    "basil",
+    "garlic"
+   ],
+   "chef_notes": "Vegetarian; rest 20 minutes before cutting so portions hold their shape",
+   "ingredients": [
+    {
+     "name": "lasagna noodles",
+     "qty_4_serving": "12",
+     "qty_6_serving": "18",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "zucchini",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "red bell peppers",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "ricotta",
+     "qty_4_serving": "15oz",
+     "qty_6_serving": "22oz",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "mozzarella, shredded",
+     "qty_4_serving": "2cup",
+     "qty_6_serving": "3cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "marinara sauce",
+     "qty_4_serving": "24oz",
+     "qty_6_serving": "36oz",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "fresh basil",
+     "qty_4_serving": "0.25cup",
+     "qty_6_serving": "0.33cup",
+     "store_section": "Herbs & Spices"
+    }
+   ]
+  },
+  {
+   "name": "Black Bean and Sweet Potato Enchiladas",
+   "category": "Plant-Based",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 25,
+   "cook_time_min": 30,
+   "hold_quality": 4,
+   "reheat_quality": 4,
+   "key_overlap_ingredients": [
+    "black beans",
+    "sweet potato",
+    "cumin",
+    "onion",
+    "cheese"
+   ],
+   "chef_notes": "Vegetarian; hold the sauce back a little so tortillas stay intact",
+   "ingredients": [
+    {
+     "name": "sweet potatoes",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "black beans",
+     "qty_4_serving": "1cans",
+     "qty_6_serving": "2cans",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "flour tortillas",
+     "qty_4_serving": "8",
+     "qty_6_serving": "12",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "red enchilada sauce",
+     "qty_4_serving": "19oz",
+     "qty_6_serving": "28oz",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "cheddar, shredded",
+     "qty_4_serving": "1.5cup",
+     "qty_6_serving": "2.25cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1.5",
+     "store_section": "Produce"
+    },
+    {
+     "name": "ground cumin",
+     "qty_4_serving": "1tsp",
+     "qty_6_serving": "1.5tsp",
+     "store_section": "Herbs & Spices"
+    }
+   ]
+  },
+  {
+   "name": "Red Lentil Soup",
+   "category": "Plant-Based",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 15,
+   "cook_time_min": 40,
+   "hold_quality": 5,
+   "reheat_quality": 5,
+   "key_overlap_ingredients": [
+    "lentils",
+    "carrot",
+    "onion",
+    "cumin",
+    "lemon"
+   ],
+   "chef_notes": "Vegan; thickens as it sits, so add stock when reheating",
+   "ingredients": [
+    {
+     "name": "red lentils",
+     "qty_4_serving": "1.5cup",
+     "qty_6_serving": "2.25cup",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "vegetable stock",
+     "qty_4_serving": "6cups",
+     "qty_6_serving": "9cups",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "carrots",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1.5",
+     "store_section": "Produce"
+    },
+    {
+     "name": "garlic cloves",
+     "qty_4_serving": "3",
+     "qty_6_serving": "4",
+     "store_section": "Produce"
+    },
+    {
+     "name": "ground cumin",
+     "qty_4_serving": "2tsp",
+     "qty_6_serving": "3tsp",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "lemons",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1",
+     "store_section": "Produce"
+    }
+   ]
+  },
+  {
+   "name": "Chicken and Rice Casserole",
+   "category": "Families",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 15,
+   "cook_time_min": 50,
+   "hold_quality": 4,
+   "reheat_quality": 4,
+   "key_overlap_ingredients": [
+    "chicken",
+    "rice",
+    "broccoli",
+    "cheese",
+    "onion"
+   ],
+   "chef_notes": "One-dish dinner; portion before chilling",
+   "ingredients": [
+    {
+     "name": "boneless chicken breasts",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "long-grain rice",
+     "qty_4_serving": "1.5cup",
+     "qty_6_serving": "2.25cup",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "broccoli florets",
+     "qty_4_serving": "3cup",
+     "qty_6_serving": "4.5cup",
+     "store_section": "Produce"
+    },
+    {
+     "name": "chicken stock",
+     "qty_4_serving": "3cups",
+     "qty_6_serving": "4.5cups",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "cheddar, shredded",
+     "qty_4_serving": "1.5cup",
+     "qty_6_serving": "2.25cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1.5",
+     "store_section": "Produce"
+    }
+   ]
+  },
+  {
+   "name": "Braised Short Ribs",
+   "category": "Couples",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 25,
+   "cook_time_min": 180,
+   "hold_quality": 5,
+   "reheat_quality": 5,
+   "key_overlap_ingredients": [
+    "beef",
+    "red wine",
+    "carrot",
+    "thyme",
+    "stock"
+   ],
+   "chef_notes": "Skim fat after chilling; pairs with mashed potatoes or polenta",
+   "ingredients": [
+    {
+     "name": "bone-in short ribs",
+     "qty_4_serving": "3lb",
+     "qty_6_serving": "4.5lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "dry red wine",
+     "qty_4_serving": "1.5cup",
+     "qty_6_serving": "2.25cup",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "beef stock",
+     "qty_4_serving": "2cups",
+     "qty_6_serving": "3cups",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "carrots",
+     "qty_4_serving": "3",
+     "qty_6_serving": "4",
+     "store_section": "Produce"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "2",
+     "store_section": "Produce"
+    },
+    {
+     "name": "tomato paste",
+     "qty_4_serving": "2tbsp",
+     "qty_6_serving": "3tbsp",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "fresh thyme",
+     "qty_4_serving": "4sprigs",
+     "qty_6_serving": "6sprigs",
+     "store_section": "Herbs & Spices"
+    }
+   ]
+  },
+  {
+   "name": "Sesame Ginger Chicken Stir-Fry",
+   "category": "Couples",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 20,
+   "cook_time_min": 15,
+   "hold_quality": 3,
+   "reheat_quality": 3,
+   "key_overlap_ingredients": [
+    "chicken",
+    "ginger",
+    "garlic",
+    "soy sauce",
+    "scallion"
+   ],
+   "chef_notes": "Keep vegetables crisp-tender so they survive reheating",
+   "ingredients": [
+    {
+     "name": "boneless chicken breasts",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "broccoli florets",
+     "qty_4_serving": "3cup",
+     "qty_6_serving": "4.5cup",
+     "store_section": "Produce"
+    },
+    {
+     "name": "red bell peppers",
+     "qty_4_serving": "1",
+     "qty_6_serving": "2",
+     "store_section": "Produce"
+    },
+    {
+     "name": "snap peas",
+     "qty_4_serving": "8oz",
+     "qty_6_serving": "12oz",
+     "store_section": "Produce"
+    },
+    {
+     "name": "soy sauce",
+     "qty_4_serving": "0.25cup",
+     "qty_6_serving": "0.33cup",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "fresh ginger",
+     "qty_4_serving": "1tbsp",
+     "qty_6_serving": "1.5tbsp",
+     "store_section": "Produce"
+    },
+    {
+     "name": "sesame seeds",
+     "qty_4_serving": "1tbsp",
+     "qty_6_serving": "1.5tbsp",
+     "store_section": "Pantry & Dry Goods"
+    }
+   ]
+  },
+  {
+   "name": "Mediterranean Quinoa Salad",
+   "category": "Plant-Based",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 20,
+   "cook_time_min": 15,
+   "hold_quality": 4,
+   "reheat_quality": 3,
+   "key_overlap_ingredients": [
+    "quinoa",
+    "cucumber",
+    "lemon",
+    "parsley",
+    "olive oil"
+   ],
+   "chef_notes": "Served cold; dress the day it is eaten for the best texture",
+   "ingredients": [
+    {
+     "name": "quinoa",
+     "qty_4_serving": "1.5cup",
+     "qty_6_serving": "2.25cup",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "cucumber",
+     "qty_4_serving": "1",
+     "qty_6_serving": "2",
+     "store_section": "Produce"
+    },
+    {
+     "name": "cherry tomatoes",
+     "qty_4_serving": "1pint",
+     "qty_6_serving": "1.5pint",
+     "store_section": "Produce"
+    },
+    {
+     "name": "chickpeas",
+     "qty_4_serving": "1cans",
+     "qty_6_serving": "2cans",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "feta, crumbled",
+     "qty_4_serving": "0.5cup",
+     "qty_6_serving": "0.75cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "fresh parsley",
+     "qty_4_serving": "0.5cup",
+     "qty_6_serving": "0.75cup",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "lemons",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "olive oil",
+     "qty_4_serving": "0.25cup",
+     "qty_6_serving": "0.33cup",
+     "store_section": "Pantry & Dry Goods"
+    }
+   ]
+  },
+  {
+   "name": "Shepherd's Pie",
+   "category": "Families",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 30,
+   "cook_time_min": 50,
+   "hold_quality": 5,
+   "reheat_quality": 4,
+   "key_overlap_ingredients": [
+    "lamb",
+    "potato",
+    "carrot",
+    "onion",
+    "thyme"
+   ],
+   "chef_notes": "Use ground beef for a cottage pie; bake in portion-size dishes",
+   "ingredients": [
+    {
+     "name": "ground lamb",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "russet potatoes",
+     "qty_4_serving": "2.5lb",
+     "qty_6_serving": "3.75lb",
+     "store_section": "Produce"
+    },
+    {
+     "name": "carrots",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "frozen peas",
+     "qty_4_serving": "1cup",
+     "qty_6_serving": "1.5cup",
+     "store_section": "Produce"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1.5",
+     "store_section": "Produce"
+    },
+    {
+     "name": "butter",
+     "qty_4_serving": "4tbsp",
+     "qty_6_serving": "6tbsp",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "beef stock",
+     "qty_4_serving": "1cup",
+     "qty_6_serving": "1.5cup",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "fresh thyme",
+     "qty_4_serving": "3sprigs",
+     "qty_6_serving": "5sprigs",
+     "store_section": "Herbs & Spices"
+    }
+   ]
+  },
+  {
+   "name": "Herb-Crusted Pork Tenderloin",
+   "category": "Couples",
+   "session_fit": "Session-Friendly",
+   "prep_time_min": 15,
+   "cook_time_min": 25,
+   "hold_quality": 3,
+   "reheat_quality": 3,
+   "key_overlap_ingredients": [
+    "pork",
+    "garlic",
+    "rosemary",
+    "mustard"
+   ],
+   "chef_notes": "Slice just before packing; do not overcook (145°F)",
+   "ingredients": [
+    {
+     "name": "pork tenderloin",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "dijon mustard",
+     "qty_4_serving": "2tbsp",
+     "qty_6_serving": "3tbsp",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "fresh rosemary",
+     "qty_4_serving": "2sprigs",
+     "qty_6_serving": "3sprigs",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "garlic cloves",
+     "qty_4_serving": "3",
+     "qty_6_serving": "4",
+     "store_section": "Produce"
+    },
+    {
+     "name": "breadcrumbs",
+     "qty_4_serving": "0.33cup",
+     "qty_6_serving": "0.5cup",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "carrots",
+     "qty_4_serving": "1lb",
+     "qty_6_serving": "1.5lb",
+     "store_section": "Produce"
+    }
+   ]
+  },
+  {
+   "name": "Chicken Tortilla Soup",
+   "category": "Families",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 20,
+   "cook_time_min": 45,
+   "hold_quality": 5,
+   "reheat_quality": 5,
+   "key_overlap_ingredients": [
+    "chicken",
+    "tomato",
+    "onion",
+    "cumin",
+    "lime"
+   ],
+   "chef_notes": "Pack tortilla strips, avocado and cheese on the side",
+   "ingredients": [
+    {
+     "name": "boneless chicken breasts",
+     "qty_4_serving": "1.5lb",
+     "qty_6_serving": "2.25lb",
+     "store_section": "Meat & Seafood"
+    },
+    {
+     "name": "chicken stock",
+     "qty_4_serving": "6cups",
+     "qty_6_serving": "9cups",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "fire-roasted tomatoes",
+     "qty_4_serving": "14oz",
+     "qty_6_serving": "21oz",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "black beans",
+     "qty_4_serving": "1cans",
+     "qty_6_serving": "2cans",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "yellow onion",
+     "qty_4_serving": "1",
+     "qty_6_serving": "1.5",
+     "store_section": "Produce"
+    },
+    {
+     "name": "limes",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "ground cumin",
+     "qty_4_serving": "2tsp",
+     "qty_6_serving": "3tsp",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "tortilla chips",
+     "qty_4_serving": "4oz",
+     "qty_6_serving": "6oz",
+     "store_section": "Pantry & Dry Goods"
+    }
+   ]
+  },
+  {
+   "name": "Mushroom Barley Risotto",
+   "category": "Plant-Based",
+   "session_fit": "Long-Cook",
+   "prep_time_min": 15,
+   "cook_time_min": 50,
+   "hold_quality": 4,
+   "reheat_quality": 3,
+   "key_overlap_ingredients": [
+    "mushroom",
+    "barley",
+    "parmesan",
+    "thyme",
+    "stock"
+   ],
+   "chef_notes": "Vegetarian; barley holds up far better than rice when reheated",
+   "ingredients": [
+    {
+     "name": "pearl barley",
+     "qty_4_serving": "1.5cup",
+     "qty_6_serving": "2.25cup",
+     "store_section": "Pantry & Dry Goods"
+    },
+    {
+     "name": "cremini mushrooms",
+     "qty_4_serving": "1lb",
+     "qty_6_serving": "1.5lb",
+     "store_section": "Produce"
+    },
+    {
+     "name": "vegetable stock",
+     "qty_4_serving": "5cups",
+     "qty_6_serving": "7.5cups",
+     "store_section": "Canned & Jarred"
+    },
+    {
+     "name": "shallots",
+     "qty_4_serving": "2",
+     "qty_6_serving": "3",
+     "store_section": "Produce"
+    },
+    {
+     "name": "parmesan, grated",
+     "qty_4_serving": "0.5cup",
+     "qty_6_serving": "0.75cup",
+     "store_section": "Dairy & Eggs"
+    },
+    {
+     "name": "fresh thyme",
+     "qty_4_serving": "4sprigs",
+     "qty_6_serving": "6sprigs",
+     "store_section": "Herbs & Spices"
+    },
+    {
+     "name": "dry white wine",
+     "qty_4_serving": "0.5cup",
+     "qty_6_serving": "0.75cup",
+     "store_section": "Pantry & Dry Goods"
+    }
+   ]
+  }
+ ],
+ "templates": [
+  {
+   "name": "Weeknight Starter Trio",
+   "description": "A good first menu: three different profiles that share garlic and pantry staples.",
+   "recipes": [
+    "Lemon-Herb Roast Chicken Thighs",
+    "Chickpea and Spinach Coconut Curry",
+    "Turkey Meatballs in Marinara"
+   ]
+  },
+  {
+   "name": "Family Favorites",
+   "description": "Kid-friendly anchors plus a vegetarian option. Shares onion, cheese and stock.",
+   "recipes": [
+    "Beef and Vegetable Stew",
+    "Chicken and Rice Casserole",
+    "Black Bean and Sweet Potato Enchiladas"
+   ]
+  },
+  {
+   "name": "Date-Night Couples",
+   "description": "An elevated menu for adult households. Shares thyme, wine and stock.",
+   "recipes": [
+    "Braised Short Ribs",
+    "Baked Salmon with Dill Yogurt Sauce",
+    "Mushroom Barley Risotto"
+   ]
+  },
+  {
+   "name": "Meatless Week",
+   "description": "Three meatless dishes. Shares lemon, garlic and olive oil.",
+   "recipes": [
+    "Red Lentil Soup",
+    "Roasted Vegetable Lasagna",
+    "Mediterranean Quinoa Salad"
+   ]
+  }
+ ]
+}

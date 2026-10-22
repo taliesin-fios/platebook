@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Platebook — API (Rust)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/dev.mjs"
+      ],
+      "cwd": "server-rs",
+      "port": 3002,
+      "note": "cargo run (finds ~/.cargo/bin); needs Postgres and server-rs/.env: run `npm run db:setup` once"
+    },
+    {
+      "name": "Platebook — Frontend (Vite)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "cwd": "client",
+      "port": 5174,
+      "autoPort": false,
+      "note": "Vite dev server, /api proxied to the Rust API on :3002"
+    }
+  ]
+}

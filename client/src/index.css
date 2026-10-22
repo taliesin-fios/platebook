@@ -1,0 +1,639 @@
+/* SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+ * Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook */
+
+@import 'tailwindcss';
+
+/* Theme tokens (formerly tailwind.config.js) */
+@theme {
+  /* Fresh Harvest palette, mapped to existing class names for zero disruption */
+  --color-navy:        #5E7F57; /* Herb Green   (primary header / main buttons) */
+  --color-navy-mid:    #C56A4A; /* Terracotta   (secondary actions) */
+  --color-green-dark:  #3A5C32; /* Deep Herb    (section headers / active links) */
+  --color-green-mid:   #5E7F57; /* Herb Green   (active states) */
+  --color-green-light: #EEF3EA; /* Pale Sage    (light background chips) */
+  --color-blue-light:  #EEF3EA; /* Pale Sage    (light highlight areas) */
+  --color-warm-white:  #FBF8F1; /* Ivory        (page background) */
+  /* The v3 config replaced the whole amber scale with one color, so amber-50…950
+     never generated CSS. Clear the scale to keep rendering identical. */
+  --color-amber-*:     initial;
+  --color-amber:       #D8A13C; /* Golden Honey (warnings / accent) */
+  --color-danger:      #A94442; /* Berry Red    (errors / destructive) */
+  /* Additive aliases (usable in new code) */
+  --color-herb:        #5E7F57;
+  --color-terracotta:  #C56A4A;
+  --color-honey:       #D8A13C;
+  --color-ivory:       #FBF8F1;
+  --color-sage:        #EEF3EA;
+  --color-olive:       #28302A;
+  --color-berry:       #A94442;
+
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-sans:    "DM Sans", system-ui, sans-serif;
+
+  --radius-card: 12px;
+
+  --shadow-card:       0 2px 8px rgba(0,0,0,0.08);
+  --shadow-card-hover: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+/*
+  Tailwind 3 compatibility. v4 changed a few preflight defaults; restore the
+  v3 ones so nothing renders differently.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+:root {
+  /* Fresh Harvest palette */
+  --navy:        #5E7F57; /* Herb Green   — primary header/buttons  */
+  --navy-mid:    #C56A4A; /* Terracotta   — secondary actions        */
+  --green-dark:  #3A5C32; /* Deep Herb    — section headers          */
+  --green-mid:   #5E7F57; /* Herb Green   — active states            */
+  --green-light: #EEF3EA; /* Pale Sage    — chip/tag backgrounds     */
+  --blue-light:  #EEF3EA; /* Pale Sage    — highlight areas          */
+  --warm-white:  #FBF8F1; /* Ivory        — page background          */
+  --amber:       #D8A13C; /* Golden Honey — warnings / accent        */
+  --red:         #A94442; /* Berry Red    — errors / destructive     */
+  --olive:       #28302A; /* Charcoal Olive — body text              */
+}
+
+/*
+  Element-only selectors live in @layer base: in Tailwind 3 utilities beat them
+  on specificity, and in v4 unlayered CSS would beat every utility.
+*/
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background-color: var(--warm-white);
+    color: var(--olive);
+    overscroll-behavior: none;
+  }
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Skeleton animation */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.skeleton {
+  background: #e5e7eb;
+  border-radius: 6px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Toast animation */
+@keyframes toast-slide-up {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.toast-enter {
+  animation: toast-slide-up 0.3s ease-out forwards;
+}
+
+/* Bottom sheet animation */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.sheet-enter {
+  animation: sheet-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Swipe card reveal */
+.swipe-card {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Pull to refresh */
+.pull-indicator {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+/* Scrollbar hide */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Star rating */
+.star-filled { color: #F59E0B; }
+.star-empty { color: #D1D5DB; }
+
+/* Tap target minimum */
+@layer base {
+  button, a {
+    min-height: 44px;
+  }
+}
+[role="button"] {
+  min-height: 44px;
+}
+
+/* Card standard */
+.card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 16px;
+}
+
+/* Section header */
+.section-header {
+  font-family: 'Playfair Display', serif;
+  color: var(--green-dark);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+/* Chip */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1.5px solid transparent;
+  min-height: 32px;
+}
+
+.chip-active {
+  background: var(--navy);
+  color: white;
+  border-color: var(--navy);
+}
+
+.chip-inactive {
+  background: white;
+  color: #374151;
+  border-color: #D1D5DB;
+}
+
+/* Input standard — excludes checkbox/radio/range/color/file which have their own sizing */
+input[type="text"], input[type="email"], input[type="tel"],
+input[type="number"], input[type="password"], input[type="time"],
+input[type="date"], input[type="search"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  background: white;
+  transition: border-color 0.15s ease;
+  outline: none;
+}
+@layer base {
+  textarea, select {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1.5px solid #D1D5DB;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    background: white;
+    transition: border-color 0.15s ease;
+    outline: none;
+  }
+}
+
+/* Checkboxes and radios: reset any inherited sizing */
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--navy-mid);
+  box-shadow: 0 0 0 3px rgba(27, 79, 138, 0.1);
+}
+
+/* FAB */
+.fab {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(13, 43, 75, 0.4);
+  cursor: pointer;
+  z-index: 40;
+  border: none;
+  font-size: 24px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fab:active {
+  transform: scale(0.93);
+}
+
+/* Bottom nav */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #E5E7EB;
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 50;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px 6px;
+  gap: 3px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: color 0.15s ease;
+  min-height: 60px;
+}
+
+.bottom-nav-item.active {
+  color: var(--green-mid);
+  border-top: 2px solid var(--green-mid);
+}
+
+.bottom-nav-item.inactive {
+  color: #9CA3AF;
+}
+
+/* Page layout */
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  background: var(--warm-white);
+}
+
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--navy);
+  color: white;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.page-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+/* Overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+}
+
+.modal {
+  background: white;
+  border-radius: 20px 20px 0 0;
+  padding: 24px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .overlay {
+    align-items: center;
+    justify-content: center;
+  }
+  .modal {
+    border-radius: 16px;
+    max-width: 480px;
+    max-height: 80vh;
+  }
+}
+
+/* ── Responsive shell ────────────────────────────────────────────────────────── */
+
+/* Mobile: single column, full height */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  width: 100%;
+}
+
+.app-content-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Side nav — hidden on mobile */
+.side-nav { display: none; }
+
+/* ── Sidebar breakpoint (md = 768px) ─────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .app-shell {
+    flex-direction: row;
+  }
+
+  /* Sidebar styles */
+  .side-nav {
+    display: flex;
+    flex-direction: column;
+    width: 220px;
+    min-width: 220px;
+    height: 100dvh;
+    background: white;
+    border-right: 1px solid #E5E7EB;
+    overflow-y: auto;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+  }
+
+  .side-nav-brand {
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid #F3F4F6;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .side-nav-brand-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--green-dark);
+    line-height: 1.2;
+  }
+
+  .side-nav-brand-sub {
+    font-size: 11px;
+    color: #9CA3AF;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+  }
+
+  .side-nav-links {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 8px;
+    gap: 2px;
+  }
+
+  .side-nav-footer {
+    padding: 8px 8px 16px;
+    border-top: 1px solid #F3F4F6;
+  }
+
+  .side-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    min-height: 40px;
+    text-align: left;
+  }
+
+  .side-nav-item-active {
+    background: var(--green-light);
+    color: var(--green-dark);
+    font-weight: 600;
+  }
+
+  .side-nav-item-inactive {
+    color: #6B7280;
+  }
+
+  .side-nav-item-inactive:hover {
+    background: #F9FAFB;
+    color: var(--olive);
+  }
+
+  .side-nav-label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* Hide bottom nav on desktop */
+  .bottom-nav { display: none; }
+
+  /* Page no longer needs bottom-nav clearance */
+  .page {
+    padding-bottom: 24px;
+  }
+
+  /* FAB sits above the bottom of the viewport, not above nav */
+  .fab {
+    bottom: 24px;
+  }
+
+  /* Content max-width for readability on very wide screens */
+  .app-main > .page > *:not(.overlay) {
+    max-width: 860px;
+  }
+}
+
+/* ── Wide screen: content center-constrained ─────────────────────────────────── */
+@media (min-width: 1200px) {
+  .side-nav {
+    width: 240px;
+    min-width: 240px;
+  }
+}
+
+/* Fixed action bars: sit above full BottomNav height (60px + safe area) on mobile */
+.fixed-action-bar {
+  bottom: calc(60px + env(safe-area-inset-bottom));
+}
+@media (min-width: 768px) {
+  .fixed-action-bar {
+    bottom: 0;
+  }
+}
+
+/* ── Print / Save as PDF (Invoice) ──────────────────────────────────────────── */
+@media print {
+  /* Hide everything that isn't the invoice preview */
+  .side-nav,
+  .bottom-nav,
+  .invoice-no-print,
+  .invoice-builder-panel,
+  .page-header,
+  .fab {
+    display: none !important;
+  }
+
+  /* Reset shell layout so preview fills the page */
+  body, .app-shell, .app-content-col, .app-main, .page {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .invoice-builder-shell {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .invoice-preview-panel {
+    width: 100% !important;
+    display: block !important;
+  }
+
+  /* Remove sticky positioning from preview's parent */
+  .invoice-preview-panel > div {
+    position: static !important;
+  }
+
+  /* The preview card itself — full width, no shadow */
+  .invoice-preview-card {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* Hide "Client Preview" label above the card */
+  .invoice-preview-panel > div > .text-xs.font-semibold {
+    display: none !important;
+  }
+
+  /* Ensure gradient header prints correctly */
+  .invoice-preview-header {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* ── Utility: input-field semantic alias ─────────────────────────────────────── */
+/* Applied on top of global input/textarea rules — keeps grid cells from overflowing */
+.input-field {
+  min-height: 36px;
+  width: 100%;
+}
+
+/* ── Invoice Builder split layout ────────────────────────────────────────────── */
+
+/* Mobile: single column — builder first, then preview */
+.invoice-builder-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.invoice-builder-panel  { width: 100%; }
+.invoice-preview-panel  { width: 100%; }
+
+/* Desktop (md+): side-by-side split */
+@media (min-width: 768px) {
+  .invoice-builder-shell {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.75rem;
+    max-width: 1100px;
+  }
+
+  .invoice-builder-panel {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .invoice-preview-panel {
+    width: 420px;
+    flex-shrink: 0;
+  }
+}
+
+/* The preview card itself */
+.invoice-preview-card {
+  font-family: 'Inter', 'Aptos', system-ui, sans-serif;
+}
+
+.invoice-preview-header {
+  color: white;
+}
+

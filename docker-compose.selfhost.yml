@@ -1,0 +1,50 @@
+# Self-hosted Platebook: the app and its Postgres database on one machine.
+# Full guide: docs/SELF_HOSTING.md.
+#
+#   cp .env.selfhost.example .env      # then fill in the secrets
+#   docker compose -f docker-compose.selfhost.yml up -d --build
+#
+# The app listens on 127.0.0.1:3000; put a reverse proxy with HTTPS in front
+# of it (see the guide). Data lives in the `db-data` volume, daily pg_dump
+# backups in `backups`.
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: platebook
+      POSTGRES_DB: platebook
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/<major>/.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "platebook", "-d", "platebook"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    # Builds from this checkout. To use the published image instead, replace
+    # `build:` with `image: ghcr.io/taliesin-fios/platebook:latest`.
+    build:
+      context: .
+      dockerfile: server-rs/Dockerfile
+      args:
+        AUTO_BACKUP: "true"
+        PG_MAJOR: "18"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://platebook:${POSTGRES_PASSWORD}@db:5432/platebook
+    ports:
+      - "127.0.0.1:${PLATEBOOK_PORT:-3000}:3000"
+    volumes:
+      - backups:/app/backups
+
+volumes:
+  db-data:
+  backups:

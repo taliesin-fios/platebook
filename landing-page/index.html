@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Platebook: the all-in-one kitchen office for home and personal chefs. Clients, online booking, AI recipe import, session planning, grocery lists, meal-plan PDFs, invoices and profit tracking." />
+  <title>Platebook | The kitchen office for home &amp; personal chefs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --herb:      #5E7F57;
+      --herb-dark: #3A5C32;
+      --terra:     #C56A4A;
+      --ivory:     #FBF8F1;
+      --sage:      #EEF3EA;
+      --olive:     #28302A;
+      --gray:      #6B7280;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--ivory); color: var(--olive); line-height: 1.6; }
+    a { color: inherit; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+    nav { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.95); border-bottom: 1px solid #E5E7EB; }
+    nav .wrap { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
+    .brand { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.25rem; color: var(--herb-dark); text-decoration: none; }
+    .nav-links { display: flex; gap: 16px; align-items: center; font-size: 0.9rem; font-weight: 600; }
+    .nav-links a { text-decoration: none; color: var(--herb-dark); }
+
+    .btn { display: inline-block; padding: 14px 28px; border-radius: 12px; font-weight: 600; text-decoration: none; font-size: 1rem; }
+    .btn-primary { background: var(--herb); color: white; box-shadow: 0 2px 10px rgba(58,92,50,0.25); }
+    .btn-ghost { background: white; color: var(--herb-dark); border: 1px solid #E5E7EB; }
+    .btn-small { padding: 8px 16px; font-size: 0.875rem; border-radius: 10px; }
+
+    .hero { text-align: center; padding: 72px 0 56px; }
+    .hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.15; max-width: 800px; margin: 0 auto; }
+    .hero h1 em { color: var(--herb); font-style: normal; }
+    .hero p { color: var(--gray); font-size: 1.1rem; max-width: 640px; margin: 20px auto 32px; }
+    .hero .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .who { margin-top: 28px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .who span { background: var(--sage); color: var(--herb-dark); font-size: 0.85rem; font-weight: 500; padding: 6px 14px; border-radius: 999px; }
+
+    section { padding: 56px 0; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; font-weight: 600; color: var(--terra); text-align: center; }
+    h2 { font-family: 'Playfair Display', serif; font-size: clamp(1.6rem, 3.5vw, 2.3rem); text-align: center; margin: 8px 0 36px; color: var(--herb-dark); }
+
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+    .card { background: white; border-radius: 14px; padding: 22px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .card .icon { font-size: 1.6rem; }
+    .card h3 { font-size: 1rem; margin: 10px 0 6px; }
+    .card p { color: var(--gray); font-size: 0.9rem; }
+
+    .steps { counter-reset: step; }
+    .steps .card { position: relative; padding-top: 52px; }
+    .steps .card::before { counter-increment: step; content: counter(step); position: absolute; top: 18px; left: 22px; width: 28px; height: 28px; border-radius: 50%; background: var(--sage); color: var(--herb-dark); font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+
+    .split { display: grid; gap: 32px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: center; }
+    .split ul { list-style: none; }
+    .split li { padding: 10px 0 10px 30px; position: relative; border-bottom: 1px solid #ECE8DF; }
+    .split li::before { content: '✓'; position: absolute; left: 0; color: var(--herb); font-weight: 700; }
+    .mock { background: white; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); padding: 22px; }
+    .mock .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #F1EFEA; font-size: 0.9rem; }
+    .mock .row b { color: var(--herb-dark); }
+    .pill { font-size: 0.75rem; padding: 2px 10px; border-radius: 999px; background: var(--sage); color: var(--herb-dark); font-weight: 600; }
+
+    .cta-banner { background: var(--herb-dark); color: white; text-align: center; }
+    .cta-banner h2 { color: white; margin-bottom: 12px; }
+    .cta-banner p { color: #C8DFC4; margin-bottom: 28px; }
+    .cta-banner .btn { background: white; color: var(--herb-dark); }
+
+    footer { text-align: center; padding: 28px 0; font-size: 0.85rem; color: var(--gray); }
+
+    @media (max-width: 520px) {
+      .nav-links .hide-sm { display: none; }
+      .hero { padding-top: 48px; }
+    }
+  </style>
+</head>
+<body>
+  <!--
+    Point the sign-up / sign-in buttons at your deployed app by setting APP_URL
+    below (e.g. "https://app.example.com"). Left empty, links are relative to
+    this page's own domain.
+  -->
+  <nav>
+    <div class="wrap">
+      <a href="#" class="brand">🍳 Platebook</a>
+      <div class="nav-links">
+        <a href="#features" class="hide-sm">Features</a>
+        <a href="#how" class="hide-sm">How it works</a>
+        <a data-app-path="/login" href="/login">Sign in</a>
+        <a data-app-path="/signup" href="/signup" class="btn btn-primary btn-small">Get started</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap">
+      <h1>The all-in-one kitchen office for <em>home &amp; personal chefs</em></h1>
+      <p>
+        Clients, bookings, recipes, menus, grocery lists, meal-plan PDFs and invoices in one app,
+        built for chefs who cook in other people’s kitchens.
+      </p>
+      <div class="ctas">
+        <a data-app-path="/signup" href="/signup" class="btn btn-primary">Create your account</a>
+        <a href="#features" class="btn btn-ghost">See what’s inside</a>
+      </div>
+      <div class="who">
+        <span>🏡 In-home personal chefs</span>
+        <span>🥡 Weekly meal prep</span>
+        <span>🍷 Dinner parties &amp; events</span>
+        <span>🥗 Special-diet cooking</span>
+      </div>
+    </div>
+  </header>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="eyebrow">Features</div>
+      <h2>Everything between “new inquiry” and “invoice paid”</h2>
+      <div class="grid">
+        <div class="card"><div class="icon">📝</div><h3>Your own booking link</h3><p>Clients share household size, allergies, dietary styles, kitchen notes and scheduling before you ever call them.</p></div>
+        <div class="card"><div class="icon">👥</div><h3>Client profiles</h3><p>Every household’s preferences, allergens, equipment and parking notes, one tap away in the kitchen.</p></div>
+        <div class="card"><div class="icon">✨</div><h3>AI recipe import</h3><p>Paste a recipe link or text; ingredients, quantities, times and store sections are filled in for you.</p></div>
+        <div class="card"><div class="icon">🗓️</div><h3>Session planning</h3><p>Pick dishes that fit the time you have. Allergen warnings, feasibility checks and AI menu suggestions built in.</p></div>
+        <div class="card"><div class="icon">🛒</div><h3>Smart grocery lists</h3><p>Ingredients merged and scaled across every dish, sorted by store aisle, checked off from your phone.</p></div>
+        <div class="card"><div class="icon">📄</div><h3>Meal-plan PDFs</h3><p>Branded menus with storage and reheating instructions, emailed to your client in one click.</p></div>
+        <div class="card"><div class="icon">💳</div><h3>Invoices &amp; deposits</h3><p>Invoice straight from a session, track deposits, and see what’s outstanding at a glance.</p></div>
+        <div class="card"><div class="icon">📈</div><h3>Profit tracking</h3><p>Revenue, grocery cost and margin per session and per client, plus CSV export at tax time.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="eyebrow">How it works</div>
+      <h2>Set up in minutes</h2>
+      <div class="grid steps">
+        <div class="card"><h3>Create your account</h3><p>Email and password, nothing else to install.</p></div>
+        <div class="card"><h3>Tell us about your business</h3><p>Services, pricing, deposit and cancellation policy. Optionally start with a library of tested recipes.</p></div>
+        <div class="card"><h3>Share your booking link</h3><p>New clients land in your inbox with everything you need to plan their first session.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split">
+      <div>
+        <div class="eyebrow" style="text-align:left">Made for the work</div>
+        <h2 style="text-align:left;margin-bottom:20px">Built around how personal chefs actually cook</h2>
+        <ul>
+          <li>Plan menus that share ingredients to cut grocery cost and waste</li>
+          <li>Scale any recipe to the household’s serving size</li>
+          <li>Never miss an allergy: flagged on every dish and menu</li>
+          <li>Works on your phone in a client’s kitchen</li>
+          <li>Your clients and data are private to your account, exportable any time</li>
+        </ul>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="row"><b>Thursday · The Patel Family</b><span class="pill">Confirmed</span></div>
+        <div class="row"><span>Lemon herb chicken</span><span>45 min</span></div>
+        <div class="row"><span>Coconut lentil curry</span><span>40 min</span></div>
+        <div class="row"><span>Roasted vegetable orzo</span><span>35 min</span></div>
+        <div class="row"><span>⚠ Tree-nut allergy</span><span>checked</span></div>
+        <div class="row" style="border:0"><span>Margin</span><b>62%</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-banner">
+    <div class="wrap">
+      <h2>Spend less time on admin and more time cooking</h2>
+      <p>Create your account and share your booking link today.</p>
+      <a data-app-path="/signup" href="/signup" class="btn">Get started</a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">© <span id="year"></span> Platebook · <a data-app-path="/login" href="/login">Sign in</a></div>
+  </footer>
+
+  <script>
+    var APP_URL = ''; // e.g. 'https://app.example.com'
+    document.querySelectorAll('[data-app-path]').forEach(function (a) {
+      a.href = APP_URL.replace(/\/$/, '') + a.getAttribute('data-app-path');
+    });
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

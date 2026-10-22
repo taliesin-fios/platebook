@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Database files
+*.db
+*.db-wal
+*.db-shm
+
+# Environment variables (never commit secrets)
+server/.env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# Claude Code local settings (machine-specific, not for version control)
+.claude/settings.local.json
+
+# Backup files — written next to the DB (DB_PATH's directory), so this
+# covers both local dev (repo root) and the old server/backups/ location.
+backups/
+server/backups/
+
+# Maintainer-only Claude Code notes
+CLAUDE.local.md

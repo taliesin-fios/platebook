@@ -1,0 +1,22 @@
+Platebook
+Copyright (c) 2026 taliesin-fios
+https://github.com/taliesin-fios/platebook
+
+Required Notice: Copyright (c) 2026 taliesin-fios (https://github.com/taliesin-fios/platebook)
+Required Notice: Platebook was created by taliesin-fios and is licensed under the PolyForm Shield License 1.0.0. Under that license it may not be used to provide any product or service that competes with Platebook, such as selling it or selling hosted access to it.
+
+Platebook is licensed under the PolyForm Shield License 1.0.0 (see LICENSE).
+Under its Notices section, anyone who gives a copy of any part of this
+software to someone else must also give them the license terms (or their URL)
+and every line above that begins with "Required Notice:". Keep this file with
+every copy, fork or modified version.
+
+Please also keep, as a courtesy and so users can find the original project:
+  - the copyright header at the top of each source file;
+  - the "Powered by Platebook" credit on the public booking pages, the
+    "Made with Platebook" line on generated PDFs, and the credit in
+    Settings → About.
+
+Third-party components keep their own licenses, including the Liberation Sans
+fonts (SIL Open Font License, server-rs/assets/fonts/LICENSE-LiberationSans.txt)
+and the npm and Cargo dependencies listed in the lock files.

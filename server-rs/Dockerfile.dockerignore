@@ -1,0 +1,17 @@
+# Build context for server-rs/Dockerfile is the repository root. BuildKit reads
+# this file (named after the Dockerfile) instead of a root .dockerignore, so the
+# production Node service's build is unaffected.
+#
+# Allow-list: only the client and the Rust crate go into the context. Never
+# send SQLite databases, .env files or build output.
+*
+!client/
+!server-rs/
+client/node_modules
+client/dist
+client/.env*
+server-rs/target
+server-rs/.env
+**/*.db
+**/*.db-*
+**/*.sqlite*

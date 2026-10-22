@@ -1,0 +1,28 @@
+{
+  "name": "chef-app",
+  "version": "1.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "description": "Platebook — Personal Chef Business Management Platform",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "db:setup": "node server-rs/scripts/db-setup.mjs",
+    "dev": "concurrently -n api,web \"npm run server\" \"npm run client\"",
+    "server": "node server-rs/scripts/dev.mjs",
+    "client": "npm --prefix client run dev",
+    "install:all": "npm install && npm --prefix client install && npm --prefix tests/http install && npm --prefix tools/migrate-sqlite install",
+    "build": "npm --prefix client run build && node server-rs/scripts/cargo.mjs build --release",
+    "start": "node server-rs/scripts/dev.mjs --release",
+    "lint": "node scripts/license-headers.mjs && npm --prefix client run lint && node server-rs/scripts/cargo.mjs fmt --check && node server-rs/scripts/cargo.mjs clippy --all-targets -- -D warnings",
+    "lint:fix": "node scripts/license-headers.mjs --fix && npm --prefix client run lint:fix && node server-rs/scripts/cargo.mjs fmt",
+    "test": "npm run test:client && npm run test:server && npm run test:http && npm run test:migrate",
+    "test:client": "npm --prefix client test",
+    "test:server": "node server-rs/scripts/cargo.mjs test",
+    "test:http": "node tests/http/run.mjs",
+    "test:migrate": "npm --prefix tools/migrate-sqlite test && npm --prefix tools/migrate-sqlite run test:e2e"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

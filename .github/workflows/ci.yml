@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  client:
+    name: Client (lint, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: License headers
+        working-directory: .
+        run: node scripts/license-headers.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  rust:
+    name: Rust server (fmt, clippy, test, HTTP suites, data migration)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server-rs
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # SQL is checked at compile time against the committed .sqlx cache;
+      # tests create a fresh database per test on the service container.
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      PARITY_ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server-rs
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+      # cargo test regenerates the client's API types (ts-rs); the committed
+      # copies must match the Rust structs.
+      - name: Generated TypeScript types are up to date
+        working-directory: .
+        run: |
+          if [ -n "$(git status --porcelain -- client/src/types/generated)" ]; then
+            git status --porcelain -- client/src/types/generated
+            echo "::error::client/src/types/generated is stale: run cargo test in server-rs and commit the result"
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Black-box API suites (api.smoke, auth, tenancy) against a fresh server-rs.
+      - name: HTTP suites
+        working-directory: tests/http
+        run: |
+          npm ci
+          npm test
+
+      # SQLite → Postgres migration tool: conversion unit tests, then a legacy
+      # database (recorded from the old Express server) migrated into a fresh
+      # server-rs database, whose GETs must match what Express answered.
+      - name: Data migration tool
+        working-directory: tools/migrate-sqlite
+        run: |
+          npm ci
+          npm test
+          npm run test:e2e

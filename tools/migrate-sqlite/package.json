@@ -1,0 +1,19 @@
+{
+  "name": "chef-migrate-sqlite",
+  "version": "1.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "description": "One-time copy of a legacy Platebook SQLite database into the server-rs Postgres schema",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "migrate": "node migrate-to-postgres.js",
+    "test": "node --test test/convert.test.js",
+    "test:e2e": "node test/e2e.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "pg": "^8.23.1"
+  }
+}

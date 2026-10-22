@@ -1,0 +1,52 @@
+[package]
+name = "chef-server"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+publish = false
+license-file = "../LICENSE"
+description = "Platebook API server"
+
+[dependencies]
+axum = { version = "0.8", features = ["macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "process", "fs"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "limit", "fs", "set-header"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "macros", "migrate", "chrono", "rust_decimal", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+dotenvy = "0.15"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+bcrypt = "0.17"
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+rust_decimal = { version = "1", features = ["serde-float"] }
+uuid = { version = "1", features = ["v4"] }
+cookie = "0.18"
+unicode-normalization = "0.1"
+regex = "1"
+ts-rs = { version = "11", features = ["chrono-impl", "serde-json-impl", "no-serde-warnings"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots", "hostname"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+subtle = "2"
+url = "2"
+typst = "0.15.1"
+typst-layout = "0.15.1"
+typst-pdf = "0.15.1"
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+pdf-extract = "0.12"
+
+# bcrypt at cost 12 takes seconds per hash unoptimized; keep tests fast.
+[profile.dev.package.bcrypt]
+opt-level = 3
+[profile.dev.package.blowfish]
+opt-level = 3

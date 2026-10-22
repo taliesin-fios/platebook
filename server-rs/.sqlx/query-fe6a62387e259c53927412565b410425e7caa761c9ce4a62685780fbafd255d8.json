@@ -1,0 +1,148 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT account_id, business_name, chef_name, phone, email, website, location,\n                  default_session_window, default_serving_size, default_service_fee, logo_base64,\n                  invoice_prefix, deposit_cents, cancellation_hours, payment_methods, booking_terms,\n                  response_time_text, service_types, updated_at,\n                  remind_client, remind_chef, timezone\n           FROM settings WHERE account_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "business_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "chef_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "website",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "location",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "default_session_window",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 8,
+        "name": "default_serving_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "default_service_fee",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "logo_base64",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "invoice_prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "deposit_cents",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "cancellation_hours",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "payment_methods",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "booking_terms",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "response_time_text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "service_types",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 18,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "remind_client",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 20,
+        "name": "remind_chef",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 21,
+        "name": "timezone",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "fe6a62387e259c53927412565b410425e7caa761c9ce4a62685780fbafd255d8"
+}

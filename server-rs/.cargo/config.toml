@@ -1,0 +1,5 @@
+[env]
+# ts-rs: where `cargo test` writes the generated client API types.
+TS_RS_EXPORT_DIR = { value = "../client/src/types/generated", relative = true }
+# Ids and counts fit in a JS number; emit `number`, not `bigint`.
+TS_RS_LARGE_INT = "number"

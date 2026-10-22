@@ -1,0 +1,17 @@
+{
+  "name": "chef-http-tests",
+  "version": "1.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "description": "Black-box HTTP suites (api.smoke, auth, tenancy) against the Rust API server",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "jsonwebtoken": "^9.0.3",
+    "supertest": "^7.2.2"
+  }
+}

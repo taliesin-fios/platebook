@@ -1,0 +1,29 @@
+# Local Postgres for development, for machines without a local install.
+# `npm run db:setup` starts it when no Postgres answers at server-rs/.env's
+# DATABASE_URL (or always, with `npm run db:setup -- --docker`).
+#
+#   docker compose up -d --wait db     # start
+#   docker compose down                # stop (data is kept in the volume)
+#
+# Trust auth, so it listens on 127.0.0.1 only. DATABASE_URL:
+#   postgres://postgres@localhost:5432/chef_dev
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: chef_dev
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:${CHEF_PG_PORT:-5432}:5432"
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/<major>/.
+      - chef-pg:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "chef_dev"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  chef-pg:

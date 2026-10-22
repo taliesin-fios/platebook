@@ -1,0 +1,258 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
+
+//! Port of `server/services/stripeProvider.js`: Stripe Checkout for booking
+//! deposits and the webhook handler. Only used when `PAYMENTS_MODE=stripe`.
+//!
+//! Talks to the Stripe REST API with reqwest (form-encoded, like the official
+//! SDKs) and verifies webhook signatures exactly as `stripe.webhooks.constructEvent`
+//! does: HMAC-SHA256 of `"{t}.{raw body}"` with the endpoint secret, any `v1`
+//! signature may match, 5-minute timestamp tolerance.
+
+use hmac::{Hmac, Mac};
+use serde::Deserialize;
+use sha2::Sha256;
+use subtle::ConstantTimeEq;
+
+use crate::state::AppState;
+
+pub const SIGNATURE_TOLERANCE_SECS: i64 = 300;
+
+#[derive(Debug, thiserror::Error)]
+pub enum StripeError {
+    #[error(
+        "STRIPE_SECRET_KEY is not set. Add it to the environment or switch to PAYMENTS_MODE=manual."
+    )]
+    NotConfigured,
+    #[error("{0}")]
+    Api(String),
+    #[error("{0}")]
+    Transport(String),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CheckoutSession {
+    pub id: String,
+    pub url: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ErrorBody {
+    error: ErrorDetail,
+}
+
+#[derive(Deserialize)]
+struct ErrorDetail {
+    message: String,
+}
+
+/// Inputs for [`create_checkout_session`].
+pub struct CheckoutRequest<'a> {
+    pub account_id: i64,
+    pub intake_id: i64,
+    pub client_name: &'a str,
+    pub client_email: Option<&'a str>,
+    pub fee_cents: i64,
+    pub cancellation_hours: i32,
+}
+
+pub async fn create_checkout_session(
+    state: &AppState,
+    r: CheckoutRequest<'_>,
+) -> Result<CheckoutSession, StripeError> {
+    let key = state
+        .config
+        .stripe_secret_key
+        .as_deref()
+        .ok_or(StripeError::NotConfigured)?;
+    let client_url = &state.config.client_url;
+    let mut form: Vec<(&str, String)> = vec![
+        ("mode", "payment".into()),
+        ("payment_method_types[0]", "card".into()),
+        ("line_items[0][price_data][currency]", "usd".into()),
+        (
+            "line_items[0][price_data][product_data][name]",
+            "Booking Fee".into(),
+        ),
+        (
+            "line_items[0][price_data][product_data][description]",
+            format!(
+                "Holds your spot for {}. Non-refundable if cancelled within {} hours.",
+                r.client_name, r.cancellation_hours
+            ),
+        ),
+        (
+            "line_items[0][price_data][unit_amount]",
+            r.fee_cents.to_string(),
+        ),
+        ("line_items[0][quantity]", "1".into()),
+        ("metadata[account_id]", r.account_id.to_string()),
+        ("metadata[intake_id]", r.intake_id.to_string()),
+        ("metadata[client_name]", r.client_name.to_string()),
+        // payment_intent.* and charge.* events carry the PaymentIntent's
+        // metadata, not the Checkout Session's: without these the webhook
+        // can't find the intake for a failed payment or a refund.
+        (
+            "payment_intent_data[metadata][account_id]",
+            r.account_id.to_string(),
+        ),
+        (
+            "payment_intent_data[metadata][intake_id]",
+            r.intake_id.to_string(),
+        ),
+        (
+            "success_url",
+            format!(
+                "{client_url}/intake/success?intake_id={}&session_id={{CHECKOUT_SESSION_ID}}",
+                r.intake_id
+            ),
+        ),
+        (
+            "cancel_url",
+            format!("{client_url}/intake/{}?cancelled=1", r.intake_id),
+        ),
+    ];
+    if let Some(email) = r.client_email.filter(|e| !e.is_empty()) {
+        form.push(("customer_email", email.to_string()));
+    }
+
+    let res = state
+        .http
+        .post(format!(
+            "{}/v1/checkout/sessions",
+            state.config.stripe_api_base.trim_end_matches('/')
+        ))
+        .bearer_auth(key)
+        .form(&form)
+        .send()
+        .await
+        .map_err(|e| StripeError::Transport(e.to_string()))?;
+    if !res.status().is_success() {
+        let status = res.status();
+        let msg = res
+            .json::<ErrorBody>()
+            .await
+            .map(|b| b.error.message)
+            .unwrap_or_else(|_| format!("Stripe returned HTTP {}", status.as_u16()));
+        return Err(StripeError::Api(msg));
+    }
+    res.json::<CheckoutSession>()
+        .await
+        .map_err(|e| StripeError::Transport(e.to_string()))
+}
+
+/// Why a webhook signature was rejected (the text goes in the 400 body).
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+pub enum SignatureError {
+    #[error("No stripe-signature header value was provided.")]
+    Missing,
+    #[error("Unable to extract timestamp and signatures from header")]
+    Malformed,
+    #[error("No signatures found matching the expected signature for payload.")]
+    NoMatch,
+    #[error("Timestamp outside the tolerance zone")]
+    Expired,
+}
+
+/// The `v1` signature Stripe computes for `payload` at `timestamp`.
+pub fn sign(secret: &str, timestamp: i64, payload: &[u8]) -> String {
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key length");
+    mac.update(timestamp.to_string().as_bytes());
+    mac.update(b".");
+    mac.update(payload);
+    hex::encode(mac.finalize().into_bytes())
+}
+
+/// Verifies a `Stripe-Signature` header against the raw request body.
+pub fn verify_signature(
+    payload: &[u8],
+    header: Option<&str>,
+    secret: &str,
+    now: i64,
+) -> Result<(), SignatureError> {
+    let header = header
+        .filter(|h| !h.is_empty())
+        .ok_or(SignatureError::Missing)?;
+    let mut timestamp: Option<i64> = None;
+    let mut signatures: Vec<&str> = Vec::new();
+    for part in header.split(',') {
+        match part.trim().split_once('=') {
+            Some(("t", v)) => timestamp = v.parse().ok(),
+            Some(("v1", v)) => signatures.push(v),
+            _ => {}
+        }
+    }
+    let timestamp = timestamp.ok_or(SignatureError::Malformed)?;
+    if signatures.is_empty() {
+        return Err(SignatureError::NoMatch);
+    }
+    let expected = sign(secret, timestamp, payload);
+    let matched = signatures
+        .iter()
+        .any(|s| s.len() == expected.len() && bool::from(s.as_bytes().ct_eq(expected.as_bytes())));
+    if !matched {
+        return Err(SignatureError::NoMatch);
+    }
+    if (now - timestamp).abs() > SIGNATURE_TOLERANCE_SECS {
+        return Err(SignatureError::Expired);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SECRET: &str = "whsec_test_secret";
+
+    #[test]
+    fn accepts_a_valid_signature_among_several() {
+        let body = br#"{"id":"evt_1"}"#;
+        let t = 1_800_000_000;
+        let header = format!("t={t},v1=deadbeef,v1={}", sign(SECRET, t, body));
+        assert_eq!(
+            verify_signature(body, Some(&header), SECRET, t + 10),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn rejects_bad_missing_tampered_and_stale() {
+        let body = br#"{"id":"evt_1"}"#;
+        let t = 1_800_000_000;
+        let good = format!("t={t},v1={}", sign(SECRET, t, body));
+        assert_eq!(
+            verify_signature(body, None, SECRET, t),
+            Err(SignatureError::Missing)
+        );
+        assert_eq!(
+            verify_signature(body, Some("v1=abc"), SECRET, t),
+            Err(SignatureError::Malformed)
+        );
+        assert_eq!(
+            verify_signature(b"{\"id\":\"evt_2\"}", Some(&good), SECRET, t),
+            Err(SignatureError::NoMatch)
+        );
+        assert_eq!(
+            verify_signature(body, Some(&good), "whsec_other", t),
+            Err(SignatureError::NoMatch)
+        );
+        assert_eq!(
+            verify_signature(body, Some(&good), SECRET, t + 301),
+            Err(SignatureError::Expired)
+        );
+    }
+
+    #[test]
+    fn accepts_a_header_from_the_official_sdk() {
+        // stripe-node: webhooks.generateTestHeaderString({ payload: '{"id":"evt_1"}',
+        //   secret: 'whsec_test_secret', timestamp: 1800000000 })
+        let header =
+            "t=1800000000,v1=8a6563dbee1eccda632491deb091d19e764aadddcd0ace8d9516599526831c89";
+        assert_eq!(
+            verify_signature(br#"{"id":"evt_1"}"#, Some(header), SECRET, 1_800_000_000),
+            Ok(())
+        );
+    }
+}
