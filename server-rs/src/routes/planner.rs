@@ -14,7 +14,7 @@ use axum::extract::{Query, State};
 use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use regex::Regex;
 use serde::Serialize;
 use sqlx::PgConnection;
@@ -460,10 +460,13 @@ async fn planner_pdf(
         .and_then(|s| s.trim().parse::<f64>().ok())
         .filter(|n| n.is_finite() && *n > 0.0)
         .unwrap_or(4.0);
-    let today = q
+    let today = match q
         .get("date")
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-        .unwrap_or_else(|| Utc::now().date_naive());
+    {
+        Some(d) => d,
+        None => accounts::local_clock(&mut t.tx, t.account.id).await?.today,
+    };
     let res = plan(&mut t.tx, t.account.id, &ids, serving_size).await?;
     let settings = accounts::get_settings(&mut t.tx, t.account.id).await?;
     t.tx.commit().await?;

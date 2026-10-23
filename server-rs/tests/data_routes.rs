@@ -762,6 +762,97 @@ async fn costs_keep_negative_margins_numeric_and_show_invoice_due_dates(pool: Pg
     assert!(rows[0]["invoice_due_date"].is_string());
 }
 
+/// Today's date at a fixed UTC offset (zones without DST only).
+fn today_at(offset_hours: i64) -> chrono::NaiveDate {
+    (chrono::Utc::now() + chrono::Duration::hours(offset_hours)).date_naive()
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn today_month_and_overdue_follow_the_account_time_zone(pool: PgPool) {
+    // UTC+14: its date is ahead of UTC's for most of every day.
+    let c = chef(&pool, "Island Kitchen").await;
+    let set = c
+        .put("/api/settings", json!({ "timezone": "Pacific/Kiritimati" }))
+        .await;
+    assert_eq!(set.status, StatusCode::OK, "{}", set.body);
+    let today = today_at(14);
+    let yesterday = today - chrono::Duration::days(1);
+    let client = c.post("/api/clients", json!({ "name": "Kai" })).await;
+    let cid = client.body["id"].as_i64().unwrap();
+
+    // New invoices are issued on the local date.
+    let inv = c
+        .post(&format!("/api/invoices/from-client/{cid}"), json!({}))
+        .await;
+    assert_eq!(inv.body["issue_date"], today.to_string());
+    assert_eq!(
+        inv.body["due_date"],
+        (today + chrono::Duration::days(14)).to_string()
+    );
+
+    // Overdue: due yesterday (local) counts, due today doesn't.
+    for (due, status) in [(yesterday, "sent"), (today, "sent")] {
+        c.post(
+            "/api/invoices",
+            json!({ "client_id": cid, "status": status, "due_date": due.to_string(),
+                    "line_items": [{ "quantity": 1, "unit_price": 10 }] }),
+        )
+        .await;
+    }
+    let s = c.get("/api/costs/summary").await.body;
+    assert_eq!(s["overdue_count"], 1, "{s}");
+
+    // "Upcoming" without the client's date uses the local date too.
+    for date in [yesterday, today] {
+        c.post(
+            "/api/sessions",
+            json!({ "client_id": cid, "session_date": date.to_string(), "service_fee": 100 }),
+        )
+        .await;
+    }
+    let upcoming = c.get("/api/sessions?upcoming=true").await.body;
+    let dates: Vec<&str> = upcoming
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["session_date"].as_str().unwrap())
+        .collect();
+    assert_eq!(dates, vec![today.to_string()]);
+
+    // UTC-12: a session dated "today" there is this month's revenue locally,
+    // and an invoice due today isn't overdue yet.
+    let west = chef(&pool, "Far West Kitchen").await;
+    west.put("/api/settings", json!({ "timezone": "Etc/GMT+12" }))
+        .await;
+    let w_today = today_at(-12);
+    let wc = west.post("/api/clients", json!({ "name": "Wes" })).await;
+    let wid = wc.body["id"].as_i64().unwrap();
+    west.post(
+        "/api/sessions",
+        json!({ "client_id": wid, "session_date": w_today.to_string(), "service_fee": 80 }),
+    )
+    .await;
+    west.post(
+        "/api/invoices",
+        json!({ "client_id": wid, "status": "sent", "due_date": w_today.to_string() }),
+    )
+    .await;
+    let ws = west.get("/api/costs/summary").await.body;
+    assert_eq!(ws["total_revenue"], 80.0, "{ws}");
+    assert_eq!(ws["overdue_count"], 0, "{ws}");
+
+    // No time zone set: UTC, as before.
+    let plain = chef(&pool, "Plain Kitchen").await;
+    let pc = plain.post("/api/clients", json!({ "name": "Pat" })).await;
+    let pinv = plain
+        .post(
+            &format!("/api/invoices/from-client/{}", pc.body["id"]),
+            json!({}),
+        )
+        .await;
+    assert_eq!(pinv.body["issue_date"], today_at(0).to_string());
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn invoices_numbering_totals_and_status_rules(pool: PgPool) {
     let c = chef(&pool, "Invoice Kitchen").await;

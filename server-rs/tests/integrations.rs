@@ -1060,3 +1060,90 @@ async fn security_headers_and_spa_serving(pool: PgPool) {
     );
     std::fs::remove_dir_all(&dist).unwrap();
 }
+
+/// A failed meal-plan or invoice email is remembered (so the screens can say
+/// so after the chef leaves) and cleared by the next successful send. SMTP
+/// here points at a closed local port: the connection is refused, retried
+/// once, and the request fails.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn failed_emails_are_recorded_and_cleared_by_a_retry(pool: PgPool) {
+    let mut broken = common::test_config();
+    broken.email_host = "127.0.0.1".into();
+    broken.email_port = 1;
+    broken.email_user = "chef".into();
+    broken.email_pass = "secret".into();
+    let (broken_app, _) = app_with(pool.clone(), broken);
+    let (working_app, state) = app_with(pool.clone(), common::test_config());
+
+    let c = Chef::new(&pool, &broken_app, "Flaky Mail Kitchen").await;
+    let client = c
+        .post(
+            "/api/clients",
+            json!({ "name": "Jo", "email": "jo@example.com" }),
+        )
+        .await;
+    let s = c
+        .post(
+            "/api/sessions",
+            json!({ "client_id": client.body["id"], "session_date": "2026-03-15" }),
+        )
+        .await;
+    let session_url = format!("/api/sessions/{}", s.body["id"]);
+    let inv = c
+        .post(
+            &format!("/api/invoices/from-client/{}", client.body["id"]),
+            json!({}),
+        )
+        .await;
+    let invoice_url = format!("/api/invoices/{}", inv.body["id"]);
+
+    // Fresh rows: nothing sent, nothing failed.
+    let fresh = c.get(&session_url).await.body;
+    assert!(fresh["pdf_email_failed_at"].is_null() && fresh["pdf_emailed_at"].is_null());
+    let fresh = c.get(&invoice_url).await.body;
+    assert!(fresh["email_failed_at"].is_null() && fresh["emailed_at"].is_null());
+
+    // SMTP down: both sends fail, and the failure is recorded.
+    let failed = c.post(&format!("{session_url}/email-pdf"), json!({})).await;
+    assert_eq!(
+        failed.status,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "{}",
+        failed.body
+    );
+    let failed = c.post(&format!("{invoice_url}/email"), json!({})).await;
+    assert_eq!(
+        failed.status,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "{}",
+        failed.body
+    );
+    let session = c.get(&session_url).await.body;
+    assert!(session["pdf_email_failed_at"].is_string(), "{session}");
+    assert!(session["pdf_emailed_at"].is_null());
+    let invoice = c.get(&invoice_url).await.body;
+    assert!(invoice["email_failed_at"].is_string(), "{invoice}");
+    assert!(invoice["emailed_at"].is_null());
+    assert_eq!(
+        invoice["status"], "draft",
+        "a failed send doesn't mark it sent"
+    );
+
+    // Retry with mail working: the failure clears and the send is recorded.
+    let c = Chef {
+        app: working_app,
+        ..c
+    };
+    let ok = c.post(&format!("{session_url}/email-pdf"), json!({})).await;
+    assert_eq!(ok.status, StatusCode::OK, "{}", ok.body);
+    let ok = c.post(&format!("{invoice_url}/email"), json!({})).await;
+    assert_eq!(ok.status, StatusCode::OK, "{}", ok.body);
+    let session = c.get(&session_url).await.body;
+    assert!(session["pdf_email_failed_at"].is_null(), "{session}");
+    assert!(session["pdf_emailed_at"].is_string());
+    let invoice = c.get(&invoice_url).await.body;
+    assert!(invoice["email_failed_at"].is_null(), "{invoice}");
+    assert!(invoice["emailed_at"].is_string());
+    assert_eq!(invoice["status"], "sent");
+    assert_eq!(state.outbox.messages().len(), 2);
+}
