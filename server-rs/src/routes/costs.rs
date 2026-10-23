@@ -24,6 +24,7 @@ use serde::Serialize;
 use sqlx::FromRow;
 use ts_rs::TS;
 
+use crate::accounts;
 use crate::db::Tenant;
 use crate::error::DbResult;
 use crate::rate_limit::AccountLimits;
@@ -38,7 +39,6 @@ pub fn router() -> Router<AppState> {
 }
 
 /// UTC "today", like SQLite `date('now')`.
-pub const UTC_TODAY: &str = "(now() AT TIME ZONE 'UTC')::date";
 
 #[derive(FromRow)]
 struct Mtd {
@@ -114,45 +114,50 @@ pub fn pct(margin: Decimal, revenue: Decimal) -> Decimal {
 
 async fn summary(mut t: Tenant) -> DbResult<Json<CostSummary>> {
     let id = t.account.id;
-    let mtd = sqlx::query_as::<_, Mtd>(&format!(
+    let clock = accounts::local_clock(&mut t.tx, id).await?;
+    let mtd = sqlx::query_as::<_, Mtd>(
         "SELECT COALESCE(SUM(service_fee), 0)                   AS total_revenue,
                 COALESCE(SUM(ingredient_cost), 0)               AS total_cost,
                 COALESCE(SUM(service_fee - ingredient_cost), 0) AS gross_margin,
                 COUNT(*)                                        AS session_count
          FROM sessions
          WHERE account_id = $1
-           AND date_trunc('month', session_date) = date_trunc('month', {UTC_TODAY})
-           AND status != 'Cancelled'"
-    ))
+           AND date_trunc('month', session_date::timestamp) = date_trunc('month', $2::timestamp)
+           AND status != 'Cancelled'",
+    )
     .bind(id)
+    .bind(clock.today)
     .fetch_one(&mut *t.tx)
     .await?;
-    let ytd = sqlx::query_as::<_, Ytd>(&format!(
+    let ytd = sqlx::query_as::<_, Ytd>(
         "SELECT COALESCE(SUM(service_fee), 0)                   AS ytd_revenue,
                 COALESCE(SUM(ingredient_cost), 0)               AS ytd_cost,
                 COALESCE(SUM(service_fee - ingredient_cost), 0) AS ytd_margin,
                 COUNT(*)                                        AS ytd_sessions
          FROM sessions
          WHERE account_id = $1
-           AND date_trunc('year', session_date) = date_trunc('year', {UTC_TODAY})
-           AND status != 'Cancelled'"
-    ))
+           AND date_trunc('year', session_date::timestamp) = date_trunc('year', $2::timestamp)
+           AND status != 'Cancelled'",
+    )
     .bind(id)
+    .bind(clock.today)
     .fetch_one(&mut *t.tx)
     .await?;
-    let ar = sqlx::query_as::<_, Ar>(&format!(
+    let ar = sqlx::query_as::<_, Ar>(
         "SELECT
            COALESCE(SUM(CASE WHEN status != 'void' THEN total ELSE 0 END), 0)           AS invoiced_total,
            COALESCE(SUM(CASE WHEN status = 'paid' THEN total ELSE 0 END), 0)            AS collected_total,
            COALESCE(SUM(CASE WHEN status IN ('draft','sent') THEN total ELSE 0 END), 0) AS outstanding_total,
-           COUNT(CASE WHEN status IN ('draft','sent') AND due_date < {UTC_TODAY} THEN 1 END) AS overdue_count,
+           COUNT(CASE WHEN status IN ('draft','sent') AND due_date < $2 THEN 1 END) AS overdue_count,
            COALESCE(SUM(CASE WHEN status = 'paid'
-             AND date_trunc('month', paid_at AT TIME ZONE 'UTC') = date_trunc('month', now() AT TIME ZONE 'UTC')
+             AND date_trunc('month', paid_at AT TIME ZONE $3) = date_trunc('month', $2::timestamp)
              THEN total ELSE 0 END), 0) AS collected_mtd
          FROM invoices
-         WHERE account_id = $1 AND deleted_at IS NULL"
-    ))
+         WHERE account_id = $1 AND deleted_at IS NULL",
+    )
     .bind(id)
+    .bind(clock.today)
+    .bind(&clock.tz)
     .fetch_one(&mut *t.tx)
     .await?;
     t.tx.commit().await?;
@@ -220,6 +225,7 @@ async fn sessions(
         .filter(|d| *d != 0)
         .unwrap_or(30)
         .clamp(1, 365);
+    let today = accounts::local_clock(&mut t.tx, t.account.id).await?.today;
     let rows = sqlx::query_as::<_, CostSession>(&format!(
         "SELECT s.id, s.session_date, s.status, s.service_fee, s.ingredient_cost,
                 (s.service_fee - s.ingredient_cost) AS gross_margin,
@@ -235,12 +241,13 @@ async fn sessions(
            ORDER BY i.id DESC LIMIT 1
          ) inv ON true
          WHERE s.account_id = $1
-           AND s.session_date >= {UTC_TODAY} - $2::int
+           AND s.session_date >= $3::date - $2::int
            AND s.status != 'Cancelled'
          ORDER BY s.session_date DESC NULLS LAST"
     ))
     .bind(t.account.id)
     .bind(days as i32)
+    .bind(today)
     .fetch_all(&mut *t.tx)
     .await?;
     t.tx.commit().await?;

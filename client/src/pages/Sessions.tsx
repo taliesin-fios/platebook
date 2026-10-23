@@ -57,12 +57,20 @@ export default function Sessions() {
     try {
       // The server renders and attaches the meal plan itself.
       const res = await fetch(`/api/sessions/${s.id}/email-pdf`, { method: 'POST' });
-      const data: EmailSentResponse & { error?: string } = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to send');
+      const data: EmailSentResponse & { error?: string; code?: string } = await res.json();
+      if (!res.ok) {
+        // The server records a failed send (not a missing address)
+        if (data.code !== 'NO_EMAIL') {
+          setSessions(prev => prev.map(x =>
+            x.id === s.id ? { ...x, pdf_email_failed_at: new Date().toISOString() } : x
+          ));
+        }
+        throw new Error(data.error || 'Failed to send');
+      }
 
       // Update badge in local list state immediately
       setSessions(prev => prev.map(x =>
-        x.id === s.id ? { ...x, pdf_emailed_at: new Date().toISOString() } : x
+        x.id === s.id ? { ...x, pdf_emailed_at: new Date().toISOString(), pdf_email_failed_at: null } : x
       ));
       show(`Meal plan sent to ${data.sent_to}`, 'success', 4000);
     } catch (err) {
@@ -152,8 +160,12 @@ export default function Sessions() {
               {(s.margin_pct || 0).toFixed(0)}% margin
             </span>
           )}
-          {/* Email sent badge */}
-          {s.pdf_emailed_at && (
+          {/* Email failed / sent badge */}
+          {s.pdf_email_failed_at ? (
+            <span className="text-red-600 font-medium ml-auto" title="The last meal-plan email failed. Open the session to try again.">
+              ⚠ Email failed {formatSentDate(s.pdf_email_failed_at)}
+            </span>
+          ) : s.pdf_emailed_at && (
             <span className="flex items-center gap-1 text-green-dark font-medium ml-auto">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>

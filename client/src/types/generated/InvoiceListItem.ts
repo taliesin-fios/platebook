@@ -4,4 +4,8 @@ import type { InvoiceStatus } from "./InvoiceStatus";
 /**
  * GET /api/invoices row.
  */
-export type InvoiceListItem = { id: number, invoice_number: string | null, status: InvoiceStatus, issue_date: string | null, due_date: string | null, client_name: string | null, total: number, paid_at: string | null, created_at: string, client_id: number | null, session_id: number | null, client_name_ref: string | null, };
+export type InvoiceListItem = { id: number, invoice_number: string | null, status: InvoiceStatus, issue_date: string | null, due_date: string | null, client_name: string | null, total: number, paid_at: string | null, created_at: string, client_id: number | null, session_id: number | null, client_name_ref: string | null, 
+/**
+ * Last failed email of this invoice (cleared by a successful one).
+ */
+email_failed_at: string | null, };

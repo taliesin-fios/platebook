@@ -151,11 +151,41 @@ pub async fn send(state: &AppState, email: OutgoingEmail) -> Result<(), EmailErr
     }
     .map_err(|e| EmailError::Build(e.to_string()))?;
 
-    transport(config)?
-        .send(message)
-        .await
-        .map_err(|e| EmailError::Smtp(e.to_string()))?;
+    // One retry after RETRY_DELAY for transient failures (4xx, timeouts,
+    // dropped connections). A permanent rejection (5xx) fails straight away.
+    let transport = transport(config)?;
+    retry_once(
+        RETRY_DELAY,
+        |e: &lettre::transport::smtp::Error| !e.is_permanent(),
+        || transport.send(message.clone()),
+    )
+    .await
+    .map_err(|e| EmailError::Smtp(e.to_string()))?;
     Ok(())
+}
+
+/// Pause before the single retry of a failed SMTP send.
+pub const RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Runs `attempt`; if it fails with an error `retryable` accepts, waits
+/// `delay` and runs it once more, returning that second result.
+async fn retry_once<T, E, F, Fut>(
+    delay: std::time::Duration,
+    retryable: impl Fn(&E) -> bool,
+    mut attempt: F,
+) -> Result<T, E>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, E>>,
+{
+    match attempt().await {
+        Err(e) if retryable(&e) => {
+            tracing::warn!("email send failed; retrying once");
+            tokio::time::sleep(delay).await;
+            attempt().await
+        }
+        result => result,
+    }
 }
 
 /// Verifies SMTP credentials at startup so misconfiguration fails loudly.
@@ -972,6 +1002,46 @@ pub async fn send_password_reset(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn retries_a_retryable_failure_once() {
+        let calls = Cell::new(0);
+        let attempt = || {
+            calls.set(calls.get() + 1);
+            let n = calls.get();
+            async move { if n == 1 { Err("transient") } else { Ok(n) } }
+        };
+        assert_eq!(retry_once(Duration::ZERO, |_| true, attempt).await, Ok(2));
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[tokio::test]
+    async fn gives_up_after_the_second_failure_and_skips_permanent_ones() {
+        let calls = Cell::new(0);
+        let always_fail = || {
+            calls.set(calls.get() + 1);
+            async { Err::<(), _>("down") }
+        };
+        assert_eq!(
+            retry_once(Duration::ZERO, |_| true, always_fail).await,
+            Err("down")
+        );
+        assert_eq!(calls.get(), 2, "one retry, not more");
+
+        calls.set(0);
+        let permanent = || {
+            calls.set(calls.get() + 1);
+            async { Err::<(), _>("550 no such user") }
+        };
+        assert!(
+            retry_once(Duration::ZERO, |_| false, permanent)
+                .await
+                .is_err()
+        );
+        assert_eq!(calls.get(), 1, "permanent errors aren't retried");
+    }
 
     #[test]
     fn escapes_html() {

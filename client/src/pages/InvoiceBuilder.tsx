@@ -6,6 +6,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router';
 import { format } from 'date-fns';
 import { localDateStrOffset, localTodayStr, parseLocalDate } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
+import EmailFailedBanner from '../components/EmailFailedBanner';
 import { useToast } from '../components/Toast';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
@@ -43,7 +44,7 @@ interface InvoiceForm {
 
 type Preset = { description: string; unit_price: number };
 
-type ApiResult<T> = T & { error?: string };
+type ApiResult<T> = T & { error?: string; code?: string };
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,8 @@ export default function InvoiceBuilder() {
   const [emailing,    setEmailing]    = useState(false);
   const [showPresets, setShowPresets] = useState(false);
   const [logoBase64,  setLogoBase64]  = useState<string | null>(null);
+  // Last failed email (server-recorded; not part of the editable form)
+  const [emailFailedAt, setEmailFailedAt] = useState<string | null>(null);
   const [savedKey,    setSavedKey]    = useState('');
   const presetsRef = useRef<HTMLDivElement>(null);
   const createdFromRef = useRef<string | null>(null); // StrictMode runs effects twice: POST once per source
@@ -215,6 +218,7 @@ export default function InvoiceBuilder() {
       .then((inv: ApiResult<Invoice>) => {
         if (inv.error) { show('Invoice not found', 'error'); navigate('/invoices'); return; }
         const loaded = invToForm(inv);
+        setEmailFailedAt(inv.email_failed_at);
         setForm(loaded);
         setSavedKey(formKey(loaded));
       })
@@ -345,7 +349,12 @@ export default function InvoiceBuilder() {
       // The server renders and attaches the saved invoice itself.
       const r = await fetch(`/api/invoices/${id}/email`, { method: 'POST' });
       const data: ApiResult<EmailSentResponse> = await r.json();
-      if (!r.ok) { show(data.error || 'Failed to send invoice', 'error'); return; }
+      if (!r.ok) {
+        if (data.code !== 'NO_EMAIL') setEmailFailedAt(new Date().toISOString());
+        show(data.error || 'Failed to send invoice', 'error');
+        return;
+      }
+      setEmailFailedAt(null);
       show(`Invoice sent to ${data.sent_to}`, 'success');
       // Reflect status change (draft → sent) in form
       if (form.status === 'draft') setForm(f => ({ ...f, status: 'sent' }));
@@ -380,6 +389,7 @@ export default function InvoiceBuilder() {
           </span>
         }
       />
+      <EmailFailedBanner what="invoice" failedAt={emailFailedAt} onRetry={handleEmail} retrying={emailing} />
 
       </div>{/* end invoice-no-print (page header) */}
 

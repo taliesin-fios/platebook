@@ -35,7 +35,7 @@ use sqlx::{FromRow, PgConnection, Postgres, QueryBuilder};
 use ts_rs::TS;
 
 use crate::accounts;
-use crate::db::Tenant;
+use crate::db::{Tenant, begin_tenant};
 use crate::email;
 use crate::error::{AppError, BareResult, DbResult};
 use crate::js;
@@ -43,7 +43,7 @@ use crate::models::{RecipeRow, SUCCESS, SessionRow, Success};
 use crate::money;
 use crate::ownership::{Scoped, owned, owned_ids};
 use crate::pdf::{self, Template, docs};
-use crate::routes::costs::{MARGIN_PCT_SQL, UTC_TODAY, pct};
+use crate::routes::costs::{MARGIN_PCT_SQL, pct};
 use crate::routes::{JsonBody, body_id, parse_id};
 use crate::serde_util::{json_array, json_text};
 use crate::state::AppState;
@@ -298,7 +298,7 @@ async fn list(
     }
     let upcoming = q.get("upcoming").map(String::as_str) == Some("true");
     // The client sends its own local YYYY-MM-DD so "upcoming" doesn't drop
-    // today's session in the evening; fall back to the UTC date.
+    // today's session in the evening; else the account's local date.
     let client_today = q
         .get("today")
         .filter(|d| DATE_RE.is_match(d))
@@ -325,14 +325,11 @@ async fn list(
             .push_bind(parse_id(c).unwrap_or(-1));
     }
     if upcoming {
-        match client_today {
-            Some(d) => {
-                qb.push(" AND s.session_date >= ").push_bind(d);
-            }
-            None => {
-                qb.push(format!(" AND s.session_date >= {UTC_TODAY}"));
-            }
-        }
+        let today = match client_today {
+            Some(d) => d,
+            None => accounts::local_clock(&mut t.tx, t.account.id).await?.today,
+        };
+        qb.push(" AND s.session_date >= ").push_bind(today);
         qb.push(" AND s.status NOT IN ('Cancelled', 'Completed')");
     }
     qb.push(" GROUP BY s.id, c.id ORDER BY s.session_date ");
@@ -832,16 +829,19 @@ async fn email_pdf(
     // The attachment is always rendered here: emailing bytes from the request
     // would let any account mail arbitrary files to any address.
     let settings = accounts::get_settings(&mut t.tx, t.account.id).await?;
+    let account_id = t.account.id;
+    // Don't hold the transaction across rendering and SMTP (which may retry).
+    t.tx.commit().await?;
     let pdf = pdf::render_blocking(
         Template::MealPlan,
         docs::meal_plan(&session, &settings),
         vec![],
     )
     .await?;
-    email::send_meal_plan_pdf(
+    let sent = email::send_meal_plan_pdf(
         &state,
         email::MealPlan {
-            account_id: t.account.id,
+            account_id,
             client_name: &name,
             client_email: &to,
             session_date: session.session.session_date,
@@ -849,17 +849,26 @@ async fn email_pdf(
             serving_size: session.session.serving_size,
         },
     )
-    .await
-    .map_err(|e| {
+    .await;
+
+    // Remember the outcome, so the session page can show a failure (and offer
+    // a retry) after the chef has left it.
+    let mut tx = begin_tenant(&state.pool, account_id).await?;
+    sqlx::query(if sent.is_ok() {
+        "UPDATE sessions SET pdf_emailed_at = now(), pdf_email_failed_at = NULL
+          WHERE id = $1 AND account_id = $2"
+    } else {
+        "UPDATE sessions SET pdf_email_failed_at = now() WHERE id = $1 AND account_id = $2"
+    })
+    .bind(id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    sent.map_err(|e| {
         tracing::error!(error = %e, "[sessions] email-pdf");
         AppError::internal_bare(e)
     })?;
-
-    sqlx::query("UPDATE sessions SET pdf_emailed_at = now() WHERE id = $1")
-        .bind(id)
-        .execute(&mut *t.tx)
-        .await?;
-    t.tx.commit().await?;
     Ok(Json(EmailSentResponse {
         success: true,
         sent_to: to,

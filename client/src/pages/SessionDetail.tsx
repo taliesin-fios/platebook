@@ -6,6 +6,7 @@ import { useParams, useNavigate } from 'react-router';
 import { format, addDays } from 'date-fns';
 import { parseLocalDate, fmtSessionDate, fmtUtcTimestamp, localTodayStr } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
+import EmailFailedBanner from '../components/EmailFailedBanner';
 import ConfirmModal from '../components/ConfirmModal';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
@@ -174,11 +175,14 @@ export default function SessionDetail() {
     try {
       // The server renders and attaches the meal plan itself.
       const result = await apiCall<EmailSentResponse>(`/api/sessions/${id}/email-pdf`, 'POST');
+      // Mirror what the server recorded (sent, failure cleared)
+      setSession(prev => prev && ({ ...prev, pdf_emailed_at: new Date().toISOString(), pdf_email_failed_at: null }));
       show(`Meal plan sent to ${result.sent_to}`, 'success', 4000);
     } catch (err) {
       if (errorMessage(err)?.includes('NO_EMAIL') || errorMessage(err)?.includes('no email')) {
         show('No email on file for this client', 'error', 4000);
       } else {
+        setSession(prev => prev && ({ ...prev, pdf_email_failed_at: new Date().toISOString() }));
         show(errorMessage(err) || 'Could not send email — check server email settings', 'error', 5000);
       }
     } finally {
@@ -389,6 +393,9 @@ export default function SessionDetail() {
           </span>
         }
       />
+
+      <EmailFailedBanner what="meal plan" failedAt={session.pdf_email_failed_at}
+        onRetry={handleEmailPDF} retrying={emailing} />
 
       {/* Stat row */}
       <div className="grid grid-cols-4 gap-0 bg-white border-b border-gray-100">
