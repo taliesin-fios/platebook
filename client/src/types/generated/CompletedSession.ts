@@ -14,4 +14,8 @@ repeat_every_weeks: number | null,
 /**
  * The session this one was booked from by a repeat.
  */
-repeat_of: number | null, client_reminder_sent_at: string | null, chef_reminder_sent_at: string | null, };
+repeat_of: number | null, client_reminder_sent_at: string | null, chef_reminder_sent_at: string | null, 
+/**
+ * Last failed meal-plan email; cleared by a successful one.
+ */
+pdf_email_failed_at: string | null, };

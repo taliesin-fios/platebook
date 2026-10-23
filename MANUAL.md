@@ -461,7 +461,7 @@ Platebook can email a reminder about 24 hours before each **Pending** or **Confi
 
 - **Remind clients:** the client gets the date, time and menu. If they reply, it comes to your business email. Clients without an email address are skipped.
 - **Send me a prep sheet:** you get the client's address, parking notes, phone number, allergens (highlighted) and the menu, with a link to the session. It goes to your business email, or your login email if you haven't set one.
-- **Your time zone:** session times are read in this zone. Turning a reminder on fills it in from your device; change it there if you need to. A session without a time (or with a time that isn't like `14:30`) is treated as 9:00 AM.
+- **Your time zone:** session times are read in this zone, and it also sets what counts as "today" for this month's totals, overdue invoices and new invoice dates. Turning a reminder on fills it in from your device; you can also pick it yourself. A session without a time (or with a time that isn't like `14:30`) is treated as 9:00 AM.
 
 Each reminder goes out once. If you change a session's date or time after its reminder went out, a new reminder is sent for the new time. Cancelled and completed sessions never get one. The session page shows when the reminder was sent.
 
@@ -529,6 +529,8 @@ There are two PDFs you can generate for each session:
 - Download from: Session Detail → Overview tab → "Download Grocery PDF"
 
 Both PDFs automatically use your business name from Settings.
+
+**If an email doesn't go through:** when emailing a meal plan (✉️ Email on a session) or an invoice fails, Platebook tries once more automatically. If that fails too, the session or invoice page shows a red banner with the time and a **Try again** button, and the Sessions and Invoices lists show "⚠ Email failed" until a send succeeds. A missing client email address isn't counted as a failure: add one to the client (or invoice) and send again.
 
 ---
 
