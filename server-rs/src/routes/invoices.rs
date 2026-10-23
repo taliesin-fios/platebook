@@ -31,7 +31,7 @@ use sqlx::{FromRow, PgConnection, Postgres, QueryBuilder};
 use ts_rs::TS;
 
 use crate::accounts::{self, Settings};
-use crate::db::Tenant;
+use crate::db::{Tenant, begin_tenant};
 use crate::email;
 use crate::error::{AppError, BareResult};
 use crate::js;
@@ -100,6 +100,10 @@ pub struct InvoiceListItem {
     #[ts(type = "number | null")]
     pub session_id: Option<i64>,
     pub client_name_ref: Option<String>,
+    /// Last failed email of this invoice (cleared by a successful one).
+    #[serde(serialize_with = "crate::serde_util::ts::serialize")]
+    #[ts(type = "string | null")]
+    pub email_failed_at: Option<chrono::DateTime<Utc>>,
 }
 
 fn invoice_not_found() -> AppError {
@@ -357,9 +361,13 @@ fn add_hours_to_time(time: &str, hours: Decimal) -> String {
     format!("{:02}:{:02}", (total / 60) % 24, total % 60)
 }
 
-fn today_and_due() -> (NaiveDate, NaiveDate) {
-    let today = Utc::now().date_naive();
-    (today, today + Duration::days(14))
+/// Issue date (the account's local today) and due date, 14 days later.
+async fn today_and_due(
+    conn: &mut PgConnection,
+    account_id: i64,
+) -> Result<(NaiveDate, NaiveDate), sqlx::Error> {
+    let today = accounts::local_clock(conn, account_id).await?.today;
+    Ok((today, today + Duration::days(14)))
 }
 
 async fn list(
@@ -369,7 +377,7 @@ async fn list(
     let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
         "SELECT i.id, i.invoice_number, i.status, i.issue_date, i.due_date,
                 i.client_name, i.total, i.paid_at, i.created_at, i.client_id, i.session_id,
-                c.name AS client_name_ref
+                c.name AS client_name_ref, i.email_failed_at
          FROM invoices i LEFT JOIN clients c ON c.id = i.client_id
          WHERE i.deleted_at IS NULL AND i.account_id = ",
     );
@@ -556,7 +564,7 @@ async fn from_session(
     let containers = dishes.len() as i32 * serving;
     // Store trip if the chef shops
     let store_trip = matches!(s.grocery_handling.as_deref(), Some("Chef shops" | "Split"));
-    let (today, due) = today_and_due();
+    let (today, due) = today_and_due(&mut t.tx, account).await?;
     let fee = s.service_fee.unwrap_or_default();
     let grocery = s.ingredient_cost.unwrap_or_default();
     let totals = compute_totals(fee, grocery, Decimal::ZERO);
@@ -643,7 +651,7 @@ async fn from_client(
     .await?
     .ok_or_else(not_found)?;
     let settings = accounts::get_settings(&mut t.tx, account).await?;
-    let (today, due) = today_and_due();
+    let (today, due) = today_and_due(&mut t.tx, account).await?;
     let fee = settings.default_service_fee.unwrap_or_default();
     let totals = compute_totals(fee, Decimal::ZERO, Decimal::ZERO);
     let number = next_invoice_number(&mut t.tx, account).await?;
@@ -795,12 +803,15 @@ async fn email_invoice(
     };
     // Rendered here, never taken from the request (see sessions::email_pdf).
     let settings = accounts::get_settings(&mut t.tx, t.account.id).await?;
+    let account_id = t.account.id;
+    // Don't hold the transaction across rendering and SMTP (which may retry).
+    t.tx.commit().await?;
     let (data, logo) = docs::invoice(&inv, &settings);
     let pdf = pdf::render_blocking(Template::Invoice, data, logo.into_iter().collect()).await?;
-    email::send_invoice_pdf(
+    let sent = email::send_invoice_pdf(
         &state,
         email::InvoiceMail {
-            account_id: t.account.id,
+            account_id,
             client_name: inv.invoice.client_name.as_deref().unwrap_or("there"),
             client_email: &to,
             invoice_number: inv.invoice.invoice_number.as_deref(),
@@ -810,19 +821,28 @@ async fn email_invoice(
             business_name: inv.invoice.business_name.as_deref(),
         },
     )
-    .await
-    .map_err(|e| {
+    .await;
+
+    // Remember the outcome (see sessions::email_pdf). A successful send also
+    // advances draft → sent, as before.
+    let mut tx = begin_tenant(&state.pool, account_id).await?;
+    sqlx::query(if sent.is_ok() {
+        "UPDATE invoices SET emailed_at = now(), email_failed_at = NULL,
+                status = CASE WHEN status = 'draft' THEN 'sent' ELSE status END,
+                updated_at = CASE WHEN status = 'draft' THEN now() ELSE updated_at END
+          WHERE id = $1 AND account_id = $2"
+    } else {
+        "UPDATE invoices SET email_failed_at = now() WHERE id = $1 AND account_id = $2"
+    })
+    .bind(id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    sent.map_err(|e| {
         tracing::error!(error = %e, "[invoices] email");
         AppError::internal_bare(e)
     })?;
-    // Advance draft → sent automatically
-    if inv.invoice.status.as_deref() == Some("draft") {
-        sqlx::query("UPDATE invoices SET status = 'sent', updated_at = now() WHERE id = $1")
-            .bind(id)
-            .execute(&mut *t.tx)
-            .await?;
-    }
-    t.tx.commit().await?;
     Ok(Json(EmailSentResponse {
         success: true,
         sent_to: to,

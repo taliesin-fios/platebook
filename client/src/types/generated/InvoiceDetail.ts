@@ -5,4 +5,12 @@ import type { InvoiceStatus } from "./InvoiceStatus";
 /**
  * GET /api/invoices/:id and every invoice mutation.
  */
-export type InvoiceDetail = { client_name_ref: string | null, client_email_ref: string | null, line_items: Array<InvoiceLineItem>, id: number, account_id: number, client_id: number | null, session_id: number | null, invoice_number: string | null, status: InvoiceStatus, issue_date: string | null, due_date: string | null, client_name: string | null, client_email: string | null, client_address: string | null, client_phone: string | null, business_name: string | null, chef_name: string | null, chef_email: string | null, chef_phone: string | null, message: string | null, internal_notes: string | null, subtotal: number, tax_rate: number, tax_amount: number, total: number, paid_at: string | null, session_date_label: string | null, recipes_summary: string[], session_start_time: string | null, session_end_time: string | null, total_hours: number, container_count: number | null, store_trip: 0 | 1, grocery_total: number, service_fee: number, deleted_at: string | null, created_at: string, updated_at: string, };
+export type InvoiceDetail = { client_name_ref: string | null, client_email_ref: string | null, line_items: Array<InvoiceLineItem>, id: number, account_id: number, client_id: number | null, session_id: number | null, invoice_number: string | null, status: InvoiceStatus, issue_date: string | null, due_date: string | null, client_name: string | null, client_email: string | null, client_address: string | null, client_phone: string | null, business_name: string | null, chef_name: string | null, chef_email: string | null, chef_phone: string | null, message: string | null, internal_notes: string | null, subtotal: number, tax_rate: number, tax_amount: number, total: number, paid_at: string | null, session_date_label: string | null, recipes_summary: string[], session_start_time: string | null, session_end_time: string | null, total_hours: number, container_count: number | null, store_trip: 0 | 1, grocery_total: number, service_fee: number, deleted_at: string | null, created_at: string, updated_at: string, 
+/**
+ * Last successful invoice email.
+ */
+emailed_at: string | null, 
+/**
+ * Last failed invoice email; cleared by a successful one.
+ */
+email_failed_at: string | null, };

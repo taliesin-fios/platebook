@@ -5,6 +5,27 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Email failures are remembered.** If emailing a meal plan or an invoice fails, the session and invoice pages show a banner with **Try again**, and the Sessions and Invoices lists show "⚠ Email failed", even after you leave the page. The next successful send clears it. Invoices also record when they were last emailed.
+- **Migration `0007_email_failures.sql`:** `sessions.pdf_email_failed_at`, `invoices.emailed_at` and `invoices.email_failed_at` (nullable, additive).
+
+### Changed
+- Every outgoing email gets one automatic retry, 2 seconds after a transient SMTP failure (a 4xx reply, a timeout or a dropped connection). Permanent rejections (5xx) aren't retried.
+- Emailing a meal plan or invoice no longer holds a database transaction open while the PDF renders and the email sends.
+
+### Fixed
+- "Today", "this month" and "overdue" follow the account's time zone (`settings.timezone`, set in Settings → Reminder Emails; UTC when unset), not the server's UTC date. In US evenings the month-to-date totals no longer roll over early, invoices no longer turn overdue a day early, and new invoices are no longer dated tomorrow. This covers:
+  - the cost summary: MTD, YTD, overdue count and collected this month
+  - the `/api/costs/sessions` window
+  - the `upcoming` sessions fallback
+  - new-invoice issue and due dates
+  - the planner PDF's default date
+- New helper `accounts::local_clock`. An unknown stored zone falls back to UTC. No migration.
+
+---
+
 ## [0.1.0] — First public release
 
 Platebook is a self-hostable kitchen office for home and personal chefs, released under the PolyForm Shield License 1.0.0.

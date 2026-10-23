@@ -189,6 +189,10 @@ pub struct SessionRow {
     #[serde(serialize_with = "ts::serialize")]
     #[ts(type = "string | null")]
     pub chef_reminder_sent_at: Option<DateTime<Utc>>,
+    /// Last failed meal-plan email; cleared by a successful one.
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub pdf_email_failed_at: Option<DateTime<Utc>>,
 }
 
 /// One `session_templates` row with `recipe_ids` parsed.
@@ -378,6 +382,14 @@ pub struct InvoiceRow {
     #[serde(serialize_with = "ts::serialize")]
     #[ts(type = "string")]
     pub updated_at: Option<DateTime<Utc>>,
+    /// Last successful invoice email.
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub emailed_at: Option<DateTime<Utc>>,
+    /// Last failed invoice email; cleared by a successful one.
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub email_failed_at: Option<DateTime<Utc>>,
 }
 
 /// One `invoice_line_items` row.

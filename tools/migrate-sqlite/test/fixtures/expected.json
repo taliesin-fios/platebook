@@ -190,6 +190,7 @@
             "repeat_of": null,
             "client_reminder_sent_at": null,
             "chef_reminder_sent_at": null,
+            "pdf_email_failed_at": null,
             "account_id": 1,
             "dish_count": 1
           },
@@ -212,6 +213,7 @@
             "repeat_of": null,
             "client_reminder_sent_at": null,
             "chef_reminder_sent_at": null,
+            "pdf_email_failed_at": null,
             "account_id": 1,
             "dish_count": 1
           }
@@ -954,6 +956,7 @@
           "repeat_of": null,
           "client_reminder_sent_at": null,
           "chef_reminder_sent_at": null,
+          "pdf_email_failed_at": null,
           "account_id": 1,
           "client_name": "Alpha Kitchen Client",
           "client_email": "jo@example.com",
@@ -981,6 +984,7 @@
           "repeat_of": null,
           "client_reminder_sent_at": null,
           "chef_reminder_sent_at": null,
+          "pdf_email_failed_at": null,
           "account_id": 1,
           "client_name": "Alpha Kitchen Client",
           "client_email": "jo@example.com",
@@ -1009,6 +1013,7 @@
         "repeat_of": null,
         "client_reminder_sent_at": null,
         "chef_reminder_sent_at": null,
+        "pdf_email_failed_at": null,
         "account_id": 1,
         "client_name": "Alpha Kitchen Client",
         "client_email": "jo@example.com",
@@ -1085,7 +1090,8 @@
           "created_at": "2026-10-16 19:09:37",
           "client_id": 2,
           "session_id": null,
-          "client_name_ref": "Alpha Kitchen Client"
+          "client_name_ref": "Alpha Kitchen Client",
+          "email_failed_at": null
         },
         {
           "id": 2,
@@ -1099,7 +1105,8 @@
           "created_at": "2026-10-16 19:09:37",
           "client_id": 2,
           "session_id": 1,
-          "client_name_ref": "Alpha Kitchen Client"
+          "client_name_ref": "Alpha Kitchen Client",
+          "email_failed_at": null
         }
       ],
       "/api/invoices/1": {
@@ -1126,6 +1133,8 @@
         "paid_at": "2026-10-16T19:09:37.640Z",
         "created_at": "2026-10-16 19:09:37",
         "updated_at": "2026-10-16 19:09:37",
+        "emailed_at": null,
+        "email_failed_at": null,
         "client_phone": "",
         "session_date_label": "",
         "recipes_summary": [],
@@ -3222,6 +3231,7 @@
             "repeat_of": null,
             "client_reminder_sent_at": null,
             "chef_reminder_sent_at": null,
+            "pdf_email_failed_at": null,
             "account_id": 1
           },
           {
@@ -3243,6 +3253,7 @@
             "repeat_of": null,
             "client_reminder_sent_at": null,
             "chef_reminder_sent_at": null,
+            "pdf_email_failed_at": null,
             "account_id": 1
           }
         ],
@@ -3395,6 +3406,8 @@
             "paid_at": "2026-10-16T19:09:37.640Z",
             "created_at": "2026-10-16 19:09:37",
             "updated_at": "2026-10-16 19:09:37",
+            "emailed_at": null,
+            "email_failed_at": null,
             "client_phone": "",
             "session_date_label": "",
             "recipes_summary": "[]",
@@ -3432,6 +3445,8 @@
             "paid_at": null,
             "created_at": "2026-10-16 19:09:37",
             "updated_at": "2026-10-16 19:09:37",
+            "emailed_at": null,
+            "email_failed_at": null,
             "client_phone": "",
             "session_date_label": "Tuesday, November 3, 2026",
             "recipes_summary": "[\"Alpha Kitchen Stew\"]",
@@ -3616,6 +3631,7 @@
             "repeat_of": null,
             "client_reminder_sent_at": null,
             "chef_reminder_sent_at": null,
+            "pdf_email_failed_at": null,
             "account_id": 2,
             "dish_count": 1
           }
@@ -3708,6 +3724,7 @@
           "repeat_of": null,
           "client_reminder_sent_at": null,
           "chef_reminder_sent_at": null,
+          "pdf_email_failed_at": null,
           "account_id": 2,
           "client_name": "Beta Bistro Client",
           "client_email": "jo@example.com",
@@ -3736,6 +3753,7 @@
         "repeat_of": null,
         "client_reminder_sent_at": null,
         "chef_reminder_sent_at": null,
+        "pdf_email_failed_at": null,
         "account_id": 2,
         "client_name": "Beta Bistro Client",
         "client_email": "jo@example.com",
@@ -3968,6 +3986,7 @@
             "repeat_of": null,
             "client_reminder_sent_at": null,
             "chef_reminder_sent_at": null,
+            "pdf_email_failed_at": null,
             "account_id": 2
           }
         ],

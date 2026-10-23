@@ -355,7 +355,7 @@ export default function Settings() {
                   .map(z => <option key={z} value={z}>{z}</option>)}
                 {TIMEZONE_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
               </select>
-              <p className="text-xs text-gray-400 mt-1">Session times are read in this zone.</p>
+              <p className="text-xs text-gray-400 mt-1">Used for reminder times, and for "today", this month's totals and overdue invoices.</p>
             </div>
           </div>
         </div>

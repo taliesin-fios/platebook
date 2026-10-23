@@ -4,7 +4,7 @@
 //! Port of `server/utils/accounts.js`: booking slugs, account creation and
 //! per-account settings lookups.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::PgConnection;
@@ -169,6 +169,34 @@ pub async fn get_account_by_slug(
     )
     .fetch_optional(conn)
     .await
+}
+
+/// An account's clock: its time zone (`settings.timezone` if Postgres knows
+/// it, else UTC) and the current date there.
+#[derive(Debug, Clone)]
+pub struct LocalClock {
+    pub tz: String,
+    pub today: NaiveDate,
+}
+
+/// The account's [`LocalClock`]. "Today", "this month" and "overdue" use it,
+/// so they don't flip at UTC midnight (the evening in the Americas).
+pub async fn local_clock(
+    conn: &mut PgConnection,
+    account_id: i64,
+) -> Result<LocalClock, sqlx::Error> {
+    let (tz, today): (String, NaiveDate) = sqlx::query_as(
+        "SELECT z.tz, (now() AT TIME ZONE z.tz)::date
+         FROM (SELECT COALESCE(
+                 (SELECT n.name FROM settings st
+                  JOIN pg_timezone_names n ON n.name = st.timezone
+                  WHERE st.account_id = $1),
+                 'UTC') AS tz) z",
+    )
+    .bind(account_id)
+    .fetch_one(conn)
+    .await?;
+    Ok(LocalClock { tz, today })
 }
 
 /// One account's settings row (`SELECT * FROM settings`).

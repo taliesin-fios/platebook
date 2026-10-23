@@ -56,6 +56,7 @@ Every chef business is a row in `accounts`. In server-rs the auth middleware put
 
 - Money: use the helpers in `server-rs/src/money.rs` (`rust_decimal`, integer-cents math). `deposit_cents` is stored in cents; other fee columns are dollars (`NUMERIC(12,2)`).
 - Postgres types vs JSON: booleans serialize as `0`/`1` (`serde_util::bool_as_int`), `DATE` as `YYYY-MM-DD`, `*_at` timestamps as `YYYY-MM-DD HH:MM:SS` UTC.
+- Dates (server): "today" / "this month" / "overdue" use the account's clock, `accounts::local_clock` (its `settings.timezone`, else UTC), never the server's UTC date.
 - Dates (client): `YYYY-MM-DD` fields go through `parseLocalDate` / `fmtSessionDate` in `client/src/utils/dateUtils.ts`, and `*_at` timestamps through `fmtUtcTimestamp`. `parseISO` is lint-banned outside `dateUtils.ts` because of past timezone off-by-one bugs.
 - Errors: handlers return `AppError`; internal errors go through `error::err_msg` (hides details when `NODE_ENV=production`), never the raw error text. JSON errors are `{ "error", "code" }`.
 - Branding: the product name is `APP_NAME` / `APP_TAGLINE` in `client/src/constants.ts`. Each chef's business name, logo and booking policy come from their settings. Don't hardcode any business name, price, deposit or policy text.
