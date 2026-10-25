@@ -8,6 +8,8 @@
 //!                                   for pre-account /intake/new links)
 //!   GET  /api/intake/:id?token=   — read with the HMAC edit token
 //!   PUT  /api/intake/:id?token=   — client-editable fields via the token
+//!   (token holders get a [`ClientIntakeView`]: never the chef's notes,
+//!   payment details or email bookkeeping)
 //! Chef (owning account; GET/PUT above also accept the owner's session):
 //!   GET    /api/intake            — list this account's intakes
 //!   POST   /api/intake/:id/convert — intake → client record
@@ -21,8 +23,10 @@ use std::collections::HashMap;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{PgConnection, Postgres, QueryBuilder};
@@ -38,6 +42,7 @@ use crate::models::{Client, IntakeRow, SUCCESS, Success};
 use crate::rate_limit::ClientIp;
 use crate::routes::settings::EMAIL_RE;
 use crate::routes::{JsonBody, json_or_empty, parse_id};
+use crate::serde_util::{json_array, opt_bool_as_int, ts};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -57,6 +62,106 @@ pub struct IntakeWithSlug {
     #[ts(flatten)]
     pub intake: IntakeRow,
     pub chef_slug: Option<String>,
+}
+
+/// GET and PUT /api/intake/:id with the client's edit token: what they filled
+/// in on the booking form and where their booking stands. Never the chef's
+/// internal or payment notes, Stripe ids, conversion or email bookkeeping.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct ClientIntakeView {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub name: String,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub address: Option<String>,
+    pub household_type: Option<String>,
+    pub adults: Option<i32>,
+    pub children: Option<i32>,
+    pub preferred_serving_size: Option<i32>,
+    #[serde(serialize_with = "json_array::serialize")]
+    #[ts(type = "string[]")]
+    pub allergens: Option<Value>,
+    #[serde(serialize_with = "json_array::serialize")]
+    #[ts(type = "string[]")]
+    pub dietary_styles: Option<Value>,
+    #[serde(serialize_with = "json_array::serialize")]
+    #[ts(type = "string[]")]
+    pub liked_proteins: Option<Value>,
+    pub disliked_foods: Option<String>,
+    pub spice_tolerance: Option<String>,
+    pub cuisine_preferences: Option<String>,
+    pub preferred_day: Option<String>,
+    pub preferred_time: Option<String>,
+    pub scheduling_notes: Option<String>,
+    pub kitchen_notes: Option<String>,
+    #[serde(serialize_with = "opt_bool_as_int::serialize")]
+    #[ts(type = "0 | 1 | null")]
+    pub client_containers: Option<bool>,
+    pub grocery_handling: Option<String>,
+    pub number_of_meals: Option<i32>,
+    pub notes_for_chef: Option<String>,
+    #[serde(serialize_with = "opt_bool_as_int::serialize")]
+    #[ts(type = "0 | 1")]
+    pub terms_accepted: Option<bool>,
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub terms_accepted_at: Option<DateTime<Utc>>,
+    #[ts(as = "crate::api_types::IntakeStatus")]
+    pub status: Option<String>,
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string")]
+    pub created_at: Option<DateTime<Utc>>,
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string")]
+    pub updated_at: Option<DateTime<Utc>>,
+    pub chef_slug: Option<String>,
+}
+
+impl From<IntakeWithSlug> for ClientIntakeView {
+    fn from(w: IntakeWithSlug) -> Self {
+        let i = w.intake;
+        ClientIntakeView {
+            id: i.id,
+            name: i.name,
+            email: i.email,
+            phone: i.phone,
+            address: i.address,
+            household_type: i.household_type,
+            adults: i.adults,
+            children: i.children,
+            preferred_serving_size: i.preferred_serving_size,
+            allergens: i.allergens,
+            dietary_styles: i.dietary_styles,
+            liked_proteins: i.liked_proteins,
+            disliked_foods: i.disliked_foods,
+            spice_tolerance: i.spice_tolerance,
+            cuisine_preferences: i.cuisine_preferences,
+            preferred_day: i.preferred_day,
+            preferred_time: i.preferred_time,
+            scheduling_notes: i.scheduling_notes,
+            kitchen_notes: i.kitchen_notes,
+            client_containers: i.client_containers,
+            grocery_handling: i.grocery_handling,
+            number_of_meals: i.number_of_meals,
+            notes_for_chef: i.notes_for_chef,
+            terms_accepted: i.terms_accepted,
+            terms_accepted_at: i.terms_accepted_at,
+            status: i.status,
+            created_at: i.created_at,
+            updated_at: i.updated_at,
+            chef_slug: w.chef_slug,
+        }
+    }
+}
+
+/// The owning chef gets the whole intake; a token holder the client's view.
+fn for_role(role: &Role, intake: IntakeWithSlug) -> Response {
+    match role {
+        Role::Chef => Json(intake).into_response(),
+        Role::Client => Json(ClientIntakeView::from(intake)).into_response(),
+    }
 }
 
 /// POST /api/intake (201).
@@ -335,8 +440,8 @@ async fn read(
     who: MaybeAccount,
     Path(raw_id): Path<String>,
     Query(q): Query<HashMap<String, String>>,
-) -> BareResult<Json<IntakeWithSlug>> {
-    let (_, owner) = access(&state, &who, &raw_id, &q).await?;
+) -> BareResult<Response> {
+    let (role, owner) = access(&state, &who, &raw_id, &q).await?;
     let (Some(owner), Some(id)) = (owner, parse_id(&raw_id)) else {
         return Err(intake_not_found().into());
     };
@@ -344,7 +449,7 @@ async fn read(
     let row = fetch(&mut tx, id).await?.ok_or_else(intake_not_found)?;
     let res = with_slug(&mut tx, row).await?;
     tx.commit().await?;
-    Ok(Json(res))
+    Ok(for_role(&role, res))
 }
 
 const CLIENT_TEXT: &[&str] = &[
@@ -386,7 +491,7 @@ async fn update(
     Path(raw_id): Path<String>,
     Query(q): Query<HashMap<String, String>>,
     body: JsonBody,
-) -> BareResult<Json<IntakeWithSlug>> {
+) -> BareResult<Response> {
     let (role, owner) = access(&state, &who, &raw_id, &q).await?;
     let (Some(owner), Some(id)) = (owner, parse_id(&raw_id)) else {
         return Err(intake_not_found().into());
@@ -428,7 +533,7 @@ async fn update(
     let row = fetch(&mut tx, id).await?.ok_or_else(intake_not_found)?;
     let res = with_slug(&mut tx, row).await?;
     tx.commit().await?;
-    Ok(Json(res))
+    Ok(for_role(&role, res))
 }
 
 /// The client row as returned by convert: arrays taken from the intake.

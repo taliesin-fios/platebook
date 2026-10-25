@@ -7,6 +7,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- **A client's booking link no longer shows the chef's private notes.** The link a client gets to review or update their booking request (`/intake/:id?token=…`) returned the whole intake record, including the chef's **Internal Notes** (labelled "not visible to client"), payment notes and Stripe ids. Clients now get only what they filled in, plus their booking status (`ClientIntakeView`). The chef's own view is unchanged. If you wrote anything sensitive in Internal Notes, a client with their link could have seen it before this fix.
+
 ---
 
 ## [0.1.1] — 2026-10-25
