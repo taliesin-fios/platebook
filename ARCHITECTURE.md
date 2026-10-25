@@ -131,7 +131,9 @@ The client `AuthGate` (App.tsx) sends signed-out visitors to `/welcome` (or `/lo
 1. Client visits /book/<slug> (public; legacy /intake/new = account #1)
 2. POST /api/intake { slug, … } — stored under that chef's account; emails chef + client
 3. Server returns { id, edit_token } — HMAC-signed, 30-day expiry
-4. Client can edit via /intake/:id?token=... (PUT /api/intake/:id — token verified server-side)
+4. Client can edit via /intake/:id?token=... (PUT /api/intake/:id — token verified server-side).
+   Token holders get `ClientIntakeView` (their answers and booking status), never the
+   chef's internal/payment notes, Stripe ids or bookkeeping; the owning chef gets the full row.
 5. Chef reviews in IntakeAdmin → converts to Client record if accepted
 ```
 

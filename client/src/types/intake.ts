@@ -3,6 +3,7 @@
 
 // Generated from server-rs (models.rs, routes/intake.rs, payments.rs, the
 // status unions in api_types.rs); regenerate with `cargo test` in server-rs.
+import type { ClientIntakeView } from './generated/ClientIntakeView';
 import type { Intake } from './generated/Intake';
 import type { IntakeConverted } from './generated/IntakeConverted';
 import type { IntakeStatus } from './generated/IntakeStatus';
@@ -15,8 +16,11 @@ export type { IntakeStatus } from './generated/IntakeStatus';
 export type { PaymentStatus } from './generated/PaymentStatus';
 export type { PaymentStatusResponse } from './generated/PaymentStatusResponse';
 
-/** GET and PUT /api/intake/:id. */
+/** GET and PUT /api/intake/:id as the owning chef. */
 export type IntakeDetail = IntakeWithSlug;
+
+/** GET and PUT /api/intake/:id?token= (the client's edit link): no chef-only fields. */
+export type ClientIntakeDetail = ClientIntakeView;
 
 /** POST /api/intake (public booking form submission). */
 export type IntakeSubmitResponse = IntakeSubmitted;
