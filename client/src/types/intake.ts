@@ -15,6 +15,8 @@ export type { Intake } from './generated/Intake';
 export type { IntakeStatus } from './generated/IntakeStatus';
 export type { PaymentStatus } from './generated/PaymentStatus';
 export type { PaymentStatusResponse } from './generated/PaymentStatusResponse';
+/** GET /api/intake/:id/payments (the intake's payment timeline). */
+export type { PaymentEventItem } from './generated/PaymentEventItem';
 
 /** GET and PUT /api/intake/:id as the owning chef. */
 export type IntakeDetail = IntakeWithSlug;

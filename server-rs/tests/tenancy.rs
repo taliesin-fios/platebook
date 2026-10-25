@@ -231,6 +231,16 @@ async fn b_gets_404_for_every_id_of_a(pool: PgPool) {
         ),
         ("DELETE", format!("/api/intake/{}", i.intake), json!(null)),
         (
+            "POST",
+            format!("/api/intake/{}/restore", i.intake),
+            json!({}),
+        ),
+        (
+            "GET",
+            format!("/api/intake/{}/payments", i.intake),
+            json!(null),
+        ),
+        (
             "GET",
             format!("/api/payments/status/{}", i.intake),
             json!(null),
