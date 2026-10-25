@@ -10,16 +10,15 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| 1 | Release the email-reliability and account time-zone fixes (see `CHANGELOG.md`) to self-hosters: align the app and package versions, tag `v0.1.1`, publish the image. | S | In progress |
-| 2 | Small doc fixes (the default branch is `main`). | S | In progress |
+| 1 | Release the email-reliability and account time-zone fixes (see `CHANGELOG.md`) to self-hosters: align the app and package versions, tag `v0.1.1`, publish the image. | S | Merged; tag and image pending |
+| 2 | Small doc fixes (the default branch is `main`). | S | Done |
 
 ## Next: v0.2, nothing fails silently, nothing is lost
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| 1 | **Alerts for failed booking emails** | M | Today the booking confirmation to a client and the new-booking alert to the chef are retried once, then only logged. Remember the failure on the intake and show it with **Try again**, the same way meal-plan and invoice emails already work. Likely a small additive migration. |
-| 2 | **Soft-delete intakes and add a payment timeline** | M | Deleting an intake removes it for good, along with that lead's history. Keep it instead and hide it, and show `payment_events` as a timeline on the intake page. Write down the deletion rule for each table in `ARCHITECTURE.md` (invoices soft-delete, recipes and clients are deactivated, templates are hard-deleted). Additive migration. |
-| 3 | Dashboard: a month-to-date revenue trend arrow | S | Polish. |
+| 1 | **Soft-delete intakes and add a payment timeline** | M | Deleting an intake removes it for good, along with that lead's history. Keep it instead and hide it, and show `payment_events` as a timeline on the intake page. Write down the deletion rule for each table in `ARCHITECTURE.md` (invoices soft-delete, recipes and clients are deactivated, templates are hard-deleted). Additive migration. |
+| 2 | Dashboard: a month-to-date revenue trend arrow | S | Polish. |
 
 ## Then: v0.3, payments end to end
 
@@ -43,5 +42,6 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 ## Done
 
+- **v0.2 (unreleased):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation.
 - **v0.1.1 (unreleased):** failed meal-plan and invoice emails are remembered and shown with **Try again**, every email gets one automatic retry, and "today", "this month" and "overdue" follow the account's time zone.
 - **v0.1.0:** session reminder emails, recurring sessions, time-aware calendar conflicts, a real "this week" dashboard stat, a share/print/copy grocery list, and consistent margin colors.
