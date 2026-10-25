@@ -327,6 +327,10 @@ pub struct IntakeRow {
     #[serde(serialize_with = "ts::serialize")]
     #[ts(type = "string | null")]
     pub chef_alert_failed_at: Option<DateTime<Utc>>,
+    /// Soft-deleted: hidden from the inbox and every action, kept for history.
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// One `invoices` row with `recipes_summary` parsed.

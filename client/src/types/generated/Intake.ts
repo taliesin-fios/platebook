@@ -17,4 +17,8 @@ confirmation_email_failed_at: string | null,
 /**
  * The new-booking alert to the chef failed (it is only sent once).
  */
-chef_alert_failed_at: string | null, };
+chef_alert_failed_at: string | null, 
+/**
+ * Soft-deleted: hidden from the inbox and every action, kept for history.
+ */
+deleted_at: string | null, };

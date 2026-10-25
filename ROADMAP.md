@@ -17,8 +17,7 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| 1 | **Soft-delete intakes and add a payment timeline** | M | Deleting an intake removes it for good, along with that lead's history. Keep it instead and hide it, and show `payment_events` as a timeline on the intake page. Write down the deletion rule for each table in `ARCHITECTURE.md` (invoices soft-delete, recipes and clients are deactivated, templates are hard-deleted). Additive migration. |
-| 2 | Dashboard: a month-to-date revenue trend arrow | S | Polish. |
+| 1 | Dashboard: a month-to-date revenue trend arrow | S | Polish. |
 
 ## Then: v0.3, payments end to end
 
@@ -42,6 +41,6 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 ## Done
 
-- **v0.2 (unreleased):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation.
+- **v0.2 (unreleased):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation. A client's booking link no longer exposes the chef's private notes. Inquiries can be deleted and restored without losing their history, and each shows its payment history. The deletion rule for every table is in `ARCHITECTURE.md`.
 - **v0.1.1 (unreleased):** failed meal-plan and invoice emails are remembered and shown with **Try again**, every email gets one automatic retry, and "today", "this month" and "overdue" follow the account's time zone.
 - **v0.1.0:** session reminder emails, recurring sessions, time-aware calendar conflicts, a real "this week" dashboard stat, a share/print/copy grocery list, and consistent margin colors.

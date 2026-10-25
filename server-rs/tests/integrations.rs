@@ -801,11 +801,18 @@ async fn stripe_checkout_and_signed_webhooks(pool: PgPool) {
         "payment_pending"
     );
 
+    // The chef deleted the inquiry before the client paid: the payment
+    // restores it, so the money doesn't land on a hidden intake.
+    assert_eq!(
+        c.delete(&format!("/api/intake/{id}")).await.status,
+        StatusCode::OK
+    );
     let ok = send_webhook(&app, &event, WHSEC).await;
     assert_eq!(ok.body, json!({ "received": true }));
     let paid = c.get(&format!("/api/payments/status/{id}")).await.body;
     assert_eq!(paid["payment_status"], "paid");
     assert_eq!(paid["status"], "deposit_paid");
+    assert!(c.get(&format!("/api/intake/{id}")).await.body["deleted_at"].is_null());
     let replay = send_webhook(&app, &event, WHSEC).await;
     assert_eq!(
         replay.body,
@@ -824,6 +831,15 @@ async fn stripe_checkout_and_signed_webhooks(pool: PgPool) {
         c.get(&format!("/api/payments/status/{id}")).await.body["payment_status"],
         "refunded"
     );
+    let timeline = c.get(&format!("/api/intake/{id}/payments")).await.body;
+    let labels: Vec<&str> = timeline
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["label"].as_str().unwrap())
+        .collect();
+    assert_eq!(labels, ["Paid online", "Refunded"], "{timeline}");
+    assert_eq!(timeline[0]["amount"], 60.0);
 
     let (account, amount): (i64, rust_decimal::Decimal) = sqlx::query_as(
         "SELECT account_id, amount FROM payment_events WHERE stripe_event_id = 'evt_1'",
@@ -1324,4 +1340,89 @@ async fn the_clients_edit_link_never_returns_chef_only_fields(pool: PgPool) {
     assert_eq!(chef_read["internal_notes"], "Haggles on price");
     assert_eq!(chef_read["payment_notes"], "Owes $40");
     assert_eq!(chef_read["phone"], "555-0102");
+}
+
+/// Deleting an intake hides it but keeps it and its payment history: it
+/// leaves the inbox, the client's link and every action, shows under
+/// ?deleted=1 and comes back with POST /restore.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn deleted_intakes_are_kept_and_can_be_restored(pool: PgPool) {
+    let app = app(pool.clone());
+    let c = Chef::new(&pool, &app, "Tidy Kitchen").await;
+    let intake = submit_intake(&app, "tidy-kitchen").await;
+    let (id, token) = (&intake["id"], intake["edit_token"].as_str().unwrap());
+    let url = format!("/api/intake/{id}");
+    let client_url = format!("{url}?token={token}");
+    let paid = c
+        .post(
+            "/api/payments/manual/action",
+            json!({ "intake_id": id, "action": "mark_paid_offline", "amount": 50 }),
+        )
+        .await;
+    assert_eq!(paid.status, StatusCode::OK, "{}", paid.body);
+
+    assert_eq!(c.delete(&url).await.status, StatusCode::OK);
+    assert_eq!(
+        c.delete(&url).await.status,
+        StatusCode::NOT_FOUND,
+        "already deleted"
+    );
+
+    // Out of the inbox, into the Deleted list; the chef can still open it.
+    assert_eq!(c.get("/api/intake").await.body, json!([]));
+    let deleted = c.get("/api/intake?deleted=1").await.body;
+    assert_eq!(deleted.as_array().unwrap().len(), 1, "{deleted}");
+    assert!(deleted[0]["deleted_at"].is_string());
+    let chef_view = c.get(&url).await;
+    assert_eq!(chef_view.status, StatusCode::OK);
+    assert!(chef_view.body["deleted_at"].is_string());
+
+    // The history is kept: the event still points at the intake.
+    let timeline = c.get(&format!("{url}/payments")).await.body;
+    assert_eq!(timeline.as_array().unwrap().len(), 1, "{timeline}");
+    assert_eq!(timeline[0]["label"], "Mark Deposit Paid");
+    assert_eq!(timeline[0]["event_type"], "manual.mark_paid_offline");
+    assert_eq!(timeline[0]["amount"], 50.0);
+
+    // Every action and the client's link answer 404 until it's restored.
+    assert_eq!(
+        get(client_url.clone()).send(&app).await.status,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        put_req(client_url.clone(), json!({ "phone": "1" }))
+            .send(&app)
+            .await
+            .status,
+        StatusCode::NOT_FOUND
+    );
+    for res in [
+        c.put(&url, json!({ "internal_notes": "x" })).await,
+        c.post(&format!("{url}/convert"), json!({})).await,
+        c.post(&format!("{url}/resend-confirmation"), json!({}))
+            .await,
+        c.post(
+            "/api/payments/manual/action",
+            json!({ "intake_id": id, "action": "waive" }),
+        )
+        .await,
+    ] {
+        assert_eq!(res.status, StatusCode::NOT_FOUND, "{}", res.body);
+    }
+
+    let restored = c.post(&format!("{url}/restore"), json!({})).await;
+    assert_eq!(restored.status, StatusCode::OK, "{}", restored.body);
+    assert!(restored.body["deleted_at"].is_null());
+    assert_eq!(restored.body["payment_status"], "paid_offline");
+    assert_eq!(
+        c.post(&format!("{url}/restore"), json!({})).await.status,
+        StatusCode::NOT_FOUND,
+        "not deleted"
+    );
+    assert_eq!(c.get("/api/intake").await.body[0]["id"], *id);
+    assert_eq!(
+        get(client_url).send(&app).await.status,
+        StatusCode::OK,
+        "the client's link works again"
+    );
 }
