@@ -224,7 +224,8 @@ async fn checkout(
     }
     let id = body_id(body.get("intake_id")).ok_or_else(intake_not_found)?;
     let intake = sqlx::query_as::<_, IntakeRow>(
-        "SELECT * FROM client_intakes WHERE id = $1 AND account_id = $2 FOR UPDATE",
+        "SELECT * FROM client_intakes
+          WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL FOR UPDATE",
     )
     .bind(id)
     .bind(account)
@@ -376,9 +377,11 @@ async fn handle_event(state: &AppState, event: &Value) -> Result<Value, sqlx::Er
     match event_type {
         "checkout.session.completed" => {
             sqlx::query(
+                // A payment for a deleted intake restores it: money is never hidden.
                 "UPDATE client_intakes
                  SET payment_status = 'paid', status = 'deposit_paid',
-                     stripe_payment_intent = $1, booking_fee_paid_at = now(), updated_at = now()
+                     stripe_payment_intent = $1, booking_fee_paid_at = now(), updated_at = now(),
+                     deleted_at = NULL
                  WHERE id = $2",
             )
             .bind(object.get("payment_intent").and_then(Value::as_str))
@@ -466,7 +469,8 @@ async fn manual_action(mut t: Tenant, body: JsonBody) -> BareResult<Json<IntakeR
     };
     let id = body_id(body.get("intake_id")).ok_or_else(intake_not_found)?;
     let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM client_intakes WHERE id = $1 AND account_id = $2)",
+        "SELECT EXISTS (SELECT 1 FROM client_intakes
+          WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL)",
     )
     .bind(id)
     .bind(account)

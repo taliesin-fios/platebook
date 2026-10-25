@@ -14,7 +14,7 @@ import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { useAppSettings } from '../App';
 import { bookingUrl } from '../constants';
-import type { EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus } from '../types';
+import type { EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus, PaymentEventItem } from '../types';
 
 /** After a payment action the server returns the raw row, with JSON columns as strings. */
 type IntakeState = Intake | IntakeRow;
@@ -79,6 +79,9 @@ function IntakeCard({ intake, onSelect }: { intake: Intake; onSelect: (intake: I
         {intake.chef_alert_failed_at && (
           <span className="text-amber-600 font-medium">⚠ Alert email failed</span>
         )}
+        {intake.deleted_at && (
+          <span className="text-gray-400">🗑 Deleted {fmtUtcTimestamp(intake.deleted_at, 'MMM d', intake.deleted_at)}</span>
+        )}
       </div>
       <p className="text-xs text-gray-300 mt-2">
         {fmtUtcTimestamp(intake.created_at, 'MMM d, yyyy', intake.created_at)}
@@ -93,9 +96,11 @@ interface IntakeDetailProps {
   onStatusChange: (id: Id, status: IntakeStatus, notes: string) => void;
   onConvert: (intakeId: Id, clientId: Id) => void;
   onEmailChange: (id: Id, patch: Pick<Intake, 'confirmation_emailed_at' | 'confirmation_email_failed_at'>) => void;
+  /** Deleted or restored: either way it leaves the list being shown. */
+  onRemoved: (id: Id) => void;
 }
 
-function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConvert, onEmailChange }: IntakeDetailProps) {
+function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConvert, onEmailChange, onRemoved }: IntakeDetailProps) {
   const [intake, setIntake]         = useState<IntakeState>(initialIntake);
   const [status, setStatus]         = useState(initialIntake.status);
   const [notes, setNotes]           = useState(initialIntake.internal_notes || '');
@@ -104,7 +109,18 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [resending, setResending]   = useState(false);
+  const [events, setEvents]         = useState<PaymentEventItem[] | null>(null);
+  const [eventsVersion, setEventsVersion] = useState(0);
   const { show } = useToast();
+  const isDeleted = !!intake.deleted_at;
+
+  useEffect(() => {
+    let alive = true;
+    apiCall<PaymentEventItem[]>(`/api/intake/${intake.id}/payments`)
+      .then(list => { if (alive) setEvents(list); })
+      .catch(() => { if (alive) setEvents([]); });
+    return () => { alive = false; };
+  }, [intake.id, eventsVersion]);
 
   const allergens      = Array.isArray(intake.allergens)      ? intake.allergens      : [];
   const dietaryStyles  = Array.isArray(intake.dietary_styles) ? intake.dietary_styles : [];
@@ -149,6 +165,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
         ? `Payment status → ${PAYMENT_LABELS[data.payment_status].label}`
         : 'Payment status updated', 'success');
       onStatusChange(intake.id, data.status, notes);
+      setEventsVersion(v => v + 1);
     } catch (err) {
       show(errorMessage(err) || 'Could not update payment', 'error');
     } finally {
@@ -179,6 +196,31 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
       } catch { /* keep what's shown */ }
     } finally {
       setResending(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete ${intake.name}'s inquiry? It moves to Deleted, where you can restore it.`)) return;
+    setSaving(true);
+    try {
+      await apiCall(`/api/intake/${intake.id}`, 'DELETE');
+      show('Inquiry deleted', 'success');
+      onRemoved(intake.id);
+    } catch (err) {
+      show(errorMessage(err) || 'Could not delete', 'error');
+      setSaving(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setSaving(true);
+    try {
+      await apiCall(`/api/intake/${intake.id}/restore`, 'POST');
+      show('Inquiry restored', 'success');
+      onRemoved(intake.id);
+    } catch (err) {
+      show(errorMessage(err) || 'Could not restore', 'error');
+      setSaving(false);
     }
   };
 
@@ -216,6 +258,18 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
         </div>
 
         <div className="space-y-4 overflow-y-auto" style={{ maxHeight: '65vh' }}>
+          {isDeleted && (
+            <div role="status" className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm text-gray-600">
+              <span className="flex-1">
+                🗑 Deleted {fmtUtcTimestamp(intake.deleted_at, "MMM d 'at' h:mm a")}. It's kept with its payment history; restore it to work on it again.
+              </span>
+              <button type="button" onClick={handleRestore} disabled={saving}
+                className="shrink-0 rounded-lg bg-white px-3 py-1.5 font-semibold text-navy border border-gray-200 disabled:opacity-60"
+                style={{ minHeight: 'auto' }}>
+                Restore
+              </button>
+            </div>
+          )}
           <EmailFailedBanner what="booking confirmation" failedAt={intake.confirmation_email_failed_at}
             onRetry={resendConfirmation} retrying={resending} className="" />
           {intake.chef_alert_failed_at && (
@@ -331,7 +385,30 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
               </div>
             )}
 
+            {/* Payment history */}
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Payment History</p>
+              {events === null ? (
+                <div className="skeleton h-8 rounded-lg" />
+              ) : events.length === 0 ? (
+                <p className="text-xs text-gray-400">No payment activity yet.</p>
+              ) : (
+                <ol className="space-y-1.5">
+                  {events.map(e => (
+                    <li key={e.id} className="flex items-baseline justify-between gap-3 text-xs">
+                      <span className="text-gray-700">
+                        <span className="font-medium">{e.label}</span>
+                        <span className="text-gray-400"> · {fmtUtcTimestamp(e.created_at, "MMM d, yyyy 'at' h:mm a", e.created_at)}</span>
+                      </span>
+                      {e.amount != null && <span className="shrink-0 font-medium text-navy">${e.amount.toFixed(2)}</span>}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
             {/* Admin actions */}
+            {!isDeleted && (
             <div className="mt-4 pt-3 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Payment Actions</p>
 
@@ -395,9 +472,11 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
                 Reset to Not Requested
               </button>
             </div>
+            )}
           </div>
 
           {/* Admin controls */}
+          {!isDeleted && (
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Admin Actions</p>
             <div className="mb-3">
@@ -435,7 +514,15 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
                 ✓ Converted — Client #{intake.converted_client_id}
               </p>
             )}
+            <button
+              onClick={handleDelete}
+              disabled={saving}
+              className="mt-2 w-full py-3 min-h-[44px] text-xs text-gray-400 hover:text-danger transition-colors disabled:opacity-60"
+            >
+              Delete inquiry
+            </button>
           </div>
+          )}
         </div>
       </div>
     </div>
@@ -455,7 +542,7 @@ export default function IntakeAdmin() {
 
   const load = () => {
     setLoading(true);
-    const qs = filterStatus ? `?status=${filterStatus}` : '';
+    const qs = filterStatus === 'deleted' ? '?deleted=1' : filterStatus ? `?status=${filterStatus}` : '';
     fetch(`/api/intake${qs}`)
       .then(r => r.ok ? r.text() : '[]').then(t => t ? JSON.parse(t) : [])
       .then(d => setIntakes(Array.isArray(d) ? d : []))
@@ -470,6 +557,11 @@ export default function IntakeAdmin() {
     ));
   };
 
+  const handleRemoved = (id: Id) => {
+    setIntakes(prev => prev.filter(i => i.id !== id));
+    setSelected(null);
+  };
+
   const handleEmailChange: IntakeDetailProps['onEmailChange'] = (id, patch) => {
     setIntakes(prev => prev.map(i => (i.id === id ? { ...i, ...patch } : i)));
   };
@@ -481,8 +573,9 @@ export default function IntakeAdmin() {
     navigate(`/clients/${clientId}`);
   };
 
-  const newCount = intakes.filter(i => i.status === 'submitted').length;
-  const emailFailedCount = intakes.filter(i => i.confirmation_email_failed_at || i.chef_alert_failed_at).length;
+  const showingDeleted = filterStatus === 'deleted';
+  const newCount = showingDeleted ? 0 : intakes.filter(i => i.status === 'submitted').length;
+  const emailFailedCount = showingDeleted ? 0 : intakes.filter(i => i.confirmation_email_failed_at || i.chef_alert_failed_at).length;
 
   return (
     <div className="page pb-24">
@@ -510,7 +603,7 @@ export default function IntakeAdmin() {
       {/* Filter bar */}
       <div className="px-4 pt-3 pb-2">
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
-          {[{ value: '', label: 'All' }, ...ALL_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s].label }))].map(f => (
+          {[{ value: '', label: 'All' }, ...ALL_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s].label })), { value: 'deleted', label: 'Deleted' }].map(f => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
@@ -527,6 +620,12 @@ export default function IntakeAdmin() {
         {loading ? (
           <div className="space-y-3">
             {[1,2,3].map(i => <div key={i} className="skeleton h-20 rounded-2xl" />)}
+          </div>
+        ) : intakes.length === 0 && showingDeleted ? (
+          <div className="card text-center py-10">
+            <div className="text-3xl mb-2">🗑</div>
+            <p className="text-gray-500 text-sm font-medium">No deleted inquiries</p>
+            <p className="text-gray-400 text-xs mt-1">Inquiries you delete are kept here and can be restored.</p>
           </div>
         ) : intakes.length === 0 ? (
           <div className="card text-center py-10">
@@ -554,6 +653,7 @@ export default function IntakeAdmin() {
           onStatusChange={handleStatusChange}
           onConvert={handleConvert}
           onEmailChange={handleEmailChange}
+          onRemoved={handleRemoved}
         />
       )}
 
