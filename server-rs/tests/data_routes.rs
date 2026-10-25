@@ -964,3 +964,62 @@ async fn invoices_numbering_totals_and_status_rules(pool: PgPool) {
     assert_eq!(unknown_client.status, StatusCode::BAD_REQUEST);
     assert_eq!(unknown_client.body["error"], "Client not found");
 }
+
+/// The dashboard's month-to-date trend compares with the same days of last
+/// month: the 1st up to today's day number (or last month's end), not the
+/// whole month, in the account's time zone.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn collected_prev_mtd_covers_the_same_days_of_last_month(pool: PgPool) {
+    use chrono::{Datelike, Months, NaiveDate};
+    let c = chef(&pool, "Trend Kitchen").await;
+    let cid = c.post("/api/clients", json!({ "name": "Tess" })).await.body["id"]
+        .as_i64()
+        .unwrap();
+    let today = today_at(0);
+    let this_month = today.with_day(1).unwrap();
+    let prev_start = this_month - Months::new(1);
+    // `checked_sub_months` clamps (Mar 31 → Feb 28/29), like the server.
+    let prev_same_day = today.checked_sub_months(Months::new(1)).unwrap();
+
+    // A paid invoice of `amount` with paid_at at noon UTC on `day`.
+    let paid = |day: NaiveDate, amount: i64| {
+        let (c, pool) = (&c, &pool);
+        async move {
+            let inv = c
+                .post(
+                    "/api/invoices",
+                    json!({ "client_id": cid, "status": "sent",
+                            "line_items": [{ "quantity": 1, "unit_price": amount }] }),
+                )
+                .await;
+            sqlx::query(
+                "UPDATE invoices SET status = 'paid', paid_at = ($2::date + time '12:00') AT TIME ZONE 'UTC'
+                  WHERE id = $1",
+            )
+            .bind(inv.body["id"].as_i64().unwrap())
+            .bind(day)
+            .execute(pool)
+            .await
+            .unwrap();
+        }
+    };
+    paid(prev_start, 100).await; // counts
+    if prev_same_day != prev_start {
+        paid(prev_same_day, 20).await; // counts (the same day number)
+    }
+    let after = prev_same_day + chrono::Duration::days(1);
+    if after < this_month {
+        paid(after, 1000).await; // later in last month: doesn't count
+    }
+    paid(prev_start - chrono::Duration::days(1), 5000).await; // two months ago
+    paid(today, 7).await; // this month: collected_mtd, not the comparison
+
+    let s = c.get("/api/costs/summary").await.body;
+    let expected = if prev_same_day != prev_start {
+        120.0
+    } else {
+        100.0
+    };
+    assert_eq!(s["collected_prev_mtd"], expected, "{s}");
+    assert_eq!(s["collected_mtd"], 7.0, "{s}");
+}

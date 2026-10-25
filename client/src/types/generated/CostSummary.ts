@@ -3,4 +3,9 @@
 /**
  * GET /api/costs/summary.
  */
-export type CostSummary = { total_revenue: number, total_cost: number, gross_margin: number, session_count: number, margin_pct: number, invoiced_total: number, collected_total: number, collected_mtd: number, outstanding_total: number, overdue_count: number, ytd_revenue: number, ytd_cost: number, ytd_margin: number, ytd_margin_pct: number, ytd_sessions: number, };
+export type CostSummary = { total_revenue: number, total_cost: number, gross_margin: number, session_count: number, margin_pct: number, invoiced_total: number, collected_total: number, collected_mtd: number, 
+/**
+ * Collected over the same days of last month (the 1st up to today's day
+ * number, or the month's end), for the dashboard's month-to-date trend.
+ */
+collected_prev_mtd: number, outstanding_total: number, overdue_count: number, ytd_revenue: number, ytd_cost: number, ytd_margin: number, ytd_margin_pct: number, ytd_sessions: number, };

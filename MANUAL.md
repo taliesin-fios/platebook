@@ -212,7 +212,7 @@ Your home screen. Shows at a glance:
 
 - **Sessions this week** — upcoming confirmed/pending sessions
 - **Active Clients** — total households in your roster
-- **Revenue this month** — sum of service fees for completed sessions
+- **Collected (MTD)** — invoices paid so far this month, with what's still outstanding and how many invoices are overdue. An arrow compares it with the same days of last month (the 1st up to today's date): **▲ 12% vs last month** means you've collected 12% more by this point than last month. There's no arrow when nothing was collected over those days last month.
 - **Avg Margin** — average profitability across this month's sessions
 
 **Quick Action buttons:**

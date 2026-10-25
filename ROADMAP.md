@@ -13,13 +13,7 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 | 1 | Release the email-reliability and account time-zone fixes (see `CHANGELOG.md`) to self-hosters: align the app and package versions, tag `v0.1.1`, publish the image. | S | Merged; tag and image pending |
 | 2 | Small doc fixes (the default branch is `main`). | S | Done |
 
-## Next: v0.2, nothing fails silently, nothing is lost
-
-| # | Item | Size | Notes |
-|---|---|---|---|
-| 1 | Dashboard: a month-to-date revenue trend arrow | S | Polish. |
-
-## Then: v0.3, payments end to end
+## Next: v0.3, payments end to end
 
 | # | Item | Size | Notes |
 |---|---|---|---|
@@ -41,6 +35,6 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 ## Done
 
-- **v0.2 (unreleased):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation. A client's booking link no longer exposes the chef's private notes. Inquiries can be deleted and restored without losing their history, and each shows its payment history. The deletion rule for every table is in `ARCHITECTURE.md`.
+- **v0.2 (unreleased):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation. A client's booking link no longer exposes the chef's private notes. Inquiries can be deleted and restored without losing their history, and each shows its payment history. The deletion rule for every table is in `ARCHITECTURE.md`. The dashboard's Collected (MTD) tile shows a trend against the same days of last month.
 - **v0.1.1 (unreleased):** failed meal-plan and invoice emails are remembered and shown with **Try again**, every email gets one automatic retry, and "today", "this month" and "overdue" follow the account's time zone.
 - **v0.1.0:** session reminder emails, recurring sessions, time-aware calendar conflicts, a real "this week" dashboard stat, a share/print/copy grocery list, and consistent margin colors.
