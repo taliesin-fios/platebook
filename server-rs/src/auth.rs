@@ -427,6 +427,10 @@ mod tests {
         assert!(is_public_route(&get, "/api/intake/42"));
         assert!(is_public_route(&put, "/api/intake/42"));
         assert!(!is_public_route(&delete, "/api/intake/42"));
+        assert!(!is_public_route(
+            &post,
+            "/api/intake/42/resend-confirmation"
+        ));
         assert!(!is_public_route(&get, "/api/intake/abc"));
         assert!(is_public_route(&post, "/api/payments/webhook"));
         assert!(is_public_route(&get, "/api/settings/public"));
