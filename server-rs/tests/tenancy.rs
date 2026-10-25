@@ -224,6 +224,11 @@ async fn b_gets_404_for_every_id_of_a(pool: PgPool) {
             format!("/api/intake/{}/convert", i.intake),
             json!({}),
         ),
+        (
+            "POST",
+            format!("/api/intake/{}/resend-confirmation", i.intake),
+            json!({}),
+        ),
         ("DELETE", format!("/api/intake/{}", i.intake), json!(null)),
         (
             "GET",

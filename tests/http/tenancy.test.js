@@ -97,6 +97,9 @@ describe('account B cannot modify account A records', () => {
   test('convert intake', async () => {
     assert.equal((await b.post(`/api/intake/${ids.intake}/convert`)).status, 404);
   });
+  test('resend intake confirmation', async () => {
+    assert.equal((await b.post(`/api/intake/${ids.intake}/resend-confirmation`)).status, 404);
+  });
   test('delete intake', async () => {
     assert.equal((await b.delete(`/api/intake/${ids.intake}`)).status, 404);
   });

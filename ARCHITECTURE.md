@@ -55,7 +55,7 @@ platebook/
 │   │   ├── money.rs                # integer-cents money helpers
 │   │   ├── rate_limit.rs           # Postgres-backed rate limits (per IP / per account)
 │   │   └── error.rs                # AppError, err_msg (prod-safe errors)
-│   ├── migrations/                 # 0001 schema … 0005 recurring sessions, 0006 session reminders, 0007 email failures
+│   ├── migrations/                 # 0001 schema … 0005 recurring sessions, 0006 session reminders, 0007 email failures, 0008 intake email failures
 │   ├── tests/                      # cargo integration tests (HTTP, RLS, PDFs, tenancy)
 │   └── scripts/                    # cargo/dev launchers, db-setup
 │

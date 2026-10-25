@@ -5,4 +5,16 @@ import type { PaymentStatus } from "./PaymentStatus";
 /**
  * One `client_intakes` row with its JSON columns parsed (`Intake` in the client).
  */
-export type Intake = { id: number, account_id: number, name: string, email: string | null, phone: string | null, address: string | null, household_type: string | null, adults: number | null, children: number | null, preferred_serving_size: number | null, allergens: string[], dietary_styles: string[], liked_proteins: string[], disliked_foods: string | null, spice_tolerance: string | null, cuisine_preferences: string | null, preferred_day: string | null, preferred_time: string | null, scheduling_notes: string | null, kitchen_notes: string | null, client_containers: 0 | 1 | null, grocery_handling: string | null, number_of_meals: number | null, notes_for_chef: string | null, terms_accepted: 0 | 1, terms_accepted_at: string | null, status: IntakeStatus, payment_status: PaymentStatus, payment_notes: string | null, stripe_session_id: string | null, stripe_payment_intent: string | null, booking_fee_amount: number | null, booking_fee_paid_at: string | null, pdf_path: string | null, internal_notes: string | null, source: string | null, converted_client_id: number | null, created_at: string, updated_at: string, };
+export type Intake = { id: number, account_id: number, name: string, email: string | null, phone: string | null, address: string | null, household_type: string | null, adults: number | null, children: number | null, preferred_serving_size: number | null, allergens: string[], dietary_styles: string[], liked_proteins: string[], disliked_foods: string | null, spice_tolerance: string | null, cuisine_preferences: string | null, preferred_day: string | null, preferred_time: string | null, scheduling_notes: string | null, kitchen_notes: string | null, client_containers: 0 | 1 | null, grocery_handling: string | null, number_of_meals: number | null, notes_for_chef: string | null, terms_accepted: 0 | 1, terms_accepted_at: string | null, status: IntakeStatus, payment_status: PaymentStatus, payment_notes: string | null, stripe_session_id: string | null, stripe_payment_intent: string | null, booking_fee_amount: number | null, booking_fee_paid_at: string | null, pdf_path: string | null, internal_notes: string | null, source: string | null, converted_client_id: number | null, created_at: string, updated_at: string, 
+/**
+ * Last successful confirmation email to the client.
+ */
+confirmation_emailed_at: string | null, 
+/**
+ * Last failed confirmation email to the client; cleared by a successful one.
+ */
+confirmation_email_failed_at: string | null, 
+/**
+ * The new-booking alert to the chef failed (it is only sent once).
+ */
+chef_alert_failed_at: string | null, };

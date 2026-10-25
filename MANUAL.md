@@ -532,6 +532,8 @@ Both PDFs automatically use your business name from Settings.
 
 **If an email doesn't go through:** when emailing a meal plan (✉️ Email on a session) or an invoice fails, Platebook tries once more automatically. If that fails too, the session or invoice page shows a red banner with the time and a **Try again** button, and the Sessions and Invoices lists show "⚠ Email failed" until a send succeeds. A missing client email address isn't counted as a failure: add one to the client (or invoice) and send again.
 
+The same goes for the two emails sent when a client books through your booking page: their confirmation (with the link to review their request) and your new-booking alert. If either fails after the automatic retry, the Client Intakes page shows a red note at the top, and the inquiry shows "⚠ Confirmation email failed" or "⚠ Alert email failed". Open the inquiry to see when it happened. For the confirmation, **Try again** sends it to the client again. A failed alert to you can't be resent (you're already looking at the inquiry), but it usually means your business email in Settings needs fixing.
+
 ---
 
 ### Tracking Profitability
