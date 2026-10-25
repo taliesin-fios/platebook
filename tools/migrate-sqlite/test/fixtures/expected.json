@@ -1206,7 +1206,8 @@
           "account_id": 1,
           "confirmation_emailed_at": null,
           "confirmation_email_failed_at": null,
-          "chef_alert_failed_at": null
+          "chef_alert_failed_at": null,
+          "deleted_at": null
         }
       ],
       "/api/costs/by-client": [
@@ -3384,7 +3385,8 @@
             "account_id": 1,
             "confirmation_emailed_at": null,
             "confirmation_email_failed_at": null,
-            "chef_alert_failed_at": null
+            "chef_alert_failed_at": null,
+          "deleted_at": null
           }
         ],
         "invoices": [

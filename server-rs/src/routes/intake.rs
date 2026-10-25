@@ -11,10 +11,16 @@
 //!   (token holders get a [`ClientIntakeView`]: never the chef's notes,
 //!   payment details or email bookkeeping)
 //! Chef (owning account; GET/PUT above also accept the owner's session):
-//!   GET    /api/intake            — list this account's intakes
+//!   GET    /api/intake            — list this account's intakes (?deleted=1: deleted ones)
 //!   POST   /api/intake/:id/convert — intake → client record
 //!   POST   /api/intake/:id/resend-confirmation — email the client's confirmation again
-//!   DELETE /api/intake/:id
+//!   GET    /api/intake/:id/payments — payment timeline (payment_events)
+//!   DELETE /api/intake/:id         — soft delete (sets deleted_at)
+//!   POST   /api/intake/:id/restore — undo a delete
+//!
+//! A deleted intake is kept with its payment history. Only the owning chef
+//! can still read it (and its timeline) and restore it; the client's edit
+//! link and every other action answer 404 until it is restored.
 //!
 //! Public requests have no tenant yet: the owning account is looked up by
 //! slug or intake id on the pool (the connecting user, which bypasses RLS on
@@ -28,9 +34,10 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::{PgConnection, Postgres, QueryBuilder};
+use sqlx::{FromRow, PgConnection, Postgres, QueryBuilder};
 use ts_rs::TS;
 
 use crate::accounts;
@@ -53,6 +60,8 @@ pub fn router() -> Router<AppState> {
         .route("/{id}", get(read).put(update).delete(remove))
         .route("/{id}/convert", post(convert))
         .route("/{id}/resend-confirmation", post(resend_confirmation))
+        .route("/{id}/payments", get(payments))
+        .route("/{id}/restore", post(restore))
 }
 
 const LEGACY_ACCOUNT_ID: i64 = 1;
@@ -167,6 +176,56 @@ fn for_role(role: &Role, intake: IntakeWithSlug) -> Response {
     }
 }
 
+/// GET /api/intake/:id/payments: one entry of the intake's payment timeline.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct PaymentEventItem {
+    #[ts(type = "number")]
+    pub id: i64,
+    /// `manual.<action>` or the Stripe event type.
+    pub event_type: Option<String>,
+    /// What happened, in words ("Mark Deposit Paid", "Paid online", …).
+    pub label: String,
+    #[ts(type = "number | null")]
+    pub amount: Option<Decimal>,
+    pub currency: Option<String>,
+    /// The payment status the event set (manual) or Stripe reported.
+    pub status: Option<String>,
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string")]
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(FromRow)]
+struct PaymentEventRow {
+    id: i64,
+    event_type: Option<String>,
+    amount: Option<Decimal>,
+    currency: Option<String>,
+    status: Option<String>,
+    created_at: Option<DateTime<Utc>>,
+}
+
+/// A payment event type in words: the manual action's label, or a plain
+/// name for the Stripe events the webhook handles.
+fn payment_event_label(event_type: Option<&str>) -> String {
+    let Some(t) = event_type else {
+        return "Payment event".into();
+    };
+    if let Some(name) = t.strip_prefix("manual.") {
+        return crate::routes::payments::MANUAL_ACTIONS
+            .iter()
+            .find(|a| a.name == name)
+            .map_or_else(|| t.to_string(), |a| a.label.to_string());
+    }
+    match t {
+        "checkout.session.completed" => "Paid online".into(),
+        "payment_intent.payment_failed" => "Online payment failed".into(),
+        "charge.refunded" => "Refunded".into(),
+        other => other.to_string(),
+    }
+}
+
 /// POST /api/intake (201).
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
@@ -274,6 +333,13 @@ async fn list(
     let mut qb: QueryBuilder<Postgres> =
         QueryBuilder::new("SELECT * FROM client_intakes WHERE account_id = ");
     qb.push_bind(t.account.id);
+    qb.push(
+        if q.get("deleted").is_some_and(|v| v == "1" || v == "true") {
+            " AND deleted_at IS NOT NULL"
+        } else {
+            " AND deleted_at IS NULL"
+        },
+    );
     if let Some(s) = q.get("status").filter(|s| !s.is_empty()) {
         qb.push(" AND status = ").push_bind(s.clone());
     }
@@ -501,6 +567,10 @@ async fn read(
     };
     let mut tx = begin_tenant(&state.pool, owner).await?;
     let row = fetch(&mut tx, id).await?.ok_or_else(intake_not_found)?;
+    // The chef can still open a deleted intake (to restore it); its client can't.
+    if role == Role::Client && row.deleted_at.is_some() {
+        return Err(intake_not_found().into());
+    }
     let res = with_slug(&mut tx, row).await?;
     tx.commit().await?;
     Ok(for_role(&role, res))
@@ -580,10 +650,15 @@ async fn update(
             }
         }
     }
-    qb.push(" WHERE id = ").push_bind(id);
+    qb.push(" WHERE id = ")
+        .push_bind(id)
+        .push(" AND deleted_at IS NULL");
 
     let mut tx = begin_tenant(&state.pool, owner).await?;
-    qb.build().execute(&mut *tx).await?;
+    if qb.build().execute(&mut *tx).await?.rows_affected() == 0 {
+        // Gone, or deleted: restore it before editing.
+        return Err(intake_not_found().into());
+    }
     let row = fetch(&mut tx, id).await?.ok_or_else(intake_not_found)?;
     let res = with_slug(&mut tx, row).await?;
     tx.commit().await?;
@@ -608,7 +683,8 @@ async fn convert(
     let account = t.account.id;
     let id = parse_id(&raw_id).ok_or_else(intake_not_found)?;
     let intake = sqlx::query_as::<_, IntakeRow>(
-        "SELECT * FROM client_intakes WHERE id = $1 AND account_id = $2 FOR UPDATE",
+        "SELECT * FROM client_intakes
+          WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL FOR UPDATE",
     )
     .bind(id)
     .bind(account)
@@ -722,12 +798,14 @@ async fn resend_confirmation(
 ) -> BareResult<Json<EmailSentResponse>> {
     let account_id = t.account.id;
     let id = parse_id(&raw_id).ok_or_else(intake_not_found)?;
-    let row: Option<(String, Option<String>)> =
-        sqlx::query_as("SELECT name, email FROM client_intakes WHERE id = $1 AND account_id = $2")
-            .bind(id)
-            .bind(account_id)
-            .fetch_optional(&mut *t.tx)
-            .await?;
+    let row: Option<(String, Option<String>)> = sqlx::query_as(
+        "SELECT name, email FROM client_intakes
+              WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(account_id)
+    .fetch_optional(&mut *t.tx)
+    .await?;
     let (name, email) = row.ok_or_else(intake_not_found)?;
     let Some(to) = email.filter(|e| !e.is_empty()) else {
         return Err(AppError::new(
@@ -759,22 +837,78 @@ async fn resend_confirmation(
 async fn remove(mut t: Tenant, Path(raw_id): Path<String>) -> BareResult<Json<Success>> {
     let not_found = || AppError::not_found_msg("Intake not found");
     let id = parse_id(&raw_id).ok_or_else(not_found)?;
-    // Keep the payment audit trail: detach its events instead of deleting them.
-    sqlx::query(
-        "UPDATE payment_events SET intake_id = NULL WHERE intake_id = $1 AND account_id = $2",
+    // Soft delete: the intake and its payment events stay, so the lead's
+    // history survives and POST /restore can bring it back.
+    let res = sqlx::query(
+        "UPDATE client_intakes SET deleted_at = now(), updated_at = now()
+          WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL",
     )
     .bind(id)
     .bind(t.account.id)
     .execute(&mut *t.tx)
     .await?;
-    let res = sqlx::query("DELETE FROM client_intakes WHERE id = $1 AND account_id = $2")
-        .bind(id)
-        .bind(t.account.id)
-        .execute(&mut *t.tx)
-        .await?;
     if res.rows_affected() == 0 {
         return Err(not_found().into());
     }
     t.tx.commit().await?;
     Ok(Json(SUCCESS))
+}
+
+// ── POST /api/intake/:id/restore — undo a delete ─────────────────────────────
+async fn restore(mut t: Tenant, Path(raw_id): Path<String>) -> BareResult<Json<IntakeWithSlug>> {
+    let id = parse_id(&raw_id).ok_or_else(intake_not_found)?;
+    let row = sqlx::query_as::<_, IntakeRow>(
+        "UPDATE client_intakes SET deleted_at = NULL, updated_at = now()
+          WHERE id = $1 AND account_id = $2 AND deleted_at IS NOT NULL
+          RETURNING *",
+    )
+    .bind(id)
+    .bind(t.account.id)
+    .fetch_optional(&mut *t.tx)
+    .await?
+    .ok_or_else(intake_not_found)?;
+    let res = with_slug(&mut t.tx, row).await?;
+    t.tx.commit().await?;
+    Ok(Json(res))
+}
+
+// ── GET /api/intake/:id/payments — payment timeline ──────────────────────────
+async fn payments(
+    mut t: Tenant,
+    Path(raw_id): Path<String>,
+) -> BareResult<Json<Vec<PaymentEventItem>>> {
+    let id = parse_id(&raw_id).ok_or_else(intake_not_found)?;
+    // Deleted intakes included: the history is what soft delete keeps.
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM client_intakes WHERE id = $1 AND account_id = $2)",
+    )
+    .bind(id)
+    .bind(t.account.id)
+    .fetch_one(&mut *t.tx)
+    .await?;
+    if !exists {
+        return Err(intake_not_found().into());
+    }
+    let rows = sqlx::query_as::<_, PaymentEventRow>(
+        "SELECT id, event_type, amount, currency, status, created_at FROM payment_events
+          WHERE intake_id = $1 AND account_id = $2 ORDER BY created_at, id",
+    )
+    .bind(id)
+    .bind(t.account.id)
+    .fetch_all(&mut *t.tx)
+    .await?;
+    t.tx.commit().await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| PaymentEventItem {
+                label: payment_event_label(r.event_type.as_deref()),
+                id: r.id,
+                event_type: r.event_type,
+                amount: r.amount,
+                currency: r.currency,
+                status: r.status,
+                created_at: r.created_at,
+            })
+            .collect(),
+    ))
 }

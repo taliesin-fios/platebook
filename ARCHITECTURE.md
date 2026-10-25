@@ -55,7 +55,7 @@ platebook/
 │   │   ├── money.rs                # integer-cents money helpers
 │   │   ├── rate_limit.rs           # Postgres-backed rate limits (per IP / per account)
 │   │   └── error.rs                # AppError, err_msg (prod-safe errors)
-│   ├── migrations/                 # 0001 schema … 0005 recurring sessions, 0006 session reminders, 0007 email failures, 0008 intake email failures
+│   ├── migrations/                 # 0001 schema … 0005 recurring sessions, 0006 session reminders, 0007 email failures, 0008 intake email failures, 0009 intake soft delete
 │   ├── tests/                      # cargo integration tests (HTTP, RLS, PDFs, tenancy)
 │   └── scripts/                    # cargo/dev launchers, db-setup
 │
@@ -161,13 +161,25 @@ draft ──→ sent ──→ paid
 | `recipes` | Recipe library with prep/cook times, allergen flags; ingredients in `ingredients` |
 | `invoices` | Invoice records; linked to one session |
 | `invoice_line_items` | Line items for each invoice |
-| `client_intakes` | Intake form submissions |
+| `client_intakes` | Intake form submissions; soft-deleted via `deleted_at` |
 | `payment_events` | Append-only audit log for payment actions |
 | `session_templates` | Saved recipe sets for quick session creation |
 | `grocery_items` | Generated grocery lists per session |
 | `accounts` | One row per chef business: login email, password hash, booking slug, onboarding state |
 | `settings` | Per-account business config and booking policy (`account_id` primary key) |
 | `used_jtis`, `rate_limit_hits` | Single-use token ids and rate-limit windows shared across instances (no tenant data) |
+
+### What "delete" does, per table
+
+| Table | `DELETE` route | Kept? |
+|-------|----------------|-------|
+| `clients` | `is_active = false` | Yes: hidden from lists, sessions and invoices keep pointing at it |
+| `recipes` | `is_active = false` | Yes: past sessions keep their dishes |
+| `client_intakes` | `deleted_at = now()`; `POST /api/intake/:id/restore` undoes it | Yes, with its `payment_events`. Hidden from the inbox (`?deleted=1` lists them), the client's edit link and every action (404). A completed Stripe checkout restores it |
+| `invoices` | `paid`: refused (`409 STATUS_LOCKED`). `void`: `deleted_at = now()`. `draft` / `sent`: removed | Paid and void ones, yes |
+| `sessions` | Refused while a non-void invoice is attached (`409 INVOICE_ATTACHED`); otherwise removed with its dishes, grocery items and its void invoices | No |
+| `session_templates` | Removed | No |
+| `payment_events` | Never deleted (append-only audit log) | Yes |
 
 List columns (`allergens`, `dietary_styles`, `liked_proteins`, `equipment`, `recipe_ids`, …) are `JSONB`. Flags are `BOOLEAN` (sent as `0`/`1` in JSON), dates `DATE`, timestamps `TIMESTAMPTZ`, dollar amounts `NUMERIC(12,2)`. The full SQLite → Postgres mapping is in [`server-rs/README.md`](server-rs/README.md#schema-differences-from-sqlite).
 
