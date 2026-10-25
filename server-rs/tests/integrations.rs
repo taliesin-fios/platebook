@@ -1271,3 +1271,57 @@ async fn delivered_booking_emails_are_recorded(pool: PgPool) {
     assert!(sent["confirmation_email_failed_at"].is_null(), "{sent}");
     assert!(sent["chef_alert_failed_at"].is_null(), "{sent}");
 }
+
+/// The client's edit link returns what they filled in, never the chef's
+/// private notes, payment details or bookkeeping; the chef still sees all.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn the_clients_edit_link_never_returns_chef_only_fields(pool: PgPool) {
+    let app = app(pool.clone());
+    let c = Chef::new(&pool, &app, "Private Notes Kitchen").await;
+    let intake = submit_intake(&app, "private-notes-kitchen").await;
+    let (id, token) = (&intake["id"], intake["edit_token"].as_str().unwrap());
+    let chef_view = c
+        .put(
+            &format!("/api/intake/{id}"),
+            json!({ "internal_notes": "Haggles on price", "payment_notes": "Owes $40",
+                    "status": "reviewed_by_chef" }),
+        )
+        .await;
+    assert_eq!(chef_view.body["internal_notes"], "Haggles on price");
+
+    let url = format!("/api/intake/{id}?token={token}");
+    let read = get(url.clone()).send(&app).await;
+    let edit = put_req(url, json!({ "phone": "555-0102" }))
+        .send(&app)
+        .await;
+    for res in [&read, &edit] {
+        assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+        let body = res.body.as_object().unwrap();
+        for key in [
+            "internal_notes",
+            "payment_notes",
+            "payment_status",
+            "stripe_session_id",
+            "stripe_payment_intent",
+            "booking_fee_amount",
+            "converted_client_id",
+            "pdf_path",
+            "account_id",
+        ] {
+            assert!(!body.contains_key(key), "{key} leaked: {}", res.body);
+        }
+        // What the booking form needs is all there.
+        assert_eq!(body["name"], "Lead");
+        assert_eq!(body["allergens"], json!(["Soy"]));
+        assert_eq!(body["kitchen_notes"], "Gas stove");
+        assert_eq!(body["chef_slug"], "private-notes-kitchen");
+        assert_eq!(body["status"], "reviewed_by_chef");
+    }
+    assert_eq!(edit.body["phone"], "555-0102");
+
+    // The chef's own view is unchanged.
+    let chef_read = c.get(&format!("/api/intake/{id}")).await.body;
+    assert_eq!(chef_read["internal_notes"], "Haggles on price");
+    assert_eq!(chef_read["payment_notes"], "Owes $40");
+    assert_eq!(chef_read["phone"], "555-0102");
+}

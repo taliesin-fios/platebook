@@ -42,6 +42,7 @@ before(async () => {
 
   const intake = await request(app).post('/api/intake').send({ slug: A.slug, name: 'Lead', terms_accepted: true });
   ids.intake = intake.body.id;
+  ids.intakeToken = intake.body.edit_token;
 });
 
 describe('setup sanity', () => {
@@ -194,6 +195,17 @@ describe('intake ownership', () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.status, 'reviewed_by_chef');
     assert.equal(res.body.internal_notes, 'call Tue');
+  });
+
+  test('the client\'s edit link never returns the chef\'s private fields', async () => {
+    const url = `/api/intake/${ids.intake}?token=${ids.intakeToken}`;
+    for (const res of [await request(app).get(url), await request(app).put(url).send({ phone: '555-0101' })]) {
+      assert.equal(res.status, 200);
+      assert.equal(res.body.name, 'Lead');
+      for (const key of ['internal_notes', 'payment_notes', 'payment_status', 'stripe_session_id', 'account_id']) {
+        assert.ok(!(key in res.body), `${key} leaked to the client`);
+      }
+    }
   });
 
   test('intake submitted to B\'s slug lands only in B\'s inbox', async () => {
