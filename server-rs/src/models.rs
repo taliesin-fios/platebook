@@ -315,6 +315,18 @@ pub struct IntakeRow {
     #[serde(serialize_with = "ts::serialize")]
     #[ts(type = "string")]
     pub updated_at: Option<DateTime<Utc>>,
+    /// Last successful confirmation email to the client.
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub confirmation_emailed_at: Option<DateTime<Utc>>,
+    /// Last failed confirmation email to the client; cleared by a successful one.
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub confirmation_email_failed_at: Option<DateTime<Utc>>,
+    /// The new-booking alert to the chef failed (it is only sent once).
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub chef_alert_failed_at: Option<DateTime<Utc>>,
 }
 
 /// One `invoices` row with `recipes_summary` parsed.

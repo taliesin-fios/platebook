@@ -1147,3 +1147,127 @@ async fn failed_emails_are_recorded_and_cleared_by_a_retry(pool: PgPool) {
     assert_eq!(invoice["status"], "sent");
     assert_eq!(state.outbox.messages().len(), 2);
 }
+
+/// Polls the chef's view of an intake until `done` holds (booking emails are
+/// sent in the background, and a failed one is retried after 2 seconds).
+async fn intake_once(c: &Chef, url: &str, done: impl Fn(&Value) -> bool) -> Value {
+    for _ in 0..100 {
+        let intake = c.get(url).await.body;
+        if done(&intake) {
+            return intake;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    panic!(
+        "intake never reached the expected state: {}",
+        c.get(url).await.body
+    );
+}
+
+/// A failed booking confirmation (to the client) or new-booking alert (to the
+/// chef) is recorded on the intake, and the chef's "Try again" resends the
+/// confirmation and clears the failure.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn failed_booking_emails_are_recorded_and_the_confirmation_can_be_resent(pool: PgPool) {
+    let mut broken = common::test_config();
+    broken.email_host = "127.0.0.1".into();
+    broken.email_port = 1;
+    broken.email_user = "chef".into();
+    broken.email_pass = "secret".into();
+    let (broken_app, _) = app_with(pool.clone(), broken);
+    let (working_app, state) = app_with(pool.clone(), common::test_config());
+
+    let c = Chef::new(&pool, &broken_app, "Flaky Booking Kitchen").await;
+    let intake = submit_intake(&broken_app, "flaky-booking-kitchen").await;
+    assert!(intake["confirmation_email_failed_at"].is_null());
+    let url = format!("/api/intake/{}", intake["id"]);
+
+    // SMTP down: both background sends fail, and both failures are recorded.
+    let failed = intake_once(&c, &url, |i| {
+        i["confirmation_email_failed_at"].is_string() && i["chef_alert_failed_at"].is_string()
+    })
+    .await;
+    assert!(failed["confirmation_emailed_at"].is_null(), "{failed}");
+    // The list shows it too.
+    let list = c.get("/api/intake").await.body;
+    assert!(
+        list[0]["confirmation_email_failed_at"].is_string(),
+        "{list}"
+    );
+
+    // "Try again" while SMTP is still down fails and keeps the failure.
+    let retry = c
+        .post(&format!("{url}/resend-confirmation"), json!({}))
+        .await;
+    assert_eq!(
+        retry.status,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "{}",
+        retry.body
+    );
+    assert!(c.get(&url).await.body["confirmation_email_failed_at"].is_string());
+
+    // With mail working, the resend goes to the client with their edit link
+    // and clears the failure. The chef alert failure stays: it isn't resent.
+    let c = Chef {
+        app: working_app.clone(),
+        ..c
+    };
+    let ok = c
+        .post(&format!("{url}/resend-confirmation"), json!({}))
+        .await;
+    assert_eq!(ok.status, StatusCode::OK, "{}", ok.body);
+    assert_eq!(ok.body["sent_to"], "lead@example.com");
+    let mail = state.outbox.messages();
+    assert_eq!(mail.len(), 1);
+    assert_eq!(mail[0].to, "lead@example.com");
+    assert!(
+        mail[0]
+            .text
+            .contains(&format!("/intake/{}?token=", intake["id"])),
+        "{}",
+        mail[0].text
+    );
+    let resent = c.get(&url).await.body;
+    assert!(resent["confirmation_email_failed_at"].is_null(), "{resent}");
+    assert!(resent["confirmation_emailed_at"].is_string(), "{resent}");
+    assert!(resent["chef_alert_failed_at"].is_string(), "{resent}");
+
+    // Signed out: refused.
+    assert_eq!(
+        post_req(format!("{url}/resend-confirmation"), json!({}))
+            .send(&working_app)
+            .await
+            .status,
+        StatusCode::UNAUTHORIZED
+    );
+
+    // An inquiry without an email address has nothing to resend.
+    let no_email = post_req(
+        "/api/intake",
+        json!({ "slug": "flaky-booking-kitchen", "name": "Phone Only", "terms_accepted": true }),
+    )
+    .send(&working_app)
+    .await;
+    let res = c
+        .post(
+            &format!("/api/intake/{}/resend-confirmation", no_email.body["id"]),
+            json!({}),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::BAD_REQUEST, "{}", res.body);
+    assert_eq!(res.body["code"], "NO_EMAIL");
+}
+
+/// With mail working, a booking records the confirmation as sent and no
+/// failures.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn delivered_booking_emails_are_recorded(pool: PgPool) {
+    let app = app(pool.clone());
+    let c = Chef::new(&pool, &app, "Steady Booking Kitchen").await;
+    let intake = submit_intake(&app, "steady-booking-kitchen").await;
+    let url = format!("/api/intake/{}", intake["id"]);
+    let sent = intake_once(&c, &url, |i| i["confirmation_emailed_at"].is_string()).await;
+    assert!(sent["confirmation_email_failed_at"].is_null(), "{sent}");
+    assert!(sent["chef_alert_failed_at"].is_null(), "{sent}");
+}

@@ -9,11 +9,12 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { fmtUtcTimestamp } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
+import EmailFailedBanner from '../components/EmailFailedBanner';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { useAppSettings } from '../App';
 import { bookingUrl } from '../constants';
-import type { Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus } from '../types';
+import type { EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus } from '../types';
 
 /** After a payment action the server returns the raw row, with JSON columns as strings. */
 type IntakeState = Intake | IntakeRow;
@@ -72,6 +73,12 @@ function IntakeCard({ intake, onSelect }: { intake: Intake; onSelect: (intake: I
         {intake.booking_fee_amount! > 0 && (
           <span>${(intake.booking_fee_amount || 0).toFixed(0)} deposit</span>
         )}
+        {intake.confirmation_email_failed_at && (
+          <span className="text-danger font-medium">⚠ Confirmation email failed</span>
+        )}
+        {intake.chef_alert_failed_at && (
+          <span className="text-amber-600 font-medium">⚠ Alert email failed</span>
+        )}
       </div>
       <p className="text-xs text-gray-300 mt-2">
         {fmtUtcTimestamp(intake.created_at, 'MMM d, yyyy', intake.created_at)}
@@ -85,9 +92,10 @@ interface IntakeDetailProps {
   onClose: () => void;
   onStatusChange: (id: Id, status: IntakeStatus, notes: string) => void;
   onConvert: (intakeId: Id, clientId: Id) => void;
+  onEmailChange: (id: Id, patch: Pick<Intake, 'confirmation_emailed_at' | 'confirmation_email_failed_at'>) => void;
 }
 
-function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConvert }: IntakeDetailProps) {
+function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConvert, onEmailChange }: IntakeDetailProps) {
   const [intake, setIntake]         = useState<IntakeState>(initialIntake);
   const [status, setStatus]         = useState(initialIntake.status);
   const [notes, setNotes]           = useState(initialIntake.internal_notes || '');
@@ -95,6 +103,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentBusy, setPaymentBusy] = useState(false);
+  const [resending, setResending]   = useState(false);
   const { show } = useToast();
 
   const allergens      = Array.isArray(intake.allergens)      ? intake.allergens      : [];
@@ -147,6 +156,32 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
     }
   };
 
+  const resendConfirmation = async () => {
+    setResending(true);
+    const now = new Date().toISOString();
+    try {
+      const res = await apiCall<EmailSentResponse>(`/api/intake/${intake.id}/resend-confirmation`, 'POST');
+      const patch = { confirmation_emailed_at: now, confirmation_email_failed_at: null };
+      setIntake(prev => ({ ...prev, ...patch }));
+      onEmailChange(intake.id, patch);
+      show(`Confirmation sent to ${res.sent_to}`, 'success');
+    } catch (err) {
+      show(errorMessage(err) || 'Could not send the confirmation', 'error');
+      // Not every error is a failed send (rate limit, no address): show what the server recorded.
+      try {
+        const fresh = await apiCall<Intake>(`/api/intake/${intake.id}`);
+        const patch = {
+          confirmation_emailed_at: fresh.confirmation_emailed_at,
+          confirmation_email_failed_at: fresh.confirmation_email_failed_at,
+        };
+        setIntake(prev => ({ ...prev, ...patch }));
+        onEmailChange(intake.id, patch);
+      } catch { /* keep what's shown */ }
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleConvert = async () => {
     if (!confirm(`Convert ${intake.name}'s intake to a client record?`)) return;
     setSaving(true);
@@ -181,6 +216,15 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
         </div>
 
         <div className="space-y-4 overflow-y-auto" style={{ maxHeight: '65vh' }}>
+          <EmailFailedBanner what="booking confirmation" failedAt={intake.confirmation_email_failed_at}
+            onRetry={resendConfirmation} retrying={resending} className="" />
+          {intake.chef_alert_failed_at && (
+            <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-700">
+              ⚠ We couldn’t email you about this inquiry ({fmtUtcTimestamp(intake.chef_alert_failed_at, "MMM d 'at' h:mm a")}).
+              Check the business email in Settings so you hear about the next one.
+            </div>
+          )}
+
           {/* Contact */}
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Contact</p>
@@ -426,6 +470,10 @@ export default function IntakeAdmin() {
     ));
   };
 
+  const handleEmailChange: IntakeDetailProps['onEmailChange'] = (id, patch) => {
+    setIntakes(prev => prev.map(i => (i.id === id ? { ...i, ...patch } : i)));
+  };
+
   const handleConvert = (intakeId: Id, clientId: Id) => {
     setIntakes(prev => prev.map(i =>
       i.id === intakeId ? { ...i, converted_client_id: clientId, status: 'booked' } : i
@@ -434,6 +482,7 @@ export default function IntakeAdmin() {
   };
 
   const newCount = intakes.filter(i => i.status === 'submitted').length;
+  const emailFailedCount = intakes.filter(i => i.confirmation_email_failed_at || i.chef_alert_failed_at).length;
 
   return (
     <div className="page pb-24">
@@ -449,6 +498,12 @@ export default function IntakeAdmin() {
       {newCount > 0 && (
         <div className="mx-4 mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
           📥 {newCount} new submission{newCount !== 1 ? 's' : ''} awaiting review
+        </div>
+      )}
+
+      {emailFailedCount > 0 && (
+        <div role="alert" className="mx-4 mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+          ⚠ Booking emails didn’t go through for {emailFailedCount} inquir{emailFailedCount !== 1 ? 'ies' : 'y'}. Open one to see what failed and try again.
         </div>
       )}
 
@@ -498,6 +553,7 @@ export default function IntakeAdmin() {
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}
           onConvert={handleConvert}
+          onEmailChange={handleEmailChange}
         />
       )}
 

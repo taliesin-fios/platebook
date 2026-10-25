@@ -7,6 +7,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Booking email failures are remembered.** The confirmation to a client who books through your booking page, and your new-booking alert, were sent in the background and a failure only reached the server log. Now the Client Intakes page shows a note when either failed, and the inquiry shows which one and when. **Try again** on the inquiry resends the client's confirmation (`POST /api/intake/:id/resend-confirmation`, signed-in chef only).
+- **Migration `0008_intake_email_failures.sql`:** `client_intakes.confirmation_emailed_at`, `confirmation_email_failed_at` and `chef_alert_failed_at` (nullable, additive).
+
 ---
 
 ## [0.1.1] — 2026-10-25

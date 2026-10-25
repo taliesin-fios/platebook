@@ -11,6 +11,7 @@
 //! Chef (owning account; GET/PUT above also accept the owner's session):
 //!   GET    /api/intake            — list this account's intakes
 //!   POST   /api/intake/:id/convert — intake → client record
+//!   POST   /api/intake/:id/resend-confirmation — email the client's confirmation again
 //!   DELETE /api/intake/:id
 //!
 //! Public requests have no tenant yet: the owning account is looked up by
@@ -36,6 +37,7 @@ use crate::intake_token;
 use crate::js;
 use crate::models::{Client, IntakeRow, SUCCESS, Success};
 use crate::rate_limit::ClientIp;
+use crate::routes::sessions::EmailSentResponse;
 use crate::routes::settings::EMAIL_RE;
 use crate::routes::{JsonBody, json_or_empty, parse_id};
 use crate::state::AppState;
@@ -45,6 +47,7 @@ pub fn router() -> Router<AppState> {
         .route("/", get(list).post(submit))
         .route("/{id}", get(read).put(update).delete(remove))
         .route("/{id}/convert", post(convert))
+        .route("/{id}/resend-confirmation", post(resend_confirmation))
 }
 
 const LEGACY_ACCOUNT_ID: i64 = 1;
@@ -100,6 +103,47 @@ async fn with_slug(
         .fetch_optional(conn)
         .await?;
     Ok(IntakeWithSlug { intake, chef_slug })
+}
+
+/// Remembers how the client's confirmation email went, so the intake screens
+/// can show a failure (and offer a retry) after the fact. A success clears an
+/// earlier failure.
+async fn record_confirmation(
+    state: &AppState,
+    account_id: i64,
+    id: i64,
+    sent: bool,
+) -> Result<(), sqlx::Error> {
+    let mut tx = begin_tenant(&state.pool, account_id).await?;
+    sqlx::query(if sent {
+        "UPDATE client_intakes SET confirmation_emailed_at = now(), confirmation_email_failed_at = NULL
+          WHERE id = $1 AND account_id = $2"
+    } else {
+        "UPDATE client_intakes SET confirmation_email_failed_at = now()
+          WHERE id = $1 AND account_id = $2"
+    })
+    .bind(id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await
+}
+
+/// Remembers that the new-booking alert to the chef failed.
+async fn record_chef_alert_failure(
+    state: &AppState,
+    account_id: i64,
+    id: i64,
+) -> Result<(), sqlx::Error> {
+    let mut tx = begin_tenant(&state.pool, account_id).await?;
+    sqlx::query(
+        "UPDATE client_intakes SET chef_alert_failed_at = now() WHERE id = $1 AND account_id = $2",
+    )
+    .bind(id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await
 }
 
 async fn fetch(conn: &mut PgConnection, id: i64) -> Result<Option<IntakeRow>, sqlx::Error> {
@@ -236,25 +280,32 @@ async fn submit(
     let token = intake_token::make_token(&state.config.intake_secret, res.intake.id);
     let edit_url = format!("/intake/{}?token={token}", res.intake.id);
 
-    // Emails are sent in the background; failures are logged, never surfaced.
+    // Emails are sent in the background (each with one automatic retry). The
+    // outcome is recorded on the intake, so a failure shows on the chef's
+    // intake screens instead of only in the log.
+    let intake_id = res.intake.id;
     if let Some(email) = res.intake.email.clone().filter(|e| !e.is_empty()) {
-        let (state, name, url, id) = (
+        let (state, name, url, account_id) = (
             state.clone(),
             res.intake.name.clone(),
             edit_url.clone(),
             account.id,
         );
         tokio::spawn(async move {
-            if let Err(e) =
-                crate::email::send_intake_confirmation(&state, id, &name, &email, &url).await
-            {
+            let sent =
+                crate::email::send_intake_confirmation(&state, account_id, &name, &email, &url)
+                    .await;
+            if let Err(e) = &sent {
                 tracing::error!(error = %e, "[intake] Client confirmation email failed");
+            }
+            if let Err(e) = record_confirmation(&state, account_id, intake_id, sent.is_ok()).await {
+                tracing::error!(error = %e, "[intake] Could not record the confirmation email");
             }
         });
     }
     {
         let state = state.clone();
-        let (id, name, email, phone) = (
+        let (account_id, name, email, phone) = (
             account.id,
             res.intake.name.clone(),
             res.intake.email.clone(),
@@ -263,7 +314,7 @@ async fn submit(
         tokio::spawn(async move {
             if let Err(e) = crate::email::send_chef_new_intake(
                 &state,
-                id,
+                account_id,
                 &name,
                 email.as_deref(),
                 phone.as_deref(),
@@ -272,6 +323,9 @@ async fn submit(
             .await
             {
                 tracing::error!(error = %e, "[intake] Chef notification email failed");
+                if let Err(e) = record_chef_alert_failure(&state, account_id, intake_id).await {
+                    tracing::error!(error = %e, "[intake] Could not record the chef alert failure");
+                }
             }
         });
     }
@@ -553,6 +607,47 @@ async fn convert(
             already_converted: None,
         }),
     ))
+}
+
+// ── POST /api/intake/:id/resend-confirmation — chef ──────────────────────────
+async fn resend_confirmation(
+    State(state): State<AppState>,
+    mut t: Tenant,
+    Path(raw_id): Path<String>,
+) -> BareResult<Json<EmailSentResponse>> {
+    let account_id = t.account.id;
+    let id = parse_id(&raw_id).ok_or_else(intake_not_found)?;
+    let row: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT name, email FROM client_intakes WHERE id = $1 AND account_id = $2")
+            .bind(id)
+            .bind(account_id)
+            .fetch_optional(&mut *t.tx)
+            .await?;
+    let (name, email) = row.ok_or_else(intake_not_found)?;
+    let Some(to) = email.filter(|e| !e.is_empty()) else {
+        return Err(AppError::new(
+            StatusCode::BAD_REQUEST,
+            "NO_EMAIL",
+            "This inquiry has no email address",
+        )
+        .into());
+    };
+    // Don't hold the transaction across SMTP (which may retry).
+    t.tx.commit().await?;
+    crate::email::check_limit(&state, account_id).await?;
+
+    let token = intake_token::make_token(&state.config.intake_secret, id);
+    let url = format!("/intake/{id}?token={token}");
+    let sent = crate::email::send_intake_confirmation(&state, account_id, &name, &to, &url).await;
+    record_confirmation(&state, account_id, id, sent.is_ok()).await?;
+    sent.map_err(|e| {
+        tracing::error!(error = %e, "[intake] resend-confirmation");
+        AppError::internal_bare(e)
+    })?;
+    Ok(Json(EmailSentResponse {
+        success: true,
+        sent_to: to,
+    }))
 }
 
 // ── DELETE /api/intake/:id ───────────────────────────────────────────────────
