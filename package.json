@@ -1,6 +1,6 @@
 {
   "name": "chef-app",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Platebook — Personal Chef Business Management Platform",
   "engines": {
