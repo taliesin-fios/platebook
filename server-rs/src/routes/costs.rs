@@ -63,6 +63,7 @@ struct Ar {
     outstanding_total: Decimal,
     overdue_count: i64,
     collected_mtd: Decimal,
+    collected_prev_mtd: Decimal,
 }
 
 /// GET /api/costs/summary.
@@ -85,6 +86,10 @@ pub struct CostSummary {
     pub collected_total: Decimal,
     #[ts(type = "number")]
     pub collected_mtd: Decimal,
+    /// Collected over the same days of last month (the 1st up to today's day
+    /// number, or the month's end), for the dashboard's month-to-date trend.
+    #[ts(type = "number")]
+    pub collected_prev_mtd: Decimal,
     #[ts(type = "number")]
     pub outstanding_total: Decimal,
     #[ts(type = "number")]
@@ -151,7 +156,15 @@ async fn summary(mut t: Tenant) -> DbResult<Json<CostSummary>> {
            COUNT(CASE WHEN status IN ('draft','sent') AND due_date < $2 THEN 1 END) AS overdue_count,
            COALESCE(SUM(CASE WHEN status = 'paid'
              AND date_trunc('month', paid_at AT TIME ZONE $3) = date_trunc('month', $2::timestamp)
-             THEN total ELSE 0 END), 0) AS collected_mtd
+             THEN total ELSE 0 END), 0) AS collected_mtd,
+           COALESCE(SUM(CASE WHEN status = 'paid'
+             AND (paid_at AT TIME ZONE $3)::date
+                 BETWEEN (date_trunc('month', $2::date) - interval '1 month')::date
+                     AND LEAST(
+                           (date_trunc('month', $2::date) - interval '1 month')::date
+                             + ($2::date - date_trunc('month', $2::date)::date),
+                           date_trunc('month', $2::date)::date - 1)
+             THEN total ELSE 0 END), 0) AS collected_prev_mtd
          FROM invoices
          WHERE account_id = $1 AND deleted_at IS NULL",
     )
@@ -171,6 +184,7 @@ async fn summary(mut t: Tenant) -> DbResult<Json<CostSummary>> {
         invoiced_total: ar.invoiced_total,
         collected_total: ar.collected_total,
         collected_mtd: ar.collected_mtd,
+        collected_prev_mtd: ar.collected_prev_mtd,
         outstanding_total: ar.outstanding_total,
         overdue_count: ar.overdue_count,
         ytd_margin_pct: pct(ytd.ytd_margin, ytd.ytd_revenue),

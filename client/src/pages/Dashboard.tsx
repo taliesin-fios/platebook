@@ -9,6 +9,7 @@ import { SkeletonStatGrid } from '../components/Skeleton';
 import { STATUS_COLORS, FEASIBILITY_COLORS, calcFeasibility, APP_NAME, bookingUrl, marginColor, marginLabel } from '../constants';
 import { SettingsContext } from '../App';
 import { parseNum } from '../utils/numbers';
+import { mtdTrend } from '../utils/trend';
 import type { ClientListItem, CostSummary, SessionListItem } from '../types';
 
 function IntakeLinkCard() {
@@ -95,6 +96,9 @@ export default function Dashboard() {
 
   const fmt$ = (v: unknown) => `$${(parseNum(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+  const collectedTrend = summary ? mtdTrend(parseNum(summary.collected_mtd) || 0, parseNum(summary.collected_prev_mtd) || 0) : null;
+  const TREND_COLORS = { up: 'text-green-dark', down: 'text-danger', flat: 'text-gray-400' } as const;
+
   const statCards = summary ? [
     {
       label: 'Sessions this week',
@@ -109,6 +113,8 @@ export default function Dashboard() {
     {
       label: 'Collected (MTD)',
       value: fmt$(summary.collected_mtd ?? summary.total_revenue),
+      trend: collectedTrend,
+      trendTitle: `Compared with ${fmt$(summary.collected_prev_mtd)} collected over the same days last month`,
       sub: summary.outstanding_total > 0
         ? `${fmt$(summary.outstanding_total)} outstanding`
         : 'All invoices paid',
@@ -180,6 +186,11 @@ export default function Dashboard() {
             <div key={i} className="card">
               <div className="text-xs text-gray-500 font-medium mb-1">{card.label}</div>
               <div className={`text-2xl font-bold font-display ${card.valueClass || 'text-navy'}`}>{card.value}</div>
+              {'trend' in card && card.trend && (
+                <div className={`text-xs font-medium ${TREND_COLORS[card.trend.direction]}`} title={card.trendTitle}>
+                  {card.trend.text}
+                </div>
+              )}
               <div className={`text-xs mt-1 ${card.subClass || 'text-gray-400'}`}>
                 {card.subPrefix || ''}{card.sub}
               </div>
