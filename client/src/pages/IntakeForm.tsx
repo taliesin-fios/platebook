@@ -11,7 +11,7 @@
 import { useState, useEffect, type FormEvent, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { ALLERGENS_LIST, DIETARY_STYLES, PROTEINS, centsToDollars } from '../constants';
-import type { IntakeDetail, IntakeSubmitResponse, PublicProfile } from '../types';
+import type { ClientIntakeDetail, IntakeSubmitResponse, PublicProfile } from '../types';
 import PoweredBy from '../components/PoweredBy';
 
 interface IntakeFormData {
@@ -117,7 +117,7 @@ export default function IntakeForm() {
   const [step, setStep] = useState<'loading' | 'form' | 'success' | 'error'>('loading');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [result, setResult] = useState<IntakeSubmitResponse | IntakeDetail | null>(null);
+  const [result, setResult] = useState<IntakeSubmitResponse | ClientIntakeDetail | null>(null);
   // The chef's public profile: name, logo and booking policy. Comes from the
   // /book/:slug link, from the intake itself in edit mode, or (legacy
   // /intake/new links) from the original account.
@@ -157,7 +157,7 @@ export default function IntakeForm() {
         if (!r.ok) throw new Error('not_found');
         return r.json();
       })
-      .then((data: IntakeDetail) => {
+      .then((data: ClientIntakeDetail) => {
         loadProfile(data.chef_slug).catch(() => {});
         setForm(prev => ({
           ...prev,
