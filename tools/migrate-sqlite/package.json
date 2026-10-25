@@ -1,6 +1,6 @@
 {
   "name": "chef-migrate-sqlite",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "description": "One-time copy of a legacy Platebook SQLite database into the server-rs Postgres schema",
