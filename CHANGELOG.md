@@ -7,6 +7,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.1.1] — 2026-10-25
+
+**Upgrading:** this release adds migration `0007_email_failures.sql`, which the server applies on start. It only adds nullable columns, but take a backup first as usual.
+
 ### Added
 - **Email failures are remembered.** If emailing a meal plan or an invoice fails, the session and invoice pages show a banner with **Try again**, and the Sessions and Invoices lists show "⚠ Email failed", even after you leave the page. The next successful send clears it. Invoices also record when they were last emailed.
 - **Migration `0007_email_failures.sql`:** `sessions.pdf_email_failed_at`, `invoices.emailed_at` and `invoices.email_failed_at` (nullable, additive).
