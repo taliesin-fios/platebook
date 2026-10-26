@@ -706,17 +706,32 @@ async fn from_client(
     Ok((StatusCode::CREATED, Json(inv)))
 }
 
+#[derive(FromRow)]
+struct LockedInvoice {
+    status: Option<String>,
+    paid_at: Option<DateTime<Utc>>,
+    total: Option<Decimal>,
+    stripe_session_id: Option<String>,
+}
+
 async fn update(
+    State(state): State<AppState>,
     mut t: Tenant,
     Path(raw_id): Path<String>,
     body: JsonBody,
 ) -> BareResult<Json<InvoiceDetail>> {
     let id = guard(&mut t, &raw_id).await?;
-    let (existing_status, existing_paid): (Option<String>, Option<chrono::DateTime<Utc>>) =
-        sqlx::query_as("SELECT status, paid_at FROM invoices WHERE id = $1 FOR UPDATE")
-            .bind(id)
-            .fetch_one(&mut *t.tx)
-            .await?;
+    let LockedInvoice {
+        status: existing_status,
+        paid_at: existing_paid,
+        total: existing_total,
+        stripe_session_id: open_checkout,
+    } = sqlx::query_as(
+        "SELECT status, paid_at, total, stripe_session_id FROM invoices WHERE id = $1 FOR UPDATE",
+    )
+    .bind(id)
+    .fetch_one(&mut *t.tx)
+    .await?;
 
     let status = body_status(&body)?;
     // paid and void are terminal: the status can't change once reached
@@ -745,6 +760,17 @@ async fn update(
         _ => json!([]),
     };
     let text = |k: &str| body.text_or_empty(k);
+    // A checkout the client opened charges the total it was opened with: when
+    // the total changes, or the chef settles the invoice here, close it. (A
+    // paid or void invoice can't be checked out, so there's nothing to close.)
+    let payable = !matches!(existing_status.as_deref(), Some("paid" | "void"));
+    let repriced =
+        existing_total.map(money::to_cents).unwrap_or(0) != money::to_cents(totals.total);
+    let settled = matches!(status.as_deref(), Some("paid" | "void")) && status != existing_status;
+    let close_checkout = payable && (repriced || settled);
+    if close_checkout {
+        close_open_checkout(&state, open_checkout.as_deref()).await?;
+    }
 
     sqlx::query(
         "UPDATE invoices SET
@@ -757,7 +783,8 @@ async fn update(
            container_count = $19, store_trip = $20,
            grocery_total = $21, service_fee = $22,
            subtotal = $23, tax_rate = $24, tax_amount = $25, total = $26,
-           paid_at = $27, updated_at = now()
+           paid_at = $27, updated_at = now(),
+           stripe_session_id = CASE WHEN $29 THEN NULL ELSE stripe_session_id END
          WHERE id = $28",
     )
     .bind(status.or(existing_status))
@@ -788,6 +815,7 @@ async fn update(
     .bind(totals.total)
     .bind(paid_at)
     .bind(id)
+    .bind(close_checkout)
     .execute(&mut *t.tx)
     .await?;
     save_line_items(&mut t.tx, id, &items).await?;
@@ -889,12 +917,13 @@ pub struct InvoiceDeleteResponse {
 }
 
 async fn remove(
+    State(state): State<AppState>,
     mut t: Tenant,
     Path(raw_id): Path<String>,
 ) -> BareResult<Json<InvoiceDeleteResponse>> {
     let id = guard(&mut t, &raw_id).await?;
-    let status: Option<String> =
-        sqlx::query_scalar("SELECT status FROM invoices WHERE id = $1 FOR UPDATE")
+    let (status, open_checkout): (Option<String>, Option<String>) =
+        sqlx::query_as("SELECT status, stripe_session_id FROM invoices WHERE id = $1 FOR UPDATE")
             .bind(id)
             .fetch_one(&mut *t.tx)
             .await?;
@@ -918,9 +947,11 @@ async fn remove(
                 soft_deleted: Some(true),
             }))
         }
-        // Draft / sent: not paid, hard delete is fine. Keep any payment
-        // events (a failed card) by detaching them.
+        // Draft / sent: not paid, hard delete is fine, once the client can't
+        // pay it any more. Keep any payment events (a failed card) by
+        // detaching them.
         _ => {
+            close_open_checkout(&state, open_checkout.as_deref()).await?;
             sqlx::query(
                 "UPDATE payment_events SET invoice_id = NULL WHERE invoice_id = $1 AND account_id = $2",
             )
@@ -1091,6 +1122,32 @@ struct PayableInvoice {
     client_email: Option<String>,
     business_name: Option<String>,
     stripe_session_id: Option<String>,
+}
+
+/// Expires the Checkout a client opened for this invoice, when the chef
+/// changes what it charges (its total, paid, void, deleted): an open one
+/// still charges the amount it was opened with. One the client just completed
+/// gives 409 ALREADY_PAID while the webhook marks the invoice paid.
+async fn close_open_checkout(state: &AppState, session_id: Option<&str>) -> Result<(), AppError> {
+    let Some(session_id) = session_id.filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    if state.config.payments_mode != crate::config::PaymentsMode::Stripe {
+        return Ok(());
+    }
+    payments::close_earlier_checkout(state, session_id)
+        .await
+        .map_err(|e| {
+            if e.status == StatusCode::INTERNAL_SERVER_ERROR {
+                AppError::new(
+                    StatusCode::BAD_GATEWAY,
+                    "STRIPE_UNAVAILABLE",
+                    "Couldn't reach Stripe to close the client's open payment page, so nothing was saved. Try again in a moment.",
+                )
+            } else {
+                e
+            }
+        })
 }
 
 // ── POST /api/invoices/:id/checkout?token= — client ──────────────────────────

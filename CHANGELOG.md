@@ -18,6 +18,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - After paying, Stripe sent clients to `/intake/success`, a page that didn't exist (they landed on the sign-in screen). Cancelling sent them to their booking page without its token, which then failed to load.
 - A waived deposit could still be charged online.
 - Starting a new checkout while one was pending was refused, so an abandoned checkout couldn't be retried. Now the open one is expired first, so only the newest can be paid, and one already paid gives "it can take a minute to show" instead of a second charge.
+- A client with an invoice's payment page open could pay the old amount after the chef changed the total, or pay an invoice the chef had since voided, marked paid or deleted. These edits now close the open Stripe Checkout first, and the client's next **Pay** opens one for the current total. An edit that leaves the total alone keeps the page open. If the client has just paid, the edit is refused with "it can take a minute to show" until the webhook marks the invoice paid. If Stripe can't be reached, nothing is saved and the chef is asked to try again (`502 STRIPE_UNAVAILABLE`).
 
 ---
 
