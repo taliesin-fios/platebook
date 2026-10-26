@@ -37,6 +37,7 @@ const IntakeForm     = lazy(() => import('./pages/IntakeForm'));
 const IntakeAdmin    = lazy(() => import('./pages/IntakeAdmin'));
 const Invoices       = lazy(() => import('./pages/Invoices'));
 const InvoiceBuilder = lazy(() => import('./pages/InvoiceBuilder'));
+const InvoicePay     = lazy(() => import('./pages/InvoicePay'));
 const Signup         = lazy(() => import('./pages/Signup'));
 const Onboarding     = lazy(() => import('./pages/Onboarding'));
 const ForgotPassword = lazy(() => import('./pages/PasswordReset').then(m => ({ default: m.ForgotPassword })));
@@ -63,7 +64,9 @@ const isBookingPath = (pathname: string) =>
   pathname === '/intake/new' ||
   /^\/book\/[a-z0-9-]+$/.test(pathname) ||
   // /intake/:id (numeric) — client edit link with ?token= (token verified server-side)
-  /^\/intake\/\d+$/.test(pathname);
+  /^\/intake\/\d+$/.test(pathname) ||
+  // /invoice/:id (numeric) — client invoice link with ?token=
+  /^\/invoice\/\d+$/.test(pathname);
 const isAccountPath = (pathname: string) => ACCOUNT_PATHS.includes(pathname);
 const isPublicPath  = (pathname: string) => isAccountPath(pathname) || isBookingPath(pathname);
 
@@ -219,6 +222,7 @@ export default function App() {
                 <Route path="/book/:slug" element={<IntakeForm />} />
                 <Route path="/intake/new" element={<IntakeForm />} />
                 <Route path="/intake/:id" element={<IntakeForm />} />
+                <Route path="/invoice/:id" element={<InvoicePay />} />
 
                 {/* First-run setup for new accounts */}
                 <Route path="/onboarding" element={<Onboarding />} />

@@ -49,17 +49,21 @@ struct ErrorDetail {
     message: String,
 }
 
-/// Inputs for [`create_checkout_session`].
+/// Inputs for [`create_checkout_session`]: a booking deposit or an invoice.
 pub struct CheckoutRequest<'a> {
-    pub account_id: i64,
-    pub intake_id: i64,
-    pub client_name: &'a str,
-    pub client_email: Option<&'a str>,
-    pub fee_cents: i64,
-    pub cancellation_hours: i32,
-    /// Where Stripe sends the client back to: their own booking page with
-    /// its edit token (`/intake/:id?token=…`). `&paid=1` or `&cancelled=1` is
-    /// added, so the page can say what happened.
+    /// The line item's name ("Booking Fee", "Invoice INV-0003").
+    pub product_name: String,
+    pub description: String,
+    pub amount_cents: i64,
+    pub customer_email: Option<&'a str>,
+    /// Copied to the session's and the PaymentIntent's metadata:
+    /// payment_intent.* and charge.* events only carry the PaymentIntent's,
+    /// and the webhook needs to know what each event pays for
+    /// (`intake_id` or `invoice_id`).
+    pub metadata: Vec<(&'static str, String)>,
+    /// Where Stripe sends the client back to: their own page with its token
+    /// (`/intake/:id?token=…`, `/invoice/:id?token=…`). `&paid=1` or
+    /// `&cancelled=1` is added, so the page can say what happened.
     pub return_path: String,
 }
 
@@ -73,51 +77,38 @@ pub async fn create_checkout_session(
         .as_deref()
         .ok_or(StripeError::NotConfigured)?;
     let client_url = &state.config.client_url;
-    let mut form: Vec<(&str, String)> = vec![
-        ("mode", "payment".into()),
-        ("payment_method_types[0]", "card".into()),
-        ("line_items[0][price_data][currency]", "usd".into()),
+    let mut form: Vec<(String, String)> = vec![
+        ("mode".into(), "payment".into()),
+        ("payment_method_types[0]".into(), "card".into()),
+        ("line_items[0][price_data][currency]".into(), "usd".into()),
         (
-            "line_items[0][price_data][product_data][name]",
-            "Booking Fee".into(),
+            "line_items[0][price_data][product_data][name]".into(),
+            r.product_name,
         ),
         (
-            "line_items[0][price_data][product_data][description]",
-            format!(
-                "Holds your spot for {}. Non-refundable if cancelled within {} hours.",
-                r.client_name, r.cancellation_hours
-            ),
+            "line_items[0][price_data][product_data][description]".into(),
+            r.description,
         ),
         (
-            "line_items[0][price_data][unit_amount]",
-            r.fee_cents.to_string(),
+            "line_items[0][price_data][unit_amount]".into(),
+            r.amount_cents.to_string(),
         ),
-        ("line_items[0][quantity]", "1".into()),
-        ("metadata[account_id]", r.account_id.to_string()),
-        ("metadata[intake_id]", r.intake_id.to_string()),
-        ("metadata[client_name]", r.client_name.to_string()),
-        // payment_intent.* and charge.* events carry the PaymentIntent's
-        // metadata, not the Checkout Session's: without these the webhook
-        // can't find the intake for a failed payment or a refund.
+        ("line_items[0][quantity]".into(), "1".into()),
         (
-            "payment_intent_data[metadata][account_id]",
-            r.account_id.to_string(),
-        ),
-        (
-            "payment_intent_data[metadata][intake_id]",
-            r.intake_id.to_string(),
-        ),
-        (
-            "success_url",
+            "success_url".into(),
             format!("{client_url}{}&paid=1", r.return_path),
         ),
         (
-            "cancel_url",
+            "cancel_url".into(),
             format!("{client_url}{}&cancelled=1", r.return_path),
         ),
     ];
-    if let Some(email) = r.client_email.filter(|e| !e.is_empty()) {
-        form.push(("customer_email", email.to_string()));
+    for (k, v) in &r.metadata {
+        form.push((format!("metadata[{k}]"), v.clone()));
+        form.push((format!("payment_intent_data[metadata][{k}]"), v.clone()));
+    }
+    if let Some(email) = r.customer_email.filter(|e| !e.is_empty()) {
+        form.push(("customer_email".into(), email.to_string()));
     }
 
     let res = state

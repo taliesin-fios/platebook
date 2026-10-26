@@ -11,6 +11,9 @@ export type { InvoiceLineItem } from './generated/InvoiceLineItem';
 export type { InvoiceListItem } from './generated/InvoiceListItem';
 export type { InvoiceDetail } from './generated/InvoiceDetail';
 export type { InvoiceDeleteResponse } from './generated/InvoiceDeleteResponse';
+/** GET /api/invoices/:id/public?token= (the client's invoice page). */
+export type { ClientInvoiceView } from './generated/ClientInvoiceView';
+export type { ClientInvoiceLine } from './generated/ClientInvoiceLine';
 
 /** GET /api/invoices/:id, and the body of every invoice mutation. */
 export type Invoice = InvoiceDetail;
