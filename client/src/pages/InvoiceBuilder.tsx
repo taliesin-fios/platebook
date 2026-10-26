@@ -552,13 +552,15 @@ export default function InvoiceBuilder() {
           </div>
 
           {/* Line Items */}
-          <div className="card">
+          {/* A container query, not the viewport: the builder is a narrow panel on
+              desktop too. Narrow: the description gets its own row above qty /
+              price / amount; wide: one row per item. */}
+          <div className="card @container">
             <div className="section-header mb-3">Line Items</div>
 
             {/* Column headers */}
-            <div className="grid text-xs text-gray-400 font-medium pb-1 border-b border-gray-100 mb-2"
-                 style={{ gridTemplateColumns: '1fr 52px 80px 80px 32px' }}>
-              <span>Description</span>
+            <div className="grid gap-x-2 text-xs text-gray-400 font-medium pb-1 border-b border-gray-100 mb-2 grid-cols-[52px_minmax(0,1fr)_minmax(0,1fr)_32px] @md:grid-cols-[minmax(0,1fr)_52px_80px_80px_32px]">
+              <span className="hidden @md:block">Description</span>
               <span className="text-center">Qty</span>
               <span className="text-right">Price</span>
               <span className="text-right">Amount</span>
@@ -566,14 +568,13 @@ export default function InvoiceBuilder() {
             </div>
 
             {form.line_items.map((li, idx) => (
-              <div key={li._key} className="grid gap-x-2 gap-y-1 mb-3 items-start"
-                   style={{ gridTemplateColumns: '1fr 52px 80px 80px 32px' }}>
+              <div key={li._key} className="grid gap-x-2 gap-y-1 mb-3 items-start grid-cols-[52px_minmax(0,1fr)_minmax(0,1fr)_32px] @md:grid-cols-[minmax(0,1fr)_52px_80px_80px_32px]">
                 <textarea
                   value={li.description}
                   onChange={e => updateLine(li._key, 'description', e.target.value)}
                   rows={2}
                   placeholder="Service description…"
-                  className="input-field text-sm resize-none py-2 leading-snug"
+                  className="input-field text-sm resize-none py-2 leading-snug col-span-4 @md:col-span-1"
                 />
                 <input
                   type="number"
