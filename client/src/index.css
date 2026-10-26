@@ -207,22 +207,28 @@
   border-color: #D1D5DB;
 }
 
-/* Input standard — excludes checkbox/radio/range/color/file which have their own sizing */
-input[type="text"], input[type="email"], input[type="tel"],
-input[type="number"], input[type="password"], input[type="time"],
-input[type="date"], input[type="search"] {
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 1.5px solid #D1D5DB;
-  border-radius: 8px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 15px;
-  background: white;
-  transition: border-color 0.15s ease;
-  outline: none;
-}
+/*
+  Input standard — excludes checkbox/radio/range/color/file which have their own
+  sizing. In @layer base like the rest (see the note at the top): unlayered, it
+  beat every utility, so a field's own pl-7 / w-20 / px-2 was silently ignored.
+  input:not([type]) is a text field too.
+*/
 @layer base {
+  input:not([type]), input[type="text"], input[type="email"], input[type="tel"],
+  input[type="number"], input[type="password"], input[type="time"],
+  input[type="date"], input[type="search"] {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1.5px solid #D1D5DB;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    background: white;
+    transition: border-color 0.15s ease;
+    outline: none;
+  }
+
   textarea, select {
     width: 100%;
     min-height: 44px;
@@ -237,18 +243,20 @@ input[type="date"], input[type="search"] {
   }
 }
 
-/* Checkboxes and radios: reset any inherited sizing */
-input[type="checkbox"], input[type="radio"] {
-  width: auto;
-  min-height: auto;
-  padding: 0;
-  border: none;
-  background: transparent;
-}
+@layer base {
+  /* Checkboxes and radios: reset any inherited sizing */
+  input[type="checkbox"], input[type="radio"] {
+    width: auto;
+    min-height: auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
 
-input:focus, textarea:focus, select:focus {
-  border-color: var(--navy-mid);
-  box-shadow: 0 0 0 3px rgba(27, 79, 138, 0.1);
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--navy-mid);
+    box-shadow: 0 0 0 3px rgba(27, 79, 138, 0.1);
+  }
 }
 
 /* FAB */
