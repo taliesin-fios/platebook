@@ -242,6 +242,11 @@ async fn b_gets_404_for_every_id_of_a(pool: PgPool) {
         ),
         (
             "GET",
+            format!("/api/intake/{}/client-link", i.intake),
+            json!(null),
+        ),
+        (
+            "GET",
             format!("/api/payments/status/{}", i.intake),
             json!(null),
         ),

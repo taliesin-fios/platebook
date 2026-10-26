@@ -15,6 +15,8 @@ export type { Intake } from './generated/Intake';
 export type { IntakeStatus } from './generated/IntakeStatus';
 export type { PaymentStatus } from './generated/PaymentStatus';
 export type { PaymentStatusResponse } from './generated/PaymentStatusResponse';
+/** GET /api/intake/:id/client-link (the client's booking page, for the chef to send). */
+export type { ClientLink } from './generated/ClientLink';
 /** GET /api/intake/:id/payments (the intake's payment timeline). */
 export type { PaymentEventItem } from './generated/PaymentEventItem';
 

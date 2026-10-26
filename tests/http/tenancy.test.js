@@ -104,6 +104,13 @@ describe('account B cannot modify account A records', () => {
   test('restore intake', async () => {
     assert.equal((await b.post(`/api/intake/${ids.intake}/restore`)).status, 404);
   });
+  test('intake client link', async () => {
+    assert.equal((await b.get(`/api/intake/${ids.intake}/client-link`)).status, 404);
+  });
+  test('intake checkout without the client\'s token', async () => {
+    // Another chef is neither the owner nor holding the token.
+    assert.equal((await b.post(`/api/intake/${ids.intake}/checkout`)).status, 401);
+  });
   test('intake payment timeline', async () => {
     assert.equal((await b.get(`/api/intake/${ids.intake}/payments`)).status, 404);
   });
@@ -208,7 +215,7 @@ describe('intake ownership', () => {
     for (const res of [await request(app).get(url), await request(app).put(url).send({ phone: '555-0101' })]) {
       assert.equal(res.status, 200);
       assert.equal(res.body.name, 'Lead');
-      for (const key of ['internal_notes', 'payment_notes', 'payment_status', 'stripe_session_id', 'account_id']) {
+      for (const key of ['internal_notes', 'payment_notes', 'stripe_session_id', 'account_id']) {
         assert.ok(!(key in res.body), `${key} leaked to the client`);
       }
     }

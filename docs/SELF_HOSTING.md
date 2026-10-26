@@ -62,7 +62,7 @@ Client emails use the chef's business email (Settings) as `Reply-To`. To keep ma
 
 ## Payments and AI (optional)
 
-- **Deposits:** `PAYMENTS_MODE=manual` (the default) records deposits the chef collects by hand. `stripe` takes them online and needs `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Add a Stripe webhook to `https://<your domain>/api/payments/webhook` for `checkout.session.completed` and `payment_intent.payment_failed`. Try it with test-mode keys first. `disabled` hides deposits.
+- **Deposits:** `PAYMENTS_MODE=manual` (the default) records deposits the chef collects by hand. `stripe` takes them online and needs `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Add a Stripe webhook to `https://<your domain>/api/payments/webhook` for `checkout.session.completed`, `payment_intent.payment_failed` and `charge.refunded`. Clients pay from their booking page and Stripe returns them there, so `CLIENT_URL` must be your public address. Try it with test-mode keys first. `disabled` hides deposits.
 - **AI:** with `ANTHROPIC_API_KEY` set, chefs can import recipes from pasted text and get menu suggestions. Usage is billed to your Anthropic account and rate-limited per chef account.
 
 ## Backups and restore
