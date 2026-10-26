@@ -118,6 +118,9 @@ pub struct AuthLimits {
     /// Public POST /api/intake: every submission stores a row and sends two
     /// emails, one to an address the submitter chooses.
     pub intake: RateLimiter,
+    /// Public POST /api/intake/:id/checkout: each call opens a Stripe
+    /// Checkout session (the edit token is also required).
+    pub checkout: RateLimiter,
 }
 
 impl Default for AuthLimits {
@@ -147,6 +150,11 @@ impl Default for AuthLimits {
                 "public.intake",
                 20,
                 "Too many booking requests from this network — please try again later.",
+            ),
+            checkout: RateLimiter::new(
+                "public.checkout",
+                20,
+                "Too many payment attempts from this network — please try again later.",
             ),
         }
     }

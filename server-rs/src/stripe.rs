@@ -34,6 +34,9 @@ pub enum StripeError {
 pub struct CheckoutSession {
     pub id: String,
     pub url: Option<String>,
+    /// `open`, `complete` or `expired`.
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -54,6 +57,10 @@ pub struct CheckoutRequest<'a> {
     pub client_email: Option<&'a str>,
     pub fee_cents: i64,
     pub cancellation_hours: i32,
+    /// Where Stripe sends the client back to: their own booking page with
+    /// its edit token (`/intake/:id?token=…`). `&paid=1` or `&cancelled=1` is
+    /// added, so the page can say what happened.
+    pub return_path: String,
 }
 
 pub async fn create_checkout_session(
@@ -102,14 +109,11 @@ pub async fn create_checkout_session(
         ),
         (
             "success_url",
-            format!(
-                "{client_url}/intake/success?intake_id={}&session_id={{CHECKOUT_SESSION_ID}}",
-                r.intake_id
-            ),
+            format!("{client_url}{}&paid=1", r.return_path),
         ),
         (
             "cancel_url",
-            format!("{client_url}/intake/{}?cancelled=1", r.intake_id),
+            format!("{client_url}{}&cancelled=1", r.return_path),
         ),
     ];
     if let Some(email) = r.client_email.filter(|e| !e.is_empty()) {
@@ -139,6 +143,59 @@ pub async fn create_checkout_session(
     res.json::<CheckoutSession>()
         .await
         .map_err(|e| StripeError::Transport(e.to_string()))
+}
+
+async fn checkout_session_call(
+    state: &AppState,
+    req: reqwest::RequestBuilder,
+) -> Result<CheckoutSession, StripeError> {
+    let key = state
+        .config
+        .stripe_secret_key
+        .as_deref()
+        .ok_or(StripeError::NotConfigured)?;
+    let res = req
+        .bearer_auth(key)
+        .send()
+        .await
+        .map_err(|e| StripeError::Transport(e.to_string()))?;
+    if !res.status().is_success() {
+        let status = res.status();
+        let msg = res
+            .json::<ErrorBody>()
+            .await
+            .map(|b| b.error.message)
+            .unwrap_or_else(|_| format!("Stripe returned HTTP {}", status.as_u16()));
+        return Err(StripeError::Api(msg));
+    }
+    res.json::<CheckoutSession>()
+        .await
+        .map_err(|e| StripeError::Transport(e.to_string()))
+}
+
+fn session_url(state: &AppState, id: &str, suffix: &str) -> String {
+    format!(
+        "{}/v1/checkout/sessions/{id}{suffix}",
+        state.config.stripe_api_base.trim_end_matches('/')
+    )
+}
+
+/// GET /v1/checkout/sessions/:id: is an earlier checkout still open, paid
+/// (`complete`) or `expired`?
+pub async fn retrieve_checkout_session(
+    state: &AppState,
+    id: &str,
+) -> Result<CheckoutSession, StripeError> {
+    checkout_session_call(state, state.http.get(session_url(state, id, ""))).await
+}
+
+/// POST /v1/checkout/sessions/:id/expire: closes an open checkout so it can't
+/// be paid after a new one replaces it.
+pub async fn expire_checkout_session(
+    state: &AppState,
+    id: &str,
+) -> Result<CheckoutSession, StripeError> {
+    checkout_session_call(state, state.http.post(session_url(state, id, "/expire"))).await
 }
 
 /// Why a webhook signature was rejected (the text goes in the 400 body).

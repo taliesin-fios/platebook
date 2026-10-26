@@ -334,6 +334,17 @@ pub fn is_public_route(method: &Method, path: &str) -> bool {
         return true;
     }
 
+    // Client pays the booking deposit online (token checked inside the route)
+    if method == Method::POST
+        && let Some(id) = path
+            .strip_prefix("/api/intake/")
+            .and_then(|rest| rest.strip_suffix("/checkout"))
+        && !id.is_empty()
+        && id.bytes().all(|b| b.is_ascii_digit())
+    {
+        return true;
+    }
+
     // Stripe webhook
     if method == Method::POST && path == "/api/payments/webhook" {
         return true;
@@ -432,6 +443,11 @@ mod tests {
             "/api/intake/42/resend-confirmation"
         ));
         assert!(!is_public_route(&post, "/api/intake/42/restore"));
+        assert!(is_public_route(&post, "/api/intake/42/checkout"));
+        assert!(!is_public_route(&get, "/api/intake/42/checkout"));
+        assert!(!is_public_route(&post, "/api/intake/abc/checkout"));
+        assert!(!is_public_route(&post, "/api/intake/42/x/checkout"));
+        assert!(!is_public_route(&get, "/api/intake/42/client-link"));
         assert!(!is_public_route(&get, "/api/intake/42/payments"));
         assert!(!is_public_route(&get, "/api/intake/abc"));
         assert!(is_public_route(&post, "/api/payments/webhook"));

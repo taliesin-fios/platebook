@@ -11,7 +11,7 @@
 import { useState, useEffect, type FormEvent, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { ALLERGENS_LIST, DIETARY_STYLES, PROTEINS, centsToDollars } from '../constants';
-import type { ClientIntakeDetail, IntakeSubmitResponse, PublicProfile } from '../types';
+import type { ClientIntakeDetail, IntakeSubmitResponse, PaymentStatus, PublicProfile } from '../types';
 import PoweredBy from '../components/PoweredBy';
 
 interface IntakeFormData {
@@ -106,6 +106,51 @@ const Section = ({ number, title, children }: { number: ReactNode; title: ReactN
   </div>
 );
 
+/**
+ * The booking deposit on the client's own pages: pay it online when the chef
+ * takes card payments (PAYMENTS_MODE=stripe), or say it's paid or waived.
+ */
+const DepositPanel = ({ amount, status, online, methods, notice, paying, error, onPay }: {
+  /** Dollars, formatted. */
+  amount: string;
+  status: PaymentStatus | null;
+  online: boolean;
+  methods?: string | null;
+  /** After coming back from checkout. */
+  notice?: { text: string; hidePay: boolean } | null;
+  paying: boolean;
+  error: string;
+  onPay: () => void;
+}) => {
+  const settled = status === 'paid' || status === 'paid_offline';
+  return (
+    <div className="rounded-2xl p-5 mb-6 border" style={{ background: '#EEF3EA', borderColor: '#5E7F57' }}>
+      <h2 className="font-semibold mb-1" style={{ color: '#3A5C32' }}>Booking Deposit</h2>
+      {settled ? (
+        <p className="text-sm" style={{ color: '#3A5C32' }}>✓ Your ${amount} deposit is paid. Thank you!</p>
+      ) : status === 'waived' ? (
+        <p className="text-sm text-gray-600">Your chef has waived the deposit.</p>
+      ) : (
+        <>
+          {notice && <p className="text-sm font-medium mb-2" style={{ color: '#3A5C32' }}>{notice.text}</p>}
+          <p className="text-sm text-gray-600">
+            A <strong>${amount} booking deposit</strong> holds your session date.
+            {!online && <> Your chef will be in touch to arrange payment{methods ? <> ({methods})</> : null}.</>}
+          </p>
+          {online && !notice?.hidePay && (
+            <button type="button" onClick={onPay} disabled={paying}
+              className="mt-3 w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-60"
+              style={{ background: '#5E7F57' }}>
+              {paying ? 'Opening secure checkout…' : `Pay $${amount} deposit →`}
+            </button>
+          )}
+          {error && <p className="text-xs mt-2" style={{ color: '#A94442' }}>{error}</p>}
+        </>
+      )}
+    </div>
+  );
+};
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function IntakeForm() {
@@ -125,6 +170,38 @@ export default function IntakeForm() {
   const bizName = profile?.business_name || '';
   const depositCents = Number(profile?.deposit_cents) || 0;
   const cancelHours  = profile?.cancellation_hours ?? 48;
+  const onlineDeposits = profile?.payments_mode === 'stripe';
+  // The client's own deposit, from their intake (edit mode).
+  const [deposit, setDeposit] = useState<{ status: PaymentStatus | null; amount: number | null } | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState('');
+  // Stripe sends the client back here with &paid=1 or &cancelled=1.
+  const returnNotice = searchParams.get('paid') === '1'
+    ? { text: 'Thanks! Your payment went through. It can take a minute to show here.', hidePay: true }
+    : searchParams.get('cancelled') === '1'
+      ? { text: 'Payment cancelled. You can try again whenever you’re ready.', hidePay: false }
+      : null;
+  const depositAmount = (dollars: number | null | undefined) =>
+    centsToDollars(dollars ? Math.round(dollars * 100) : depositCents);
+
+  const payDeposit = async (intakeId: number, token: string) => {
+    setPaying(true);
+    setPayError('');
+    try {
+      const res = await fetch(`/api/intake/${intakeId}/checkout?token=${encodeURIComponent(token)}`, { method: 'POST' });
+      const data: { checkout_url?: string | null; error?: string; code?: string } = await res.json();
+      if (res.ok && data.checkout_url) {
+        window.location.assign(data.checkout_url);
+        return;
+      }
+      setPayError(data.code === 'ALREADY_PAID'
+        ? 'Your payment has gone through. It can take a minute to show here.'
+        : data.error || 'Could not start the payment. Please try again.');
+    } catch {
+      setPayError('Network error — please check your connection and try again');
+    }
+    setPaying(false);
+  };
   const responseTime = profile?.response_time_text || 'soon';
 
   // Tab title follows the chef being booked, not whoever is signed in
@@ -159,6 +236,7 @@ export default function IntakeForm() {
       })
       .then((data: ClientIntakeDetail) => {
         loadProfile(data.chef_slug).catch(() => {});
+        setDeposit({ status: data.payment_status, amount: data.booking_fee_amount });
         setForm(prev => ({
           ...prev,
           name: data.name || '',
@@ -322,17 +400,10 @@ export default function IntakeForm() {
           </div>
 
           {/* Booking deposit — shown only when this chef takes one */}
-          {!isEditMode && depositCents > 0 && (
-            <div className="rounded-2xl p-5 mb-5 border" style={{ background: '#EEF3EA', borderColor: '#5E7F57' }}>
-              <h2 className="font-semibold mb-1" style={{ color: '#3A5C32' }}>
-                Booking Deposit
-              </h2>
-              <p className="text-sm text-gray-600">
-                A <strong>${centsToDollars(depositCents)} booking deposit</strong> holds your session date.
-                Your chef will be in touch to arrange payment
-                {profile?.payment_methods ? <> ({profile.payment_methods})</> : null}.
-              </p>
-            </div>
+          {!isEditMode && depositCents > 0 && 'edit_token' in result && (
+            <DepositPanel amount={depositAmount(null)} status={null} online={onlineDeposits}
+              methods={profile?.payment_methods} paying={paying} error={payError}
+              onPay={() => payDeposit(result.id, result.edit_token)} />
           )}
 
           <p className="text-xs text-center text-gray-400">
@@ -369,6 +440,12 @@ export default function IntakeForm() {
             </p>
           )}
         </div>
+
+        {isEditMode && deposit && (depositCents > 0 || (deposit.amount ?? 0) > 0) && (
+          <DepositPanel amount={depositAmount(deposit.amount)} status={deposit.status} online={onlineDeposits}
+            methods={profile?.payment_methods} notice={returnNotice} paying={paying} error={payError}
+            onPay={() => payDeposit(Number(editId), editToken!)} />
+        )}
 
         {errors._global && (
           <div id="intake-global-error" className="mb-6 px-4 py-3 rounded-xl text-sm font-medium" style={{ background: '#FEE2E2', color: '#A94442' }}>

@@ -7,6 +7,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Clients can pay the booking deposit online** (`PAYMENTS_MODE=stripe`). The client's booking page (the link in their confirmation email) shows **Pay $X deposit**. So does the screen right after they book. Each press opens a fresh Stripe Checkout (`POST /api/intake/:id/checkout`, checked with their edit token and rate-limited), so their link never goes stale. Stripe brings them back to that page, which says whether the payment went through or was cancelled, and shows "✓ paid" once the webhook confirms it.
+- **Copy client's booking link** on each inquiry (`GET /api/intake/:id/client-link`), to send a client their page again.
+- The client's view of their booking includes their own deposit status (`payment_status`, `booking_fee_amount`, `booking_fee_paid_at`). The chef's payment notes stay private.
+
+### Fixed
+- After paying, Stripe sent clients to `/intake/success`, a page that didn't exist (they landed on the sign-in screen). Cancelling sent them to their booking page without its token, which then failed to load.
+- A waived deposit could still be charged online.
+- Starting a new checkout while one was pending was refused, so an abandoned checkout couldn't be retried. Now the open one is expired first, so only the newest can be paid, and one already paid gives "it can take a minute to show" instead of a second charge.
+
 ---
 
 ## [0.2.0] — 2026-10-26

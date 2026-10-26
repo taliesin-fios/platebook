@@ -542,6 +542,7 @@ The same goes for the two emails sent when a client books through your booking p
 Requests from your booking page land on the **Client Intakes** page. Tap one to see the client's answers, record a deposit, add private notes, or convert it into a client.
 
 - **Payment history:** the Payment section lists every payment action on the inquiry, oldest first: deposit requested, marked paid, waived, and online payments and refunds when Stripe is on.
+- **Deposits:** with online payments on (Stripe, set up by whoever runs your Platebook server), clients pay the deposit themselves from their booking page: the link in their confirmation email, or right after they book. It's marked paid automatically and shows in Payment History. To send a client their page again, use **Copy client's booking link** on the inquiry. Without online payments, record deposits by hand with the Payment Actions buttons.
 - **Deleting an inquiry:** use **Delete inquiry** at the bottom (for spam, duplicates or leads that went nowhere). It isn't erased: it moves to the **Deleted** filter with its payment history, and **Restore** brings it back. While it's deleted, the client's link to their request stops working and you can't edit it or take payments on it. If a client pays online for a deleted inquiry, it's restored automatically.
 
 ---
