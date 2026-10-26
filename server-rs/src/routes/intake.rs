@@ -8,6 +8,7 @@
 //!                                   for pre-account /intake/new links)
 //!   GET  /api/intake/:id?token=   — read with the HMAC edit token
 //!   PUT  /api/intake/:id?token=   — client-editable fields via the token
+//!   POST /api/intake/:id/checkout?token= — pay the booking deposit online (Stripe)
 //!   (token holders get a [`ClientIntakeView`]: never the chef's notes,
 //!   payment details or email bookkeeping)
 //! Chef (owning account; GET/PUT above also accept the owner's session):
@@ -15,6 +16,7 @@
 //!   POST   /api/intake/:id/convert — intake → client record
 //!   POST   /api/intake/:id/resend-confirmation — email the client's confirmation again
 //!   GET    /api/intake/:id/payments — payment timeline (payment_events)
+//!   GET    /api/intake/:id/client-link — the client's booking-page link, to send again
 //!   DELETE /api/intake/:id         — soft delete (sets deleted_at)
 //!   POST   /api/intake/:id/restore — undo a delete
 //!
@@ -61,6 +63,8 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/convert", post(convert))
         .route("/{id}/resend-confirmation", post(resend_confirmation))
         .route("/{id}/payments", get(payments))
+        .route("/{id}/checkout", post(checkout))
+        .route("/{id}/client-link", get(client_link))
         .route("/{id}/restore", post(restore))
 }
 
@@ -122,6 +126,16 @@ pub struct ClientIntakeView {
     pub terms_accepted_at: Option<DateTime<Utc>>,
     #[ts(as = "crate::api_types::IntakeStatus")]
     pub status: Option<String>,
+    /// Their own deposit: whether it's due, paid or waived, so their page can
+    /// offer to pay online or say it's done. (The chef's payment notes stay
+    /// private.)
+    #[ts(as = "crate::api_types::PaymentStatus")]
+    pub payment_status: Option<String>,
+    #[ts(type = "number | null")]
+    pub booking_fee_amount: Option<Decimal>,
+    #[serde(serialize_with = "ts::serialize")]
+    #[ts(type = "string | null")]
+    pub booking_fee_paid_at: Option<DateTime<Utc>>,
     #[serde(serialize_with = "ts::serialize")]
     #[ts(type = "string")]
     pub created_at: Option<DateTime<Utc>>,
@@ -161,6 +175,9 @@ impl From<IntakeWithSlug> for ClientIntakeView {
             terms_accepted: i.terms_accepted,
             terms_accepted_at: i.terms_accepted_at,
             status: i.status,
+            payment_status: i.payment_status,
+            booking_fee_amount: i.booking_fee_amount,
+            booking_fee_paid_at: i.booking_fee_paid_at,
             created_at: i.created_at,
             updated_at: i.updated_at,
             chef_slug: w.chef_slug,
@@ -174,6 +191,14 @@ fn for_role(role: &Role, intake: IntakeWithSlug) -> Response {
         Role::Chef => Json(intake).into_response(),
         Role::Client => Json(ClientIntakeView::from(intake)).into_response(),
     }
+}
+
+/// GET /api/intake/:id/client-link.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct ClientLink {
+    /// The client's booking page with its edit token.
+    pub url: String,
 }
 
 /// GET /api/intake/:id/payments: one entry of the intake's payment timeline.
@@ -852,6 +877,57 @@ async fn remove(mut t: Tenant, Path(raw_id): Path<String>) -> BareResult<Json<Su
     }
     t.tx.commit().await?;
     Ok(Json(SUCCESS))
+}
+
+// ── POST /api/intake/:id/checkout — client (token) or owner ──────────────────
+/// Pays the booking deposit online: a fresh Stripe Checkout session each
+/// time, so a link the client keeps never goes stale.
+async fn checkout(
+    State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
+    who: MaybeAccount,
+    Path(raw_id): Path<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> BareResult<Response> {
+    state
+        .limits
+        .checkout
+        .check(&state.pool, &ip)
+        .await
+        .map_err(|e| e.with_code())?;
+    let (_, owner) = access(&state, &who, &raw_id, &q).await?;
+    let (Some(owner), Some(id)) = (owner, parse_id(&raw_id)) else {
+        return Err(intake_not_found().into());
+    };
+    crate::routes::payments::start_checkout(&state, owner, id).await
+}
+
+// ── GET /api/intake/:id/client-link — chef ───────────────────────────────────
+/// The client's own booking-page link, for the chef to send again: the
+/// client can review their answers there and, with online payments on, pay
+/// the deposit.
+async fn client_link(
+    State(state): State<AppState>,
+    mut t: Tenant,
+    Path(raw_id): Path<String>,
+) -> BareResult<Json<ClientLink>> {
+    let id = parse_id(&raw_id).ok_or_else(intake_not_found)?;
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM client_intakes
+          WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL)",
+    )
+    .bind(id)
+    .bind(t.account.id)
+    .fetch_one(&mut *t.tx)
+    .await?;
+    t.tx.commit().await?;
+    if !exists {
+        return Err(intake_not_found().into());
+    }
+    let token = intake_token::make_token(&state.config.intake_secret, id);
+    Ok(Json(ClientLink {
+        url: format!("{}/intake/{id}?token={token}", state.config.client_url),
+    }))
 }
 
 // ── POST /api/intake/:id/restore — undo a delete ─────────────────────────────
