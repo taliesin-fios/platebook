@@ -55,7 +55,7 @@ platebook/
 │   │   ├── money.rs                # integer-cents money helpers
 │   │   ├── rate_limit.rs           # Postgres-backed rate limits (per IP / per account)
 │   │   └── error.rs                # AppError, err_msg (prod-safe errors)
-│   ├── migrations/                 # 0001 schema … 0005 recurring sessions, 0006 session reminders, 0007 email failures, 0008 intake email failures, 0009 intake soft delete
+│   ├── migrations/                 # 0001 schema … 0005 recurring sessions, 0006 session reminders, 0007 email failures, 0008 intake email failures, 0009 intake soft delete, 0010 invoice payments
 │   ├── tests/                      # cargo integration tests (HTTP, RLS, PDFs, tenancy)
 │   └── scripts/                    # cargo/dev launchers, db-setup
 │
@@ -179,10 +179,10 @@ draft ──→ sent ──→ paid
 | `clients` | `is_active = false` | Yes: hidden from lists, sessions and invoices keep pointing at it |
 | `recipes` | `is_active = false` | Yes: past sessions keep their dishes |
 | `client_intakes` | `deleted_at = now()`; `POST /api/intake/:id/restore` undoes it | Yes, with its `payment_events`. Hidden from the inbox (`?deleted=1` lists them), the client's edit link and every action (404). A completed Stripe checkout restores it |
-| `invoices` | `paid`: refused (`409 STATUS_LOCKED`). `void`: `deleted_at = now()`. `draft` / `sent`: removed | Paid and void ones, yes |
+| `invoices` | `paid`: refused (`409 STATUS_LOCKED`). `void`: `deleted_at = now()`. `draft` / `sent`: removed, their `payment_events` detached (`invoice_id = NULL`) | Paid and void ones, yes |
 | `sessions` | Refused while a non-void invoice is attached (`409 INVOICE_ATTACHED`); otherwise removed with its dishes, grocery items and its void invoices | No |
 | `session_templates` | Removed | No |
-| `payment_events` | Never deleted (append-only audit log) | Yes |
+| `payment_events` | Never deleted (append-only audit log). Deposit events point at an intake, invoice events at an invoice | Yes |
 
 List columns (`allergens`, `dietary_styles`, `liked_proteins`, `equipment`, `recipe_ids`, …) are `JSONB`. Flags are `BOOLEAN` (sent as `0`/`1` in JSON), dates `DATE`, timestamps `TIMESTAMPTZ`, dollar amounts `NUMERIC(12,2)`. The full SQLite → Postgres mapping is in [`server-rs/README.md`](server-rs/README.md#schema-differences-from-sqlite).
 
@@ -231,6 +231,8 @@ Public (no cookie required; `req.account` is still set when signed in):
 | POST | `/api/intake` |
 | GET, PUT | `/api/intake/:id` (owner's session **or** HMAC token) |
 | POST | `/api/intake/:id/checkout` (owner's session **or** HMAC token; opens a Stripe Checkout for the deposit; rate-limited per IP) |
+| GET | `/api/invoices/:id/public` (invoice-link token only: the invoice as the client sees it) |
+| POST | `/api/invoices/:id/checkout` (invoice-link token only; opens a Stripe Checkout for the invoice; rate-limited per IP) |
 | POST | `/api/payments/webhook` |
 | * | non-`/api/*` paths (SPA + static files) |
 
@@ -264,7 +266,9 @@ PAYMENTS_MODE=disabled → status display only; checkout returns 503
 PAYMENTS_MODE=stripe   → Stripe Checkout; requires STRIPE_SECRET_KEY
 ```
 
-Mode logic is in `server-rs/src/routes/payments.rs`; Stripe REST calls and webhook signature checks are in `server-rs/src/stripe.rs`. Switching modes requires only an env var change — no code changes.
+Mode logic is in `server-rs/src/routes/payments.rs`; Stripe REST calls and webhook signature checks are in `server-rs/src/stripe.rs`.
+
+With `stripe`, clients pay from their own pages, never through a chef session: the booking deposit from `/intake/:id?token=…` (intake token) and an invoice from `/invoice/:id?token=…` (invoice token, 180 days, signed over `invoice:<id>`). Each press opens a fresh Checkout session; an earlier one still open is expired first, and one already paid gives `409 ALREADY_PAID`. The session's metadata names `intake_id` or `invoice_id`, and the webhook updates and logs against that record (tenant from one pre-tenant lookup by id). Switching modes requires only an env var change — no code changes.
 
 ---
 

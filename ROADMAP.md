@@ -6,17 +6,12 @@ Planned work, in priority order. Ideas and pull requests are welcome: open an is
 
 Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or more.
 
-## Now: v0.2.0, ship what's already merged
+## Now: ship what's already merged
 
 | # | Item | Size | Status |
 |---|---|---|---|
 | 1 | Release v0.2.0 to self-hosters: everything under v0.2 and the unpublished v0.1.1 in `CHANGELOG.md` (including a privacy fix and migrations 0007–0009). Versions are set to 0.2.0; tag `v0.2.0` on `main` to publish the image. | S | Tag and image pending |
-
-## Next: v0.3, payments end to end
-
-| # | Item | Size | Notes |
-|---|---|---|---|
-| 1 | Invoice payment links | M | A Stripe payment link per invoice, marked paid automatically by the existing webhook. |
+| 2 | Release v0.3.0: online deposits and invoice payments (migration 0010). First, one end-to-end Stripe test-mode run of both (book and pay a deposit, email and pay an invoice), then bump versions and tag. | S | After v0.2.0 |
 
 ## Later: features, ordered by what chefs ask for
 
@@ -33,7 +28,7 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 ## Done
 
-- **v0.3 (unreleased):** clients pay the booking deposit online from their booking page (Stripe), with working return pages, retries that can't double-charge, and a "Copy client's booking link" button for the chef.
+- **v0.3 (unreleased):** clients pay the booking deposit online from their booking page and invoices from their invoice link (Stripe), with working return pages, retries that can't double-charge, the webhook marking them paid, and copyable client links for the chef.
 - **v0.2.0 (tag pending):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation. A client's booking link no longer exposes the chef's private notes. Inquiries can be deleted and restored without losing their history, and each shows its payment history. The deletion rule for every table is in `ARCHITECTURE.md`. The dashboard's Collected (MTD) tile shows a trend against the same days of last month.
 - **v0.1.1 (never published; part of v0.2.0):** failed meal-plan and invoice emails are remembered and shown with **Try again**, every email gets one automatic retry, and "today", "this month" and "overdue" follow the account's time zone.
 - **v0.1.0:** session reminder emails, recurring sessions, time-aware calendar conflicts, a real "this week" dashboard stat, a share/print/copy grocery list, and consistent margin colors.

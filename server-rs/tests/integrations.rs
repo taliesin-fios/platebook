@@ -1600,3 +1600,232 @@ async fn clients_pay_the_deposit_from_their_booking_page(pool: PgPool) {
     assert_eq!(off.status, StatusCode::SERVICE_UNAVAILABLE, "{}", off.body);
     drop(m);
 }
+
+/// The client pays an invoice from the link in its email: the link's token
+/// only opens that invoice, the webhook marks it paid and logs the event
+/// against it, a paid or void invoice can't be charged, and deleting an
+/// unpaid invoice keeps its payment events (detached).
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn clients_pay_invoices_from_their_invoice_link(pool: PgPool) {
+    let fake = fake_stripe().await;
+    let (app, state) = app_with(pool.clone(), stripe_config(&fake.url));
+    let c = Chef::new(&pool, &app, "Invoice Pay Kitchen").await;
+    let cid = c
+        .post(
+            "/api/clients",
+            json!({ "name": "Jo", "email": "jo@example.com" }),
+        )
+        .await
+        .body["id"]
+        .clone();
+    let new_invoice = |amount: i64| {
+        let c = &c;
+        let cid = cid.clone();
+        async move {
+            let inv = c
+                .post(
+                    "/api/invoices",
+                    json!({ "client_id": cid, "client_name": "Jo", "client_email": "jo@example.com",
+                            "internal_notes": "slow payer",
+                            "line_items": [{ "description": "Meal prep", "quantity": 1, "unit_price": amount }] }),
+                )
+                .await;
+            assert_eq!(inv.status, StatusCode::CREATED, "{}", inv.body);
+            inv.body["id"].as_i64().unwrap()
+        }
+    };
+    let id = new_invoice(120).await;
+
+    // The invoice email carries the pay link.
+    let sent = c
+        .post(&format!("/api/invoices/{id}/email"), json!({}))
+        .await;
+    assert_eq!(sent.status, StatusCode::OK, "{}", sent.body);
+    let mail = state.outbox.messages().pop().unwrap();
+    assert!(mail.html.contains("Pay online"), "{}", mail.html);
+    let link = mail
+        .text
+        .split("Pay online: ")
+        .nth(1)
+        .expect("pay link in the text part")
+        .lines()
+        .next()
+        .unwrap()
+        .to_string();
+    let token = link
+        .strip_prefix(&format!("http://localhost:5174/invoice/{id}?token="))
+        .unwrap_or_else(|| panic!("unexpected link: {link}"))
+        .to_string();
+
+    // Only that token opens it: none, a bad one, or an intake token for the
+    // same number are refused.
+    let view = format!("/api/invoices/{id}/public");
+    assert_eq!(
+        get(view.clone()).send(&app).await.status,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        get(format!("{view}?token=bad")).send(&app).await.status,
+        StatusCode::FORBIDDEN
+    );
+    let intake_token = chef_server::intake_token::make_token("test-intake-secret", id);
+    assert_eq!(
+        get(format!("{view}?token={intake_token}"))
+            .send(&app)
+            .await
+            .status,
+        StatusCode::FORBIDDEN
+    );
+    let mine = get(format!("{view}?token={token}")).send(&app).await;
+    assert_eq!(mine.status, StatusCode::OK, "{}", mine.body);
+    assert_eq!(mine.body["total"], 120.0);
+    assert_eq!(mine.body["status"], "sent");
+    assert_eq!(mine.body["line_items"][0]["description"], "Meal prep");
+    assert_eq!(mine.body["can_pay_online"], true);
+    for key in ["internal_notes", "client_email", "account_id", "chef_email"] {
+        assert!(mine.body.get(key).is_none(), "{key} leaked: {}", mine.body);
+    }
+
+    // Pay: a Checkout for the total, naming the invoice, back to its page.
+    let pay = post_req(
+        format!("/api/invoices/{id}/checkout?token={token}"),
+        json!({}),
+    )
+    .send(&app)
+    .await;
+    assert_eq!(pay.status, StatusCode::OK, "{}", pay.body);
+    let (_, form) = fake.created.lock().unwrap()[0].clone();
+    assert!(form.contains("line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=12000"));
+    assert!(form.contains(&format!(
+        "payment_intent_data%5Bmetadata%5D%5Binvoice_id%5D={id}"
+    )));
+    assert!(
+        form.contains(&format!(
+            "success_url=http%3A%2F%2Flocalhost%3A5174%2Finvoice%2F{id}%3Ftoken%3D"
+        )),
+        "{form}"
+    );
+    assert!(form.contains("customer_email=jo%40example.com"));
+
+    // The webhook marks it paid and logs the event against the invoice.
+    let event = json!({
+        "id": "evt_inv_1", "type": "checkout.session.completed",
+        "data": { "object": { "payment_intent": "pi_9", "amount_total": 12000, "payment_status": "paid",
+                              "metadata": { "invoice_id": id.to_string() } } }
+    });
+    assert_eq!(
+        send_webhook(&app, &event, WHSEC).await.body,
+        json!({ "received": true })
+    );
+    let paid = c.get(&format!("/api/invoices/{id}")).await.body;
+    assert_eq!(paid["status"], "paid", "{paid}");
+    assert!(paid["paid_at"].is_string());
+    let logged: (Option<i64>, Option<i64>) = sqlx::query_as(
+        "SELECT invoice_id, intake_id FROM payment_events WHERE stripe_event_id = 'evt_inv_1'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(logged, (Some(id), None));
+    assert_eq!(
+        send_webhook(&app, &event, WHSEC).await.body,
+        json!({ "received": true, "skipped": "already processed" })
+    );
+
+    // Paid: no second charge; its page says so.
+    let again = post_req(
+        format!("/api/invoices/{id}/checkout?token={token}"),
+        json!({}),
+    )
+    .send(&app)
+    .await;
+    assert_eq!(again.status, StatusCode::BAD_REQUEST, "{}", again.body);
+    assert_eq!(again.body["code"], "INVOICE_SETTLED");
+    assert_eq!(
+        get(format!("{view}?token={token}")).send(&app).await.body["status"],
+        "paid"
+    );
+
+    // The chef's copy of the link opens the same page.
+    let copied = c.get(&format!("/api/invoices/{id}/client-link")).await;
+    assert_eq!(copied.status, StatusCode::OK, "{}", copied.body);
+    let copied_token = copied.body["url"]
+        .as_str()
+        .unwrap()
+        .split("?token=")
+        .nth(1)
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        get(format!("{view}?token={copied_token}"))
+            .send(&app)
+            .await
+            .status,
+        StatusCode::OK
+    );
+
+    // A failed card on an unpaid invoice, which the chef then deletes: the
+    // invoice goes, its payment event stays (detached).
+    let other = new_invoice(80).await;
+    let failed = json!({
+        "id": "evt_inv_2", "type": "payment_intent.payment_failed",
+        "data": { "object": { "status": "requires_payment_method",
+                              "metadata": { "invoice_id": other.to_string() } } }
+    });
+    send_webhook(&app, &failed, WHSEC).await;
+    assert_eq!(
+        c.get(&format!("/api/invoices/{other}")).await.body["status"],
+        "draft",
+        "a failed payment changes nothing"
+    );
+    let removed = c.delete(&format!("/api/invoices/{other}")).await;
+    assert_eq!(removed.status, StatusCode::OK, "{}", removed.body);
+    let kept: Option<i64> = sqlx::query_scalar(
+        "SELECT invoice_id FROM payment_events WHERE stripe_event_id = 'evt_inv_2'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(kept, None);
+
+    // Void: can't be paid.
+    let voided = new_invoice(50).await;
+    c.put(
+        &format!("/api/invoices/{voided}"),
+        json!({ "status": "void", "line_items": [{ "description": "x", "quantity": 1, "unit_price": 50 }] }),
+    )
+    .await;
+    let void_token = chef_server::intake_token::make_invoice_token("test-intake-secret", voided);
+    let refused = post_req(
+        format!("/api/invoices/{voided}/checkout?token={void_token}"),
+        json!({}),
+    )
+    .send(&app)
+    .await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.body);
+    assert_eq!(refused.body["code"], "INVOICE_SETTLED");
+}
+
+/// Without online payments the invoice email has no pay link.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn invoice_emails_have_no_pay_link_without_online_payments(pool: PgPool) {
+    let (app, state) = app_with(pool.clone(), common::test_config());
+    let c = Chef::new(&pool, &app, "Manual Invoice Kitchen").await;
+    let inv = c
+        .post(
+            "/api/invoices",
+            json!({ "client_name": "Jo", "client_email": "jo@example.com",
+                    "line_items": [{ "description": "Meal prep", "quantity": 1, "unit_price": 90 }] }),
+        )
+        .await;
+    let sent = c
+        .post(
+            &format!("/api/invoices/{}/email", inv.body["id"]),
+            json!({}),
+        )
+        .await;
+    assert_eq!(sent.status, StatusCode::OK, "{}", sent.body);
+    let mail = state.outbox.messages().pop().unwrap();
+    assert!(!mail.text.contains("Pay online"), "{}", mail.text);
+    assert!(!mail.html.contains("/invoice/"), "{}", mail.html);
+}

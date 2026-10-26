@@ -200,7 +200,7 @@ async fn status(
 }
 
 /// 503 when online payments are off, or `None`.
-fn payments_disabled(state: &AppState) -> Option<Response> {
+pub(crate) fn payments_disabled(state: &AppState) -> Option<Response> {
     let mode = state.config.payments_mode;
     (mode != PaymentsMode::Stripe).then(|| {
         (
@@ -233,6 +233,34 @@ async fn checkout(
     // start_checkout opens its own tenant transaction.
     drop(t);
     start_checkout(&state, account, id).await
+}
+
+pub(crate) fn stripe_error(e: stripe::StripeError) -> AppError {
+    tracing::error!(error = %e, "[stripe] checkout");
+    AppError::internal_bare(e)
+}
+
+/// Before opening a new Checkout for something, deal with the one opened
+/// earlier: still `open` → expire it, so only the newest can be paid;
+/// `complete` → 409, it was paid and the webhook is on its way.
+pub(crate) async fn close_earlier_checkout(state: &AppState, prev: &str) -> Result<(), AppError> {
+    let earlier = stripe::retrieve_checkout_session(state, prev)
+        .await
+        .map_err(stripe_error)?;
+    match earlier.status.as_deref() {
+        Some("complete") => Err(AppError::new(
+            StatusCode::CONFLICT,
+            "ALREADY_PAID",
+            "This has just been paid. It can take a minute to show.",
+        )),
+        Some("open") => {
+            stripe::expire_checkout_session(state, prev)
+                .await
+                .map_err(stripe_error)?;
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Opens a Stripe Checkout session for an intake's booking deposit and
@@ -280,10 +308,6 @@ pub async fn start_checkout(state: &AppState, account: i64, id: i64) -> BareResu
         .into());
     }
 
-    let stripe_err = |e: stripe::StripeError| {
-        tracing::error!(error = %e, "[stripe] checkout");
-        AppError::internal_bare(e)
-    };
     // A checkout we started is in flight: don't leave two payable at once.
     if intake.payment_status.as_deref() == Some("payment_pending")
         && let Some(prev) = intake
@@ -291,42 +315,31 @@ pub async fn start_checkout(state: &AppState, account: i64, id: i64) -> BareResu
             .as_deref()
             .filter(|s| !s.is_empty())
     {
-        let earlier = stripe::retrieve_checkout_session(state, prev)
-            .await
-            .map_err(stripe_err)?;
-        match earlier.status.as_deref() {
-            Some("complete") => {
-                return Err(AppError::new(
-                    StatusCode::CONFLICT,
-                    "ALREADY_PAID",
-                    "This deposit has just been paid. It can take a minute to show.",
-                )
-                .into());
-            }
-            Some("open") => {
-                stripe::expire_checkout_session(state, prev)
-                    .await
-                    .map_err(stripe_err)?;
-            }
-            _ => {}
-        }
+        close_earlier_checkout(state, prev).await?;
     }
 
     let token = crate::intake_token::make_token(&state.config.intake_secret, id);
     let session = stripe::create_checkout_session(
         state,
         stripe::CheckoutRequest {
-            account_id: account,
-            intake_id: id,
-            client_name: &intake.name,
-            client_email: intake.email.as_deref(),
-            fee_cents,
-            cancellation_hours: settings.cancellation_hours.unwrap_or(48),
+            product_name: "Booking Fee".into(),
+            description: format!(
+                "Holds your spot for {}. Non-refundable if cancelled within {} hours.",
+                intake.name,
+                settings.cancellation_hours.unwrap_or(48)
+            ),
+            amount_cents: fee_cents,
+            customer_email: intake.email.as_deref(),
+            metadata: vec![
+                ("account_id", account.to_string()),
+                ("intake_id", id.to_string()),
+                ("client_name", intake.name.clone()),
+            ],
             return_path: format!("/intake/{id}?token={token}"),
         },
     )
     .await
-    .map_err(stripe_err)?;
+    .map_err(stripe_error)?;
 
     sqlx::query(
         "UPDATE client_intakes
@@ -404,6 +417,11 @@ async fn handle_event(state: &AppState, event: &Value) -> Result<Value, sqlx::Er
         return Ok(json!({ "received": true, "skipped": "already processed" }));
     }
 
+    // An invoice payment names its invoice; a deposit names its intake.
+    if let Some(invoice_id) = object["metadata"].get("invoice_id").and_then(js::integer) {
+        return handle_invoice_event(state, event, invoice_id).await;
+    }
+
     // The tenant comes from the intake named in the metadata.
     let intake_id = object["metadata"].get("intake_id").and_then(js::integer);
     let owner: Option<i64> = match intake_id {
@@ -466,6 +484,71 @@ async fn handle_event(state: &AppState, event: &Value) -> Result<Value, sqlx::Er
         }
         _ => {}
     }
+    let logged = log_event(&mut tx, owner, Some(intake_id), None, event).await?;
+    if !logged {
+        return Ok(json!({ "received": true, "skipped": "already processed" }));
+    }
+    tx.commit().await?;
+    Ok(json!({ "received": true }))
+}
+
+/// An invoice's Checkout events: a completed one marks the invoice paid.
+async fn handle_invoice_event(
+    state: &AppState,
+    event: &Value,
+    invoice_id: i64,
+) -> Result<Value, sqlx::Error> {
+    let event_type = event
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let owner: Option<i64> = sqlx::query_scalar("SELECT account_id FROM invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_optional(&state.pool)
+        .await?;
+    let Some(owner) = owner else {
+        tracing::warn!(
+            invoice_id,
+            event_type,
+            "[stripe] event names no known invoice; not logged"
+        );
+        return Ok(json!({ "received": true }));
+    };
+    let mut tx = begin_tenant(&state.pool, owner).await?;
+    if event_type == "checkout.session.completed" {
+        let marked = sqlx::query(
+            "UPDATE invoices SET status = 'paid', paid_at = now(), updated_at = now()
+              WHERE id = $1 AND status IN ('draft', 'sent') AND deleted_at IS NULL",
+        )
+        .bind(invoice_id)
+        .execute(&mut *tx)
+        .await?;
+        if marked.rows_affected() == 0 {
+            tracing::warn!(
+                invoice_id,
+                "[stripe] payment for an invoice that is already paid or void; refund it in Stripe if it shouldn't stand"
+            );
+        } else {
+            tracing::info!(invoice_id, "[stripe] Invoice paid");
+        }
+    }
+    if !log_event(&mut tx, owner, None, Some(invoice_id), event).await? {
+        return Ok(json!({ "received": true, "skipped": "already processed" }));
+    }
+    tx.commit().await?;
+    Ok(json!({ "received": true }))
+}
+
+/// Appends a Stripe event to payment_events (the audit log). False when a
+/// concurrent delivery of the same event already logged it.
+async fn log_event(
+    tx: &mut crate::db::Tx,
+    owner: i64,
+    intake_id: Option<i64>,
+    invoice_id: Option<i64>,
+    event: &Value,
+) -> Result<bool, sqlx::Error> {
+    let object = &event["data"]["object"];
     let amount = object
         .get("amount_total")
         .filter(|v| js::truthy(v))
@@ -477,28 +560,25 @@ async fn handle_event(state: &AppState, event: &Value) -> Result<Value, sqlx::Er
         .or_else(|| object.get("status").filter(|v| js::truthy(v)))
         .map(js::string);
     let inserted = sqlx::query(
-        "INSERT INTO payment_events (account_id, intake_id, event_type, stripe_event_id, amount, status, raw_payload)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO payment_events
+           (account_id, intake_id, invoice_id, event_type, stripe_event_id, amount, status, raw_payload)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(owner)
     .bind(intake_id)
-    .bind(event_type)
-    .bind(event_id)
+    .bind(invoice_id)
+    .bind(event.get("type").and_then(Value::as_str).unwrap_or_default())
+    .bind(event.get("id").and_then(Value::as_str).unwrap_or_default())
     .bind(amount)
     .bind(status)
     .bind(event)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await;
     match inserted {
-        Ok(_) => {}
-        // A concurrent delivery of the same event won the race.
-        Err(e) if is_unique_violation(&e) => {
-            return Ok(json!({ "received": true, "skipped": "already processed" }));
-        }
-        Err(e) => return Err(e),
+        Ok(_) => Ok(true),
+        Err(e) if is_unique_violation(&e) => Ok(false),
+        Err(e) => Err(e),
     }
-    tx.commit().await?;
-    Ok(json!({ "received": true }))
 }
 
 async fn manual_action(mut t: Tenant, body: JsonBody) -> BareResult<Json<IntakeRow>> {

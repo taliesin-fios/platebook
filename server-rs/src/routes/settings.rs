@@ -328,7 +328,8 @@ async fn export(mut t: Tenant) -> DbResult<Response> {
     .fetch_all(&mut **tx)
     .await?;
     let payment_events: Vec<Value> = sqlx::query_scalar(
-        "SELECT jsonb_build_object('id', id, 'intake_id', intake_id, 'event_type', event_type,
+        "SELECT jsonb_build_object('id', id, 'intake_id', intake_id, 'invoice_id', invoice_id,
+                'event_type', event_type,
                 'amount', amount, 'currency', currency, 'status', status,
                 'created_at', to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'))
          FROM payment_events WHERE account_id = $1 ORDER BY id",
@@ -456,6 +457,17 @@ async fn clear_sample(mut t: Tenant) -> DbResult<Json<ClearSampleResponse>> {
     for client in &samples {
         // Invoices reference sessions (no cascade): remove them first, including
         // any invoice that only points at one of the sample client's sessions.
+        // Their payment events (if any) are kept, detached.
+        sqlx::query(
+            "UPDATE payment_events SET invoice_id = NULL
+              WHERE account_id = $1 AND invoice_id IN (
+                SELECT id FROM invoices WHERE account_id = $1 AND (client_id = $2
+                  OR session_id IN (SELECT id FROM sessions WHERE client_id = $2 AND account_id = $1)))",
+        )
+        .bind(id)
+        .bind(client)
+        .execute(&mut *t.tx)
+        .await?;
         sqlx::query(
             "DELETE FROM invoices WHERE account_id = $1 AND (client_id = $2
                OR session_id IN (SELECT id FROM sessions WHERE client_id = $2 AND account_id = $1))",
