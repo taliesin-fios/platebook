@@ -468,6 +468,8 @@ pub struct InvoiceMail<'a> {
     /// The invoice, rendered by the server (never bytes from the request).
     pub pdf: Vec<u8>,
     pub business_name: Option<&'a str>,
+    /// The client's invoice link, when they can pay it online.
+    pub pay_url: Option<String>,
 }
 
 /// Sends an invoice PDF to the client.
@@ -547,11 +549,26 @@ pub async fn send_invoice_pdf(state: &AppState, m: InvoiceMail<'_>) -> Result<()
         </table>
       </div>
 
+      {pay_button}
       {questions}
     </div>
 
     {footer}"#,
         client_esc = esc(client),
+        pay_button = m
+            .pay_url
+            .as_deref()
+            .map(|url| format!(
+                r#"<div style="text-align:center;margin:0 0 24px;">
+        <a href="{}"
+           style="display:inline-block;background:#5E7F57;color:white;text-decoration:none;
+                  padding:14px 28px;border-radius:10px;font-weight:600;font-size:15px;">
+          Pay online →
+        </a>
+      </div>"#,
+                esc(url)
+            ))
+            .unwrap_or_default(),
         questions = questions_line(&biz_email),
         footer = email_footer(&biz_name, non_empty(&s.website)),
     );
@@ -561,6 +578,9 @@ pub async fn send_invoice_pdf(state: &AppState, m: InvoiceMail<'_>) -> Result<()
     }
     if let Some(d) = &due {
         text.push_str(&format!("\nDue: {d}"));
+    }
+    if let Some(url) = &m.pay_url {
+        text.push_str(&format!("\n\nPay online: {url}"));
     }
     text.push_str(&format!(
         "\n\nQuestions? Reply to this email.\n\n{biz_name}"

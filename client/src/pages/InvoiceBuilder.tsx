@@ -10,7 +10,7 @@ import EmailFailedBanner from '../components/EmailFailedBanner';
 import { useToast } from '../components/Toast';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
-import type { EmailSentResponse, Invoice, Settings } from '../types';
+import type { ClientLink, EmailSentResponse, Invoice, Settings } from '../types';
 
 interface LineItemDraft {
   _key: string;
@@ -331,6 +331,18 @@ export default function InvoiceBuilder() {
     } catch {
       // fallback to browser print if PDF gen fails
       window.print();
+    }
+  };
+
+  const copyClientLink = async () => {
+    try {
+      const r = await fetch(`/api/invoices/${id}/client-link`);
+      const data: ApiResult<ClientLink> = await r.json();
+      if (!r.ok || !data.url) throw new Error(data.error || 'Could not get the link');
+      await navigator.clipboard.writeText(data.url);
+      show('Invoice link copied', 'success');
+    } catch (err) {
+      show(err instanceof Error ? err.message : 'Could not copy the link', 'error');
     }
   };
 
@@ -720,6 +732,17 @@ export default function InvoiceBuilder() {
               className="flex-1 py-3.5 bg-green-dark text-white rounded-xl font-semibold text-sm disabled:opacity-60"
             >
               ✅ Paid
+            </button>
+          )}
+          {!isNew && (
+            <button
+              onClick={copyClientLink}
+              disabled={saving || emailing}
+              title="Copy the client's invoice link: they can view it there and, when online payments are on, pay it"
+              aria-label="Copy the client's invoice link"
+              className="px-4 py-3.5 bg-warm-white border border-gray-200 text-navy rounded-xl font-semibold text-sm hover:bg-blue-light transition-colors disabled:opacity-60"
+            >
+              🔗
             </button>
           )}
           <button

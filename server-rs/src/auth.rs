@@ -345,6 +345,17 @@ pub fn is_public_route(method: &Method, path: &str) -> bool {
         return true;
     }
 
+    // Client's invoice link: view it, pay it online (token checked inside the routes)
+    if let Some(rest) = path.strip_prefix("/api/invoices/")
+        && let Some((id, action)) = rest.split_once('/')
+        && !id.is_empty()
+        && id.bytes().all(|b| b.is_ascii_digit())
+        && ((method == Method::GET && action == "public")
+            || (method == Method::POST && action == "checkout"))
+    {
+        return true;
+    }
+
     // Stripe webhook
     if method == Method::POST && path == "/api/payments/webhook" {
         return true;
@@ -448,6 +459,15 @@ mod tests {
         assert!(!is_public_route(&post, "/api/intake/abc/checkout"));
         assert!(!is_public_route(&post, "/api/intake/42/x/checkout"));
         assert!(!is_public_route(&get, "/api/intake/42/client-link"));
+        assert!(is_public_route(&get, "/api/invoices/7/public"));
+        assert!(is_public_route(&post, "/api/invoices/7/checkout"));
+        assert!(!is_public_route(&post, "/api/invoices/7/public"));
+        assert!(!is_public_route(&get, "/api/invoices/7/checkout"));
+        assert!(!is_public_route(&get, "/api/invoices/7"));
+        assert!(!is_public_route(&get, "/api/invoices/7/pdf"));
+        assert!(!is_public_route(&get, "/api/invoices/7/client-link"));
+        assert!(!is_public_route(&get, "/api/invoices/x/public"));
+        assert!(!is_public_route(&get, "/api/invoices/7/public/extra"));
         assert!(!is_public_route(&get, "/api/intake/42/payments"));
         assert!(!is_public_route(&get, "/api/intake/abc"));
         assert!(is_public_route(&post, "/api/payments/webhook"));
