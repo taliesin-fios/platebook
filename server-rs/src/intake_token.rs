@@ -5,12 +5,19 @@
 //! edit link. Format `<issued_at_hex>.<hmac(id.issued_at)[..32]>`, valid for
 //! 30 days (SEC-A3). Byte-compatible with the Node implementation, so links
 //! already emailed to clients keep working after cutover.
+//!
+//! Invoice payment links use the same format over `"invoice:<id>"`, so an
+//! intake token never opens an invoice with the same number (or the other way
+//! round), and stay valid longer ([`INVOICE_MAX_AGE_SECS`]).
 
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
 
 pub const MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
+
+/// Invoices are often paid late, so their links last longer than an intake's.
+pub const INVOICE_MAX_AGE_SECS: i64 = 180 * 24 * 60 * 60;
 
 fn signature(secret: &str, id: &str, issued_at_hex: &str) -> String {
     let mut mac =
@@ -41,6 +48,10 @@ fn parse_hex_prefix(s: &str) -> Option<i64> {
 
 /// Verifies `token` for the intake id as it appears in the URL.
 pub fn verify_token_at(secret: &str, id: &str, token: &str, now: i64) -> bool {
+    verify_with_max_age(secret, id, token, now, MAX_AGE_SECS)
+}
+
+fn verify_with_max_age(secret: &str, id: &str, token: &str, now: i64, max_age: i64) -> bool {
     let Some((issued_hex, sig)) = token.split_once('.') else {
         return false;
     };
@@ -48,7 +59,7 @@ pub fn verify_token_at(secret: &str, id: &str, token: &str, now: i64) -> bool {
         return false;
     };
     let age = now.saturating_sub(issued);
-    if !(0..=MAX_AGE_SECS).contains(&age) {
+    if !(0..=max_age).contains(&age) {
         return false;
     }
     let expected = signature(secret, id, issued_hex);
@@ -57,6 +68,29 @@ pub fn verify_token_at(secret: &str, id: &str, token: &str, now: i64) -> bool {
 
 pub fn verify_token(secret: &str, id: &str, token: &str) -> bool {
     verify_token_at(secret, id, token, chrono::Utc::now().timestamp())
+}
+
+fn invoice_subject(id: i64) -> String {
+    format!("invoice:{id}")
+}
+
+/// The token in a client's invoice payment link.
+pub fn make_invoice_token(secret: &str, id: i64) -> String {
+    make_token_at(secret, &invoice_subject(id), chrono::Utc::now().timestamp())
+}
+
+pub fn verify_invoice_token_at(secret: &str, id: i64, token: &str, now: i64) -> bool {
+    verify_with_max_age(
+        secret,
+        &invoice_subject(id),
+        token,
+        now,
+        INVOICE_MAX_AGE_SECS,
+    )
+}
+
+pub fn verify_invoice_token(secret: &str, id: i64, token: &str) -> bool {
+    verify_invoice_token_at(secret, id, token, chrono::Utc::now().timestamp())
 }
 
 #[cfg(test)]
@@ -120,5 +154,40 @@ mod tests {
             make_token_at(S, "42", 0x6600a000),
             "6600a000.9de251f509caa9b3527da54f24d655dd"
         );
+    }
+
+    #[test]
+    fn invoice_and_intake_tokens_never_open_each_other() {
+        let now = 1_800_000_000;
+        let invoice = make_token_at("s", &invoice_subject(7), now);
+        assert!(verify_invoice_token_at("s", 7, &invoice, now));
+        assert!(!verify_invoice_token_at("s", 8, &invoice, now));
+        assert!(!verify_token_at("s", "7", &invoice, now));
+        let intake = make_token_at("s", "7", now);
+        assert!(!verify_invoice_token_at("s", 7, &intake, now));
+    }
+
+    #[test]
+    fn invoice_tokens_last_180_days() {
+        let now = 1_800_000_000;
+        let t = make_token_at("s", &invoice_subject(7), now);
+        assert!(verify_invoice_token_at(
+            "s",
+            7,
+            &t,
+            now + INVOICE_MAX_AGE_SECS
+        ));
+        assert!(!verify_invoice_token_at(
+            "s",
+            7,
+            &t,
+            now + INVOICE_MAX_AGE_SECS + 1
+        ));
+        assert!(!verify_token_at(
+            "s",
+            &invoice_subject(7),
+            &t,
+            now + MAX_AGE_SECS + 1
+        ));
     }
 }

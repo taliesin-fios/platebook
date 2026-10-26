@@ -3493,6 +3493,7 @@
           {
             "id": 1,
             "intake_id": 1,
+            "invoice_id": null,
             "event_type": "manual.mark_paid_offline",
             "amount": 50,
             "currency": "usd",
@@ -3502,6 +3503,7 @@
           {
             "id": 2,
             "intake_id": 1,
+            "invoice_id": null,
             "event_type": "checkout.session.completed",
             "amount": 50,
             "currency": "usd",

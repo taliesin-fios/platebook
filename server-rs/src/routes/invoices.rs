@@ -12,6 +12,10 @@
 //! POST   /api/invoices/:id/email                — email the PDF; draft → sent
 //! DELETE /api/invoices/:id                      — paid: refused; void: soft delete
 //! GET    /api/invoices/:id/pdf                  — the invoice as a PDF
+//! GET    /api/invoices/:id/client-link          — the client's invoice link, to send again
+//! Client (invoice link token, no login):
+//!   GET  /api/invoices/:id/public?token=        — the invoice as the client sees it
+//!   POST /api/invoices/:id/checkout?token=      — pay it online (Stripe)
 //!
 //! Money is integer-cents math (`money.rs`); totals are derived from line items
 //! when present, else from the service fee + groceries + tax.
@@ -20,10 +24,10 @@ use std::collections::HashMap;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use chrono::{Datelike, Duration, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -39,9 +43,13 @@ use crate::models::{InvoiceLineItem, InvoiceRow};
 use crate::money;
 use crate::ownership::{Scoped, owned};
 use crate::pdf::{self, Template, docs};
+use crate::rate_limit::ClientIp;
+use crate::routes::intake::ClientLink;
+use crate::routes::payments;
 use crate::routes::sessions::{EmailSentResponse, body_date};
 use crate::routes::{JsonBody, body_id, parse_id};
 use crate::state::AppState;
+use crate::stripe;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -49,6 +57,9 @@ pub fn router() -> Router<AppState> {
         .route("/{id}", get(detail).put(update).delete(remove))
         .route("/{id}/email", post(email_invoice))
         .route("/{id}/pdf", get(invoice_pdf))
+        .route("/{id}/client-link", get(client_link))
+        .route("/{id}/public", get(public_view))
+        .route("/{id}/checkout", post(checkout))
         .route("/from-session/{session_id}", post(from_session))
         .route("/from-client/{client_id}", post(from_client))
 }
@@ -819,6 +830,7 @@ async fn email_invoice(
             due_date: inv.invoice.due_date,
             pdf,
             business_name: inv.invoice.business_name.as_deref(),
+            pay_url: pay_url(&state, &inv.invoice),
         },
     )
     .await;
@@ -906,8 +918,16 @@ async fn remove(
                 soft_deleted: Some(true),
             }))
         }
-        // Draft / sent: no financial event yet, hard delete is fine.
+        // Draft / sent: not paid, hard delete is fine. Keep any payment
+        // events (a failed card) by detaching them.
         _ => {
+            sqlx::query(
+                "UPDATE payment_events SET invoice_id = NULL WHERE invoice_id = $1 AND account_id = $2",
+            )
+            .bind(id)
+            .bind(t.account.id)
+            .execute(&mut *t.tx)
+            .await?;
             sqlx::query("DELETE FROM invoices WHERE id = $1")
                 .bind(id)
                 .execute(&mut *t.tx)
@@ -919,6 +939,249 @@ async fn remove(
             }))
         }
     }
+}
+
+// ── Client invoice link ──────────────────────────────────────────────────────
+
+/// The link a client pays an invoice from, when online payments are on and
+/// it's still due.
+fn pay_url(state: &AppState, inv: &InvoiceRow) -> Option<String> {
+    let due = !matches!(inv.status.as_deref(), Some("paid" | "void"))
+        && inv.total.is_some_and(|t| money::to_cents(t) > 0);
+    (state.config.payments_mode == crate::config::PaymentsMode::Stripe && due)
+        .then(|| client_url(state, inv.id))
+}
+
+fn client_url(state: &AppState, id: i64) -> String {
+    let token = crate::intake_token::make_invoice_token(&state.config.intake_secret, id);
+    format!("{}/invoice/{id}?token={token}", state.config.client_url)
+}
+
+// ── GET /api/invoices/:id/client-link — chef ─────────────────────────────────
+async fn client_link(
+    State(state): State<AppState>,
+    mut t: Tenant,
+    Path(raw_id): Path<String>,
+) -> BareResult<Json<ClientLink>> {
+    let id = guard(&mut t, &raw_id).await?;
+    t.tx.commit().await?;
+    Ok(Json(ClientLink {
+        url: client_url(&state, id),
+    }))
+}
+
+/// GET /api/invoices/:id/public: what a client sees from their invoice link.
+/// No internal notes, client contact details or chef fields beyond the
+/// business name.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct ClientInvoiceView {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub invoice_number: Option<String>,
+    #[ts(as = "crate::api_types::InvoiceStatus")]
+    pub status: Option<String>,
+    pub business_name: Option<String>,
+    pub client_name: Option<String>,
+    #[ts(type = "string | null")]
+    pub issue_date: Option<NaiveDate>,
+    #[ts(type = "string | null")]
+    pub due_date: Option<NaiveDate>,
+    pub message: Option<String>,
+    #[ts(type = "number")]
+    pub subtotal: Option<Decimal>,
+    #[ts(type = "number")]
+    pub tax_amount: Option<Decimal>,
+    #[ts(type = "number")]
+    pub total: Option<Decimal>,
+    #[serde(serialize_with = "crate::serde_util::ts::serialize")]
+    #[ts(type = "string | null")]
+    pub paid_at: Option<DateTime<Utc>>,
+    pub line_items: Vec<ClientInvoiceLine>,
+    /// Online payments are on: the page can offer to pay.
+    pub can_pay_online: bool,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct ClientInvoiceLine {
+    pub description: String,
+    #[ts(type = "number")]
+    pub quantity: Option<Decimal>,
+    #[ts(type = "number")]
+    pub unit_price: Option<Decimal>,
+    #[ts(type = "number")]
+    pub amount: Option<Decimal>,
+}
+
+/// The invoice id and its account for a client holding the invoice link.
+/// The token is checked before anything is looked up; the account comes from
+/// one pre-tenant lookup on the pool (like intake by token), and everything
+/// after runs on that account's tenant.
+async fn owner_by_token(
+    state: &AppState,
+    raw_id: &str,
+    q: &HashMap<String, String>,
+) -> Result<(i64, i64), AppError> {
+    let id = parse_id(raw_id).ok_or_else(invoice_not_found)?;
+    let token = q.get("token").map(String::as_str).unwrap_or("");
+    if token.is_empty() {
+        return Err(AppError::bare(
+            StatusCode::UNAUTHORIZED,
+            "Authentication required",
+        ));
+    }
+    if !crate::intake_token::verify_invoice_token(&state.config.intake_secret, id, token) {
+        return Err(AppError::bare(
+            StatusCode::FORBIDDEN,
+            "Invalid or expired link",
+        ));
+    }
+    let owner: Option<i64> =
+        sqlx::query_scalar("SELECT account_id FROM invoices WHERE id = $1 AND deleted_at IS NULL")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await?;
+    owner.map(|o| (o, id)).ok_or_else(invoice_not_found)
+}
+
+// ── GET /api/invoices/:id/public?token= — client ─────────────────────────────
+async fn public_view(
+    State(state): State<AppState>,
+    Path(raw_id): Path<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> BareResult<Json<ClientInvoiceView>> {
+    let (owner, id) = owner_by_token(&state, &raw_id, &q).await?;
+    let mut tx = begin_tenant(&state.pool, owner).await?;
+    let inv = invoice_or_404(&mut tx, id).await?;
+    tx.commit().await?;
+    let i = inv.invoice;
+    Ok(Json(ClientInvoiceView {
+        id: i.id,
+        invoice_number: i.invoice_number,
+        status: i.status,
+        business_name: i.business_name,
+        client_name: i.client_name,
+        issue_date: i.issue_date,
+        due_date: i.due_date,
+        message: i.message,
+        subtotal: i.subtotal,
+        tax_amount: i.tax_amount,
+        total: i.total,
+        paid_at: i.paid_at,
+        line_items: inv
+            .line_items
+            .into_iter()
+            .map(|l| ClientInvoiceLine {
+                description: l.description,
+                quantity: l.quantity,
+                unit_price: l.unit_price,
+                amount: l.amount,
+            })
+            .collect(),
+        can_pay_online: state.config.payments_mode == crate::config::PaymentsMode::Stripe,
+    }))
+}
+
+#[derive(FromRow)]
+struct PayableInvoice {
+    status: Option<String>,
+    total: Option<Decimal>,
+    invoice_number: Option<String>,
+    client_email: Option<String>,
+    business_name: Option<String>,
+    stripe_session_id: Option<String>,
+}
+
+// ── POST /api/invoices/:id/checkout?token= — client ──────────────────────────
+/// Pays the invoice online: a fresh Stripe Checkout session each time (an
+/// open earlier one is expired first); the webhook marks it paid.
+async fn checkout(
+    State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
+    Path(raw_id): Path<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> BareResult<Response> {
+    state
+        .limits
+        .checkout
+        .check(&state.pool, &ip)
+        .await
+        .map_err(|e| e.with_code())?;
+    // The link's token first, like every other route: no token, no answer.
+    let (owner, id) = owner_by_token(&state, &raw_id, &q).await?;
+    if let Some(off) = payments::payments_disabled(&state) {
+        return Ok(off);
+    }
+    let mut tx = begin_tenant(&state.pool, owner).await?;
+    let row = sqlx::query_as::<_, PayableInvoice>(
+        "SELECT status, total, invoice_number, client_email, business_name, stripe_session_id
+           FROM invoices WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .bind(owner)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(invoice_not_found)?;
+    let PayableInvoice {
+        status,
+        total,
+        invoice_number: number,
+        client_email: email,
+        business_name: business,
+        stripe_session_id: prev,
+    } = row;
+    if matches!(status.as_deref(), Some("paid" | "void")) {
+        return Err(AppError::new(
+            StatusCode::BAD_REQUEST,
+            "INVOICE_SETTLED",
+            "This invoice is already paid or cancelled",
+        )
+        .into());
+    }
+    let cents = total.map(money::to_cents).unwrap_or(0);
+    if cents <= 0 {
+        return Err(AppError::new(
+            StatusCode::BAD_REQUEST,
+            "NOTHING_DUE",
+            "This invoice has nothing to pay",
+        )
+        .into());
+    }
+    if let Some(prev) = prev.as_deref().filter(|s| !s.is_empty()) {
+        payments::close_earlier_checkout(&state, prev).await?;
+    }
+    let label = number
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| format!("#{id}"));
+    let token = crate::intake_token::make_invoice_token(&state.config.intake_secret, id);
+    let session = stripe::create_checkout_session(
+        &state,
+        stripe::CheckoutRequest {
+            product_name: format!("Invoice {label}"),
+            description: match business.filter(|b| !b.is_empty()) {
+                Some(b) => format!("Payment to {b}"),
+                None => format!("Payment for invoice {label}"),
+            },
+            amount_cents: cents,
+            customer_email: email.as_deref(),
+            metadata: vec![
+                ("account_id", owner.to_string()),
+                ("invoice_id", id.to_string()),
+            ],
+            return_path: format!("/invoice/{id}?token={token}"),
+        },
+    )
+    .await
+    .map_err(payments::stripe_error)?;
+    sqlx::query("UPDATE invoices SET stripe_session_id = $1 WHERE id = $2 AND account_id = $3")
+        .bind(&session.id)
+        .bind(id)
+        .bind(owner)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Json(json!({ "checkout_url": session.url, "session_id": session.id })).into_response())
 }
 
 #[cfg(test)]

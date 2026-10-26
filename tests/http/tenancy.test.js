@@ -104,6 +104,13 @@ describe('account B cannot modify account A records', () => {
   test('restore intake', async () => {
     assert.equal((await b.post(`/api/intake/${ids.intake}/restore`)).status, 404);
   });
+  test('invoice client link', async () => {
+    assert.equal((await b.get(`/api/invoices/${ids.invoice}/client-link`)).status, 404);
+  });
+  test('invoice page without its link token', async () => {
+    assert.equal((await b.get(`/api/invoices/${ids.invoice}/public`)).status, 401);
+    assert.equal((await b.post(`/api/invoices/${ids.invoice}/checkout`)).status, 401);
+  });
   test('intake client link', async () => {
     assert.equal((await b.get(`/api/intake/${ids.intake}/client-link`)).status, 404);
   });
