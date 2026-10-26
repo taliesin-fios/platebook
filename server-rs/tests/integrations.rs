@@ -1806,6 +1806,168 @@ async fn clients_pay_invoices_from_their_invoice_link(pool: PgPool) {
     assert_eq!(refused.body["code"], "INVOICE_SETTLED");
 }
 
+/// A checkout the client opened charges the total it was opened with. When
+/// the chef changes the total, marks the invoice paid or void, or deletes it,
+/// the open checkout is expired first; edits that leave the total alone keep
+/// it. One the client just completed blocks the edit (409) until the webhook
+/// lands, and an unreachable Stripe blocks it with 502, saving nothing.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn changing_an_invoice_closes_the_clients_open_checkout(pool: PgPool) {
+    let fake = fake_stripe().await;
+    let (app, _) = app_with(pool.clone(), stripe_config(&fake.url));
+    let c = Chef::new(&pool, &app, "Reprice Kitchen").await;
+    let body = |amount: i64, extra: Value| {
+        let mut b = json!({ "client_name": "Jo", "client_email": "jo@example.com",
+                            "line_items": [{ "description": "Meal prep", "quantity": 1, "unit_price": amount }] });
+        b.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        b
+    };
+    let create = |amount: i64| {
+        let (c, b) = (&c, body(amount, json!({})));
+        async move {
+            let inv = c.post("/api/invoices", b).await;
+            assert_eq!(inv.status, StatusCode::CREATED, "{}", inv.body);
+            inv.body["id"].as_i64().unwrap()
+        }
+    };
+    let open_checkout = |id: i64| {
+        let app = app.clone();
+        async move {
+            let token = chef_server::intake_token::make_invoice_token("test-intake-secret", id);
+            let pay = post_req(
+                format!("/api/invoices/{id}/checkout?token={token}"),
+                json!({}),
+            )
+            .send(&app)
+            .await;
+            assert_eq!(pay.status, StatusCode::OK, "{}", pay.body);
+            pay.body["session_id"].as_str().unwrap().to_string()
+        }
+    };
+    let stored = |id: i64| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, Option<String>>(
+                "SELECT stripe_session_id FROM invoices WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    let expired = || fake.expired.lock().unwrap().clone();
+
+    let id = create(120).await;
+    let first = open_checkout(id).await;
+
+    // Same total, other fields changed: the checkout stays open.
+    let kept = c
+        .put(
+            &format!("/api/invoices/{id}"),
+            body(120, json!({ "message": "Thanks!" })),
+        )
+        .await;
+    assert_eq!(kept.status, StatusCode::OK, "{}", kept.body);
+    assert!(expired().is_empty());
+    assert_eq!(stored(id).await.as_deref(), Some(first.as_str()));
+
+    // New total: the old checkout is expired and forgotten; the next one
+    // charges the new amount without touching the old one again.
+    let repriced = c
+        .put(&format!("/api/invoices/{id}"), body(150, json!({})))
+        .await;
+    assert_eq!(repriced.status, StatusCode::OK, "{}", repriced.body);
+    assert_eq!(expired(), vec![first.clone()]);
+    assert_eq!(stored(id).await, None);
+    let second = open_checkout(id).await;
+    let (_, form) = fake.created.lock().unwrap().last().unwrap().clone();
+    assert!(form.contains("line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=15000"));
+    assert_eq!(expired(), vec![first.clone()]);
+
+    // The client already paid: the edit is refused and nothing changes.
+    *fake.status.lock().unwrap() = "complete".into();
+    let late = c
+        .put(&format!("/api/invoices/{id}"), body(200, json!({})))
+        .await;
+    assert_eq!(late.status, StatusCode::CONFLICT, "{}", late.body);
+    assert_eq!(late.body["code"], "ALREADY_PAID");
+    let unchanged = c.get(&format!("/api/invoices/{id}")).await.body;
+    assert_eq!(unchanged["total"], 150.0);
+    assert_eq!(stored(id).await.as_deref(), Some(second.as_str()));
+    *fake.status.lock().unwrap() = "open".into();
+
+    // Voided by the chef (same total): closed.
+    let voided = c
+        .put(
+            &format!("/api/invoices/{id}"),
+            body(150, json!({ "status": "void" })),
+        )
+        .await;
+    assert_eq!(voided.status, StatusCode::OK, "{}", voided.body);
+    assert_eq!(expired(), vec![first.clone(), second.clone()]);
+
+    // Marked paid by hand (cash): closed.
+    let cash = create(80).await;
+    let third = open_checkout(cash).await;
+    c.put(
+        &format!("/api/invoices/{cash}"),
+        body(80, json!({ "status": "paid" })),
+    )
+    .await;
+    assert_eq!(expired().last(), Some(&third));
+
+    // Deleted: closed before it goes.
+    let gone = create(60).await;
+    let fourth = open_checkout(gone).await;
+    let removed = c.delete(&format!("/api/invoices/{gone}")).await;
+    assert_eq!(removed.status, StatusCode::OK, "{}", removed.body);
+    assert_eq!(expired().last(), Some(&fourth));
+
+    // Paid online: the webhook keeps the (completed) session id; later edits
+    // to the paid invoice don't ask Stripe about it again.
+    let online = create(70).await;
+    open_checkout(online).await;
+    *fake.status.lock().unwrap() = "complete".into();
+    let event = json!({
+        "id": "evt_reprice_1", "type": "checkout.session.completed",
+        "data": { "object": { "amount_total": 7000, "payment_status": "paid",
+                              "metadata": { "invoice_id": online.to_string() } } }
+    });
+    send_webhook(&app, &event, WHSEC).await;
+    let after = c
+        .put(
+            &format!("/api/invoices/{online}"),
+            body(75, json!({ "message": "Thank you!" })),
+        )
+        .await;
+    assert_eq!(after.status, StatusCode::OK, "{}", after.body);
+    assert_eq!(after.body["status"], "paid");
+    *fake.status.lock().unwrap() = "open".into();
+
+    // Stripe unreachable: 502, the invoice keeps its total and its checkout.
+    let (down, _) = app_with(pool.clone(), stripe_config("http://127.0.0.1:9"));
+    let stuck = create(40).await;
+    sqlx::query("UPDATE invoices SET stripe_session_id = 'cs_test_down' WHERE id = $1")
+        .bind(stuck)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let refused = put_req(format!("/api/invoices/{stuck}"), body(45, json!({})))
+        .cookie(&c.cookie)
+        .send(&down)
+        .await;
+    assert_eq!(refused.status, StatusCode::BAD_GATEWAY, "{}", refused.body);
+    assert_eq!(refused.body["code"], "STRIPE_UNAVAILABLE");
+    assert_eq!(
+        c.get(&format!("/api/invoices/{stuck}")).await.body["total"],
+        40.0
+    );
+    assert_eq!(stored(stuck).await.as_deref(), Some("cs_test_down"));
+}
+
 /// Without online payments the invoice email has no pay link.
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn invoice_emails_have_no_pay_link_without_online_payments(pool: PgPool) {
