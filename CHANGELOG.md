@@ -7,26 +7,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Added
-- **Booking email failures are remembered.** The confirmation to a client who books through your booking page, and your new-booking alert, were sent in the background and a failure only reached the server log. Now the Client Intakes page shows a note when either failed, and the inquiry shows which one and when. **Try again** on the inquiry resends the client's confirmation (`POST /api/intake/:id/resend-confirmation`, signed-in chef only).
-- **Migration `0008_intake_email_failures.sql`:** `client_intakes.confirmation_emailed_at`, `confirmation_email_failed_at` and `chef_alert_failed_at` (nullable, additive).
-- **Deleting an inquiry keeps it.** A new **Delete inquiry** button on the Client Intakes page moves it to a **Deleted** filter, with its payment history, where **Restore** brings it back. Before, there was no delete button, and the API's delete erased the inquiry. The API now soft-deletes (`DELETE /api/intake/:id` sets `deleted_at`; `POST /api/intake/:id/restore`; `GET /api/intake?deleted=1`). A deleted inquiry's client link and actions answer 404, and a completed Stripe payment for one restores it.
-- **Payment history on each inquiry** (`GET /api/intake/:id/payments`): every manual payment action and Stripe event, with what happened, the amount and when.
-- **Migration `0009_intake_soft_delete.sql`:** `client_intakes.deleted_at` (nullable, additive).
-- **Month-to-date trend on the dashboard.** The **Collected (MTD)** tile shows ▲/▼ and the percentage against the same days of last month (the 1st up to today's day number, in your time zone). It shows nothing when last month had nothing to compare with. `GET /api/costs/summary` gains `collected_prev_mtd`.
+---
+
+## [0.2.0] — 2026-10-26
+
+**Upgrading from 0.1.0:** 0.1.1 was prepared but never published, so its changes are part of this release. On start, the server applies three migrations: `0007_email_failures.sql`, `0008_intake_email_failures.sql` and `0009_intake_soft_delete.sql`. They only add nullable columns, so they're safe on a database with data, but take a backup first as usual.
 
 ### Security
 - **A client's booking link no longer shows the chef's private notes.** The link a client gets to review or update their booking request (`/intake/:id?token=…`) returned the whole intake record, including the chef's **Internal Notes** (labelled "not visible to client"), payment notes and Stripe ids. Clients now get only what they filled in, plus their booking status (`ClientIntakeView`). The chef's own view is unchanged. If you wrote anything sensitive in Internal Notes, a client with their link could have seen it before this fix.
 
----
-
-## [0.1.1] — 2026-10-25
-
-**Upgrading:** this release adds migration `0007_email_failures.sql`, which the server applies on start. It only adds nullable columns, but take a backup first as usual.
-
 ### Added
 - **Email failures are remembered.** If emailing a meal plan or an invoice fails, the session and invoice pages show a banner with **Try again**, and the Sessions and Invoices lists show "⚠ Email failed", even after you leave the page. The next successful send clears it. Invoices also record when they were last emailed.
-- **Migration `0007_email_failures.sql`:** `sessions.pdf_email_failed_at`, `invoices.emailed_at` and `invoices.email_failed_at` (nullable, additive).
+- **Booking email failures are remembered.** The confirmation to a client who books through your booking page, and your new-booking alert, were sent in the background and a failure only reached the server log. Now the Client Intakes page shows a note when either failed, and the inquiry shows which one and when. **Try again** on the inquiry resends the client's confirmation (`POST /api/intake/:id/resend-confirmation`, signed-in chef only).
+- **Deleting an inquiry keeps it.** A new **Delete inquiry** button on the Client Intakes page moves it to a **Deleted** filter, with its payment history, where **Restore** brings it back. Before, there was no delete button, and the API's delete erased the inquiry. The API now soft-deletes (`DELETE /api/intake/:id` sets `deleted_at`; `POST /api/intake/:id/restore`; `GET /api/intake?deleted=1`). A deleted inquiry's client link and actions answer 404, and a completed Stripe payment for one restores it.
+- **Payment history on each inquiry** (`GET /api/intake/:id/payments`): every manual payment action and Stripe event, with what happened, the amount and when.
+- **Month-to-date trend on the dashboard.** The **Collected (MTD)** tile shows ▲/▼ and the percentage against the same days of last month (the 1st up to today's day number, in your time zone). It shows nothing when last month had nothing to compare with. `GET /api/costs/summary` gains `collected_prev_mtd`.
+- **Migrations** (all nullable, additive):
+  - `0007_email_failures.sql`: `sessions.pdf_email_failed_at`, `invoices.emailed_at` and `invoices.email_failed_at`.
+  - `0008_intake_email_failures.sql`: `client_intakes.confirmation_emailed_at`, `confirmation_email_failed_at` and `chef_alert_failed_at`.
+  - `0009_intake_soft_delete.sql`: `client_intakes.deleted_at`.
 
 ### Changed
 - Every outgoing email gets one automatic retry, 2 seconds after a transient SMTP failure (a 4xx reply, a timeout or a dropped connection). Permanent rejections (5xx) aren't retried.
