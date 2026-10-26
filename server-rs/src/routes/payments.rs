@@ -199,14 +199,11 @@ async fn status(
     }))
 }
 
-async fn checkout(
-    State(state): State<AppState>,
-    mut t: Tenant,
-    body: JsonBody,
-) -> BareResult<Response> {
+/// 503 when online payments are off, or `None`.
+fn payments_disabled(state: &AppState) -> Option<Response> {
     let mode = state.config.payments_mode;
-    if mode != PaymentsMode::Stripe {
-        return Ok((
+    (mode != PaymentsMode::Stripe).then(|| {
+        (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({
                 "error": "Online payments are not enabled.",
@@ -215,34 +212,61 @@ async fn checkout(
                 "code": "PAYMENTS_DISABLED",
             })),
         )
-            .into_response());
-    }
+            .into_response()
+    })
+}
 
+/// POST /api/payments/checkout { intake_id } — the owning chef.
+async fn checkout(
+    State(state): State<AppState>,
+    t: Tenant,
+    body: JsonBody,
+) -> BareResult<Response> {
+    if let Some(off) = payments_disabled(&state) {
+        return Ok(off);
+    }
     let account = t.account.id;
     if !body.truthy("intake_id") {
         return Err(AppError::bare(StatusCode::BAD_REQUEST, "intake_id is required").into());
     }
     let id = body_id(body.get("intake_id")).ok_or_else(intake_not_found)?;
+    // start_checkout opens its own tenant transaction.
+    drop(t);
+    start_checkout(&state, account, id).await
+}
+
+/// Opens a Stripe Checkout session for an intake's booking deposit and
+/// returns `{ checkout_url, session_id }`. Used by the chef's
+/// POST /api/payments/checkout and the client's POST /api/intake/:id/checkout
+/// (edit token). A checkout started earlier and still open is expired first,
+/// so only the newest one can be paid; one already paid gives 409 while the
+/// webhook catches up.
+pub async fn start_checkout(state: &AppState, account: i64, id: i64) -> BareResult<Response> {
+    if let Some(off) = payments_disabled(state) {
+        return Ok(off);
+    }
+    let mut tx = begin_tenant(&state.pool, account).await?;
     let intake = sqlx::query_as::<_, IntakeRow>(
         "SELECT * FROM client_intakes
           WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL FOR UPDATE",
     )
     .bind(id)
     .bind(account)
-    .fetch_optional(&mut *t.tx)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(intake_not_found)?;
     if matches!(
         intake.payment_status.as_deref(),
-        Some("paid" | "paid_offline" | "payment_pending" | "deposit_paid")
+        Some("paid" | "paid_offline" | "waived")
     ) {
-        return Err(AppError::bare(
+        return Err(AppError::new(
             StatusCode::BAD_REQUEST,
-            "Booking fee already paid or in progress for this intake",
+            "DEPOSIT_SETTLED",
+            "The booking deposit for this intake is already paid or waived",
         )
         .into());
     }
-    let settings = accounts::get_settings(&mut t.tx, account).await?;
+    let settings = accounts::get_settings(&mut tx, account).await?;
     // An explicit 0 means "no deposit"; BOOKING_FEE_CENTS applies only when unset.
     let fee_cents = settings
         .deposit_cents
@@ -256,8 +280,41 @@ async fn checkout(
         .into());
     }
 
+    let stripe_err = |e: stripe::StripeError| {
+        tracing::error!(error = %e, "[stripe] checkout");
+        AppError::internal_bare(e)
+    };
+    // A checkout we started is in flight: don't leave two payable at once.
+    if intake.payment_status.as_deref() == Some("payment_pending")
+        && let Some(prev) = intake
+            .stripe_session_id
+            .as_deref()
+            .filter(|s| !s.is_empty())
+    {
+        let earlier = stripe::retrieve_checkout_session(state, prev)
+            .await
+            .map_err(stripe_err)?;
+        match earlier.status.as_deref() {
+            Some("complete") => {
+                return Err(AppError::new(
+                    StatusCode::CONFLICT,
+                    "ALREADY_PAID",
+                    "This deposit has just been paid. It can take a minute to show.",
+                )
+                .into());
+            }
+            Some("open") => {
+                stripe::expire_checkout_session(state, prev)
+                    .await
+                    .map_err(stripe_err)?;
+            }
+            _ => {}
+        }
+    }
+
+    let token = crate::intake_token::make_token(&state.config.intake_secret, id);
     let session = stripe::create_checkout_session(
-        &state,
+        state,
         stripe::CheckoutRequest {
             account_id: account,
             intake_id: id,
@@ -265,13 +322,11 @@ async fn checkout(
             client_email: intake.email.as_deref(),
             fee_cents,
             cancellation_hours: settings.cancellation_hours.unwrap_or(48),
+            return_path: format!("/intake/{id}?token={token}"),
         },
     )
     .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "[stripe] createCheckout");
-        AppError::internal_bare(e)
-    })?;
+    .map_err(stripe_err)?;
 
     sqlx::query(
         "UPDATE client_intakes
@@ -282,9 +337,9 @@ async fn checkout(
     .bind(&session.id)
     .bind(crate::money::from_cents(fee_cents))
     .bind(id)
-    .execute(&mut *t.tx)
+    .execute(&mut *tx)
     .await?;
-    t.tx.commit().await?;
+    tx.commit().await?;
     Ok(Json(json!({ "checkout_url": session.url, "session_id": session.id })).into_response())
 }
 

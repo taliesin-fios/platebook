@@ -14,7 +14,7 @@ import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { useAppSettings } from '../App';
 import { bookingUrl } from '../constants';
-import type { EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus, PaymentEventItem } from '../types';
+import type { ClientLink, EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus, PaymentEventItem } from '../types';
 
 /** After a payment action the server returns the raw row, with JSON columns as strings. */
 type IntakeState = Intake | IntakeRow;
@@ -196,6 +196,16 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
       } catch { /* keep what's shown */ }
     } finally {
       setResending(false);
+    }
+  };
+
+  const copyClientLink = async () => {
+    try {
+      const { url } = await apiCall<ClientLink>(`/api/intake/${intake.id}/client-link`);
+      await navigator.clipboard.writeText(url);
+      show('Client link copied', 'success');
+    } catch (err) {
+      show(errorMessage(err) || 'Could not copy the link', 'error');
     }
   };
 
@@ -514,6 +524,13 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
                 ✓ Converted — Client #{intake.converted_client_id}
               </p>
             )}
+            <button
+              onClick={copyClientLink}
+              className="mt-2 w-full py-2.5 border border-gray-200 text-navy rounded-xl text-sm font-medium"
+              title="Their booking page: they can review their answers there and, when online payments are on, pay the deposit."
+            >
+              🔗 Copy client’s booking link
+            </button>
             <button
               onClick={handleDelete}
               disabled={saving}

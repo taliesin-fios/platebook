@@ -132,6 +132,9 @@ The client `AuthGate` (App.tsx) sends signed-out visitors to `/welcome` (or `/lo
 2. POST /api/intake { slug, … } — stored under that chef's account; emails chef + client
 3. Server returns { id, edit_token } — HMAC-signed, 30-day expiry
 4. Client can edit via /intake/:id?token=... (PUT /api/intake/:id — token verified server-side).
+   With PAYMENTS_MODE=stripe the same page offers "Pay deposit" (POST /api/intake/:id/checkout):
+   a fresh Checkout session each time (an open earlier one is expired first), and Stripe
+   returns the client to /intake/:id?token=…&paid=1 (or &cancelled=1). The webhook marks it paid.
    Token holders get `ClientIntakeView` (their answers and booking status), never the
    chef's internal/payment notes, Stripe ids or bookkeeping; the owning chef gets the full row.
 5. Chef reviews in IntakeAdmin → converts to Client record if accepted
@@ -227,6 +230,7 @@ Public (no cookie required; `req.account` is still set when signed in):
 | GET | `/api/settings/public` (legacy: account #1) |
 | POST | `/api/intake` |
 | GET, PUT | `/api/intake/:id` (owner's session **or** HMAC token) |
+| POST | `/api/intake/:id/checkout` (owner's session **or** HMAC token; opens a Stripe Checkout for the deposit; rate-limited per IP) |
 | POST | `/api/payments/webhook` |
 | * | non-`/api/*` paths (SPA + static files) |
 

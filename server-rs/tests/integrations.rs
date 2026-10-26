@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, StatusCode};
-use axum::routing::post;
+use axum::routing::{get as get_route, post};
 use axum::{Json, Router};
 use chef_server::config::{Config, PaymentsMode};
 use chef_server::db::MIGRATOR;
@@ -736,24 +736,68 @@ async fn send_webhook(app: &Router, body: &Value, secret: &str) -> common::TestR
     }
 }
 
+/// A fake Stripe API: records each checkout created (auth header, form
+/// body), answers a retrieve with `status`, and records expired session ids.
+struct FakeStripe {
+    url: String,
+    created: Arc<Mutex<Vec<(String, String)>>>,
+    expired: Arc<Mutex<Vec<String>>>,
+    status: Arc<Mutex<String>>,
+}
+
+async fn fake_stripe() -> FakeStripe {
+    let created: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
+    let expired: Arc<Mutex<Vec<String>>> = Arc::default();
+    let status = Arc::new(Mutex::new("open".to_string()));
+    let (log, gone, st) = (created.clone(), expired.clone(), status.clone());
+    let url = fake_server(
+        Router::new()
+            .route(
+                "/v1/checkout/sessions",
+                post(move |headers: HeaderMap, body: Bytes| {
+                    let log = log.clone();
+                    async move {
+                        let mut log = log.lock().unwrap();
+                        log.push((
+                            headers["authorization"].to_str().unwrap().to_string(),
+                            String::from_utf8(body.to_vec()).unwrap(),
+                        ));
+                        let id = format!("cs_test_{}", log.len());
+                        Json(json!({ "id": id, "url": format!("https://checkout.stripe.test/{id}") }))
+                    }
+                }),
+            )
+            .route(
+                "/v1/checkout/sessions/{id}",
+                get_route(move |axum::extract::Path(id): axum::extract::Path<String>| {
+                    let st = st.clone();
+                    async move { Json(json!({ "id": id, "status": *st.lock().unwrap() })) }
+                }),
+            )
+            .route(
+                "/v1/checkout/sessions/{id}/expire",
+                post(move |axum::extract::Path(id): axum::extract::Path<String>| {
+                    let gone = gone.clone();
+                    async move {
+                        gone.lock().unwrap().push(id.clone());
+                        Json(json!({ "id": id, "status": "expired" }))
+                    }
+                }),
+            ),
+    )
+    .await;
+    FakeStripe {
+        url,
+        created,
+        expired,
+        status,
+    }
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn stripe_checkout_and_signed_webhooks(pool: PgPool) {
-    let seen: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
-    let log = seen.clone();
-    let stripe = fake_server(Router::new().route(
-        "/v1/checkout/sessions",
-        post(move |headers: HeaderMap, body: Bytes| {
-            let log = log.clone();
-            async move {
-                log.lock().unwrap().push((
-                    headers["authorization"].to_str().unwrap().to_string(),
-                    String::from_utf8(body.to_vec()).unwrap(),
-                ));
-                Json(json!({ "id": "cs_test_1", "url": "https://checkout.stripe.test/cs_test_1" }))
-            }
-        }),
-    ))
-    .await;
+    let fake = fake_stripe().await;
+    let (seen, stripe) = (fake.created.clone(), fake.url.clone());
     let (app, _) = app_with(pool.clone(), stripe_config(&stripe));
     let c = Chef::new(&pool, &app, "Stripe Kitchen").await;
     c.put("/api/settings", json!({ "deposit_cents": 6000 }))
@@ -783,10 +827,24 @@ async fn stripe_checkout_and_signed_webhooks(pool: PgPool) {
     let pending = c.get(&format!("/api/payments/status/{id}")).await.body;
     assert_eq!(pending["payment_status"], "payment_pending");
     assert_eq!(pending["booking_fee_amount"], 60.0);
+    // Stripe sends the client back to their own booking page, with its
+    // edit token, and says how it went.
+    assert!(
+        form.contains(&format!(
+            "success_url=http%3A%2F%2Flocalhost%3A5174%2Fintake%2F{id}%3Ftoken%3D"
+        )),
+        "{form}"
+    );
+    assert!(form.contains("%26paid%3D1"), "{form}");
+    assert!(form.contains("%26cancelled%3D1"), "{form}");
+    // A second checkout (the client came back later) expires the open one
+    // first, so only the newest can be paid.
     let twice = c
         .post("/api/payments/checkout", json!({ "intake_id": id }))
         .await;
-    assert_eq!(twice.status, StatusCode::BAD_REQUEST);
+    assert_eq!(twice.status, StatusCode::OK, "{}", twice.body);
+    assert_eq!(twice.body["session_id"], "cs_test_2");
+    assert_eq!(*fake.expired.lock().unwrap(), ["cs_test_1"]);
 
     let event = json!({
         "id": "evt_1", "type": "checkout.session.completed",
@@ -1316,10 +1374,8 @@ async fn the_clients_edit_link_never_returns_chef_only_fields(pool: PgPool) {
         for key in [
             "internal_notes",
             "payment_notes",
-            "payment_status",
             "stripe_session_id",
             "stripe_payment_intent",
-            "booking_fee_amount",
             "converted_client_id",
             "pdf_path",
             "account_id",
@@ -1425,4 +1481,122 @@ async fn deleted_intakes_are_kept_and_can_be_restored(pool: PgPool) {
         StatusCode::OK,
         "the client's link works again"
     );
+}
+
+/// The client pays from their own booking page with the edit token: no token
+/// or a bad one is refused, a waived or paid deposit can't be charged, a
+/// checkout already paid gives 409, and the chef can copy that page's link.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn clients_pay_the_deposit_from_their_booking_page(pool: PgPool) {
+    let fake = fake_stripe().await;
+    let (app, _) = app_with(pool.clone(), stripe_config(&fake.url));
+    let c = Chef::new(&pool, &app, "Deposit Kitchen").await;
+    c.put("/api/settings", json!({ "deposit_cents": 5000 }))
+        .await;
+    let intake = submit_intake(&app, "deposit-kitchen").await;
+    let (id, token) = (&intake["id"], intake["edit_token"].as_str().unwrap());
+    let url = format!("/api/intake/{id}/checkout");
+
+    assert_eq!(
+        post_req(url.clone(), json!({})).send(&app).await.status,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        post_req(format!("{url}?token=bad"), json!({}))
+            .send(&app)
+            .await
+            .status,
+        StatusCode::FORBIDDEN
+    );
+    let paid = post_req(format!("{url}?token={token}"), json!({}))
+        .send(&app)
+        .await;
+    assert_eq!(paid.status, StatusCode::OK, "{}", paid.body);
+    assert_eq!(
+        paid.body["checkout_url"],
+        "https://checkout.stripe.test/cs_test_1"
+    );
+
+    // Their page now shows the deposit as in progress (and still hides the
+    // chef's notes).
+    let mine = get(format!("/api/intake/{id}?token={token}"))
+        .send(&app)
+        .await
+        .body;
+    assert_eq!(mine["payment_status"], "payment_pending", "{mine}");
+    assert_eq!(mine["booking_fee_amount"], 50.0);
+    assert!(mine.get("payment_notes").is_none());
+
+    // The first checkout was paid but the webhook hasn't arrived yet: no
+    // second charge.
+    *fake.status.lock().unwrap() = "complete".into();
+    let again = post_req(format!("{url}?token={token}"), json!({}))
+        .send(&app)
+        .await;
+    assert_eq!(again.status, StatusCode::CONFLICT, "{}", again.body);
+    assert_eq!(again.body["code"], "ALREADY_PAID");
+    assert_eq!(fake.created.lock().unwrap().len(), 1);
+
+    // A waived deposit can't be charged.
+    c.post(
+        "/api/payments/manual/action",
+        json!({ "intake_id": id, "action": "waive" }),
+    )
+    .await;
+    let waived = post_req(format!("{url}?token={token}"), json!({}))
+        .send(&app)
+        .await;
+    assert_eq!(waived.status, StatusCode::BAD_REQUEST, "{}", waived.body);
+    assert_eq!(waived.body["code"], "DEPOSIT_SETTLED");
+
+    // The chef's copy of the client's link opens their page.
+    let link = c.get(&format!("/api/intake/{id}/client-link")).await;
+    assert_eq!(link.status, StatusCode::OK, "{}", link.body);
+    // Tokens carry the time they were minted, so compare what it does, not
+    // the string from booking time.
+    let link = link.body["url"].as_str().unwrap();
+    let link_token = link
+        .strip_prefix(&format!("http://localhost:5174/intake/{id}?token="))
+        .unwrap_or_else(|| panic!("unexpected link: {link}"));
+    let opened = get(format!("/api/intake/{id}?token={link_token}"))
+        .send(&app)
+        .await;
+    assert_eq!(opened.status, StatusCode::OK, "{}", opened.body);
+    assert_eq!(opened.body["name"], "Lead");
+
+    // Deleted: no checkout, no link.
+    c.delete(&format!("/api/intake/{id}")).await;
+    c.post(
+        "/api/payments/manual/action",
+        json!({ "intake_id": id, "action": "reset" }),
+    )
+    .await;
+    assert_eq!(
+        post_req(format!("{url}?token={token}"), json!({}))
+            .send(&app)
+            .await
+            .status,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        c.get(&format!("/api/intake/{id}/client-link")).await.status,
+        StatusCode::NOT_FOUND
+    );
+
+    // Online payments off (the default manual mode): 503.
+    let manual = common::app(pool.clone());
+    let m = Chef::new(&pool, &manual, "Manual Kitchen").await;
+    let mi = submit_intake(&manual, "manual-kitchen").await;
+    let off = post_req(
+        format!(
+            "/api/intake/{}/checkout?token={}",
+            mi["id"],
+            mi["edit_token"].as_str().unwrap()
+        ),
+        json!({}),
+    )
+    .send(&manual)
+    .await;
+    assert_eq!(off.status, StatusCode::SERVICE_UNAVAILABLE, "{}", off.body);
+    drop(m);
 }
