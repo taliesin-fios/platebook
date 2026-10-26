@@ -1552,11 +1552,17 @@ async fn clients_pay_the_deposit_from_their_booking_page(pool: PgPool) {
     // The chef's copy of the client's link opens their page.
     let link = c.get(&format!("/api/intake/{id}/client-link")).await;
     assert_eq!(link.status, StatusCode::OK, "{}", link.body);
+    // Tokens carry the time they were minted, so compare what it does, not
+    // the string from booking time.
     let link = link.body["url"].as_str().unwrap();
-    assert_eq!(
-        link,
-        format!("http://localhost:5174/intake/{id}?token={token}")
-    );
+    let link_token = link
+        .strip_prefix(&format!("http://localhost:5174/intake/{id}?token="))
+        .unwrap_or_else(|| panic!("unexpected link: {link}"));
+    let opened = get(format!("/api/intake/{id}?token={link_token}"))
+        .send(&app)
+        .await;
+    assert_eq!(opened.status, StatusCode::OK, "{}", opened.body);
+    assert_eq!(opened.body["name"], "Lead");
 
     // Deleted: no checkout, no link.
     c.delete(&format!("/api/intake/{id}")).await;
