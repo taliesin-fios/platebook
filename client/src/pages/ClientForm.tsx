@@ -378,7 +378,7 @@ export default function ClientForm() {
             <Label>Spice Tolerance</Label>
             <Segmented
               options={['Mild', 'Medium', 'Bold', 'No Preference']}
-              value={form.spice_tolerance || 'No Preference'}
+              value={form.spice_tolerance}
               onChange={v => set('spice_tolerance', v)}
             />
           </div>
@@ -412,10 +412,10 @@ export default function ClientForm() {
             <Label>Client Provides Containers</Label>
             <Segmented
               options={['Yes', 'No']}
-              value={form.client_containers ? 'Yes' : 'No'}
+              value={form.client_containers == null ? null : form.client_containers ? 'Yes' : 'No'}
               onChange={handleContainerChange}
             />
-            {!form.client_containers && (
+            {form.client_containers === 0 && (
               <div className="mt-2 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                 <span>📦</span>
                 <span>Chef will supply containers — <button
@@ -453,7 +453,7 @@ export default function ClientForm() {
             <Label>Grocery Purchasing</Label>
             <Segmented
               options={['Chef shops', 'Client shops', 'Split']}
-              value={form.grocery_handling || 'Chef shops'}
+              value={form.grocery_handling}
               onChange={v => set('grocery_handling', v)}
             />
             {form.grocery_handling === 'Chef shops' && (

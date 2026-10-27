@@ -28,14 +28,14 @@ interface IntakeFormData {
   dietary_styles: string[];
   liked_proteins: string[];
   disliked_foods: string;
-  spice_tolerance: string;
+  spice_tolerance: string; // '' = not answered
   cuisine_preferences: string;
   preferred_day: string;
   preferred_time: string;
   scheduling_notes: string;
   kitchen_notes: string;
-  client_containers: boolean;
-  grocery_handling: string;
+  client_containers: boolean | null; // null = not answered
+  grocery_handling: string; // '' = not answered
   number_of_meals: number | string;
   notes_for_chef: string;
   terms_accepted: boolean;
@@ -258,15 +258,17 @@ export default function IntakeForm() {
           dietary_styles: data.dietary_styles || [],
           liked_proteins: data.liked_proteins || [],
           disliked_foods: data.disliked_foods || '',
-          spice_tolerance: data.spice_tolerance || 'No Preference',
+          spice_tolerance: data.spice_tolerance || '',
           cuisine_preferences: data.cuisine_preferences || '',
           preferred_day: data.preferred_day || '',
           preferred_time: data.preferred_time || '',
           scheduling_notes: data.scheduling_notes || '',
           kitchen_notes: data.kitchen_notes || '',
           // Older rows may hold a boolean
-          client_containers: data.client_containers === 1 || (data.client_containers as unknown) === true,
-          grocery_handling: data.grocery_handling || 'Client shops',
+          client_containers: data.client_containers == null
+            ? null
+            : data.client_containers === 1 || (data.client_containers as unknown) === true,
+          grocery_handling: data.grocery_handling || '',
           number_of_meals: data.number_of_meals || '',
           notes_for_chef: data.notes_for_chef || '',
           terms_accepted: true,
@@ -287,11 +289,12 @@ export default function IntakeForm() {
     household_type: '', adults: '', children: '', preferred_serving_size: '',
     // Dietary
     allergens: [], dietary_styles: [], liked_proteins: [],
-    disliked_foods: '', spice_tolerance: 'No Preference', cuisine_preferences: '',
+    disliked_foods: '', spice_tolerance: '', cuisine_preferences: '',
     // Scheduling
     preferred_day: '', preferred_time: '', scheduling_notes: '',
     // Kitchen / service
-    kitchen_notes: '', client_containers: true, grocery_handling: 'Client shops',
+    // No choice is made for the client: unanswered stays blank.
+    kitchen_notes: '', client_containers: null, grocery_handling: '',
     number_of_meals: '',
     // Notes
     notes_for_chef: '',
@@ -330,7 +333,9 @@ export default function IntakeForm() {
         adults: form.adults === '' ? null : form.adults,
         children: form.children === '' ? null : form.children,
         preferred_serving_size: form.preferred_serving_size === '' ? null : form.preferred_serving_size,
-        client_containers: form.client_containers ? 1 : 0,
+        spice_tolerance: form.spice_tolerance || null,
+        client_containers: form.client_containers === null ? null : form.client_containers ? 1 : 0,
+        grocery_handling: form.grocery_handling || null,
         number_of_meals: form.number_of_meals ? parseInt(String(form.number_of_meals)) : null,
       };
       const url = isEditMode ? `/api/intake/${editId}?token=${editToken}` : '/api/intake';
@@ -571,7 +576,8 @@ export default function IntakeForm() {
               <div className="flex gap-2 flex-wrap">
                 {SPICE.map(s => (
                   <button key={s} type="button"
-                    onClick={() => set('spice_tolerance', s)}
+                    aria-pressed={form.spice_tolerance === s}
+                    onClick={() => set('spice_tolerance', form.spice_tolerance === s ? '' : s)}
                     className="px-3 py-2 rounded-xl text-sm border"
                     style={form.spice_tolerance === s
                       ? { background: '#5E7F57', color: 'white', borderColor: '#5E7F57' }
@@ -619,7 +625,8 @@ export default function IntakeForm() {
               <div className="flex gap-3">
                 {[true, false].map(v => (
                   <button key={String(v)} type="button"
-                    onClick={() => set('client_containers', v)}
+                    aria-pressed={form.client_containers === v}
+                    onClick={() => set('client_containers', form.client_containers === v ? null : v)}
                     className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
                     style={form.client_containers === v
                       ? { background: '#5E7F57', color: 'white', borderColor: '#5E7F57' }
@@ -627,7 +634,7 @@ export default function IntakeForm() {
                   >{v ? 'Yes, I will' : 'No, chef provides'}</button>
                 ))}
               </div>
-              {!form.client_containers && (
+              {form.client_containers === false && (
                 <p className="mt-2 text-xs px-3 py-2 rounded-xl" style={{ background: '#FEF3C7', color: '#92400E' }}>
                   📦 Chef-provided containers may add a small fee to your session cost.
                 </p>
@@ -638,7 +645,8 @@ export default function IntakeForm() {
               <div className="flex gap-2 flex-wrap">
                 {['Chef shops','Client shops','Split'].map(o => (
                   <button key={o} type="button"
-                    onClick={() => set('grocery_handling', o)}
+                    aria-pressed={form.grocery_handling === o}
+                    onClick={() => set('grocery_handling', form.grocery_handling === o ? '' : o)}
                     className="px-3 py-2 rounded-xl text-sm border"
                     style={form.grocery_handling === o
                       ? { background: '#5E7F57', color: 'white', borderColor: '#5E7F57' }
