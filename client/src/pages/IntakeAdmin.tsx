@@ -249,6 +249,10 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
     }
   };
 
+  // A card shows only when the client filled in at least one of its rows
+  // (InfoRow hides empty values the same way).
+  const filled = (...values: unknown[]) => values.some(v => (Array.isArray(v) ? v.length > 0 : Boolean(v)));
+
   const InfoRow = ({ label, value }: { label: string; value: ReactNode }) => value ? (
     <div className="flex justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
       <span className="text-gray-500">{label}</span>
@@ -290,23 +294,28 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
           )}
 
           {/* Contact */}
+          {filled(intake.phone, intake.address) && (
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Contact</p>
             <InfoRow label="Phone"   value={intake.phone} />
             <InfoRow label="Address" value={intake.address} />
           </div>
+          )}
 
           {/* Household */}
+          {filled(intake.household_type, intake.adults, intake.children, intake.preferred_serving_size, intake.number_of_meals) && (
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Household</p>
             <InfoRow label="Type"          value={intake.household_type} />
             <InfoRow label="Adults"        value={intake.adults} />
             <InfoRow label="Children"      value={intake.children} />
-            <InfoRow label="Serving Size"  value={`${intake.preferred_serving_size} servings`} />
+            <InfoRow label="Serving Size"  value={intake.preferred_serving_size ? `${intake.preferred_serving_size} servings` : null} />
             <InfoRow label="# of Meals"    value={intake.number_of_meals} />
           </div>
+          )}
 
           {/* Dietary */}
+          {filled(allergens, dietaryStyles, likedProteins, intake.disliked_foods, intake.spice_tolerance, intake.cuisine_preferences) && (
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Dietary</p>
             {allergens.length > 0 && (
@@ -339,14 +348,17 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
             <InfoRow label="Spice"      value={intake.spice_tolerance} />
             <InfoRow label="Cuisines"   value={intake.cuisine_preferences} />
           </div>
+          )}
 
           {/* Scheduling */}
+          {filled(intake.preferred_day, intake.preferred_time, intake.scheduling_notes) && (
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Scheduling</p>
             <InfoRow label="Day"    value={intake.preferred_day} />
             <InfoRow label="Time"   value={intake.preferred_time} />
             <InfoRow label="Notes"  value={intake.scheduling_notes} />
           </div>
+          )}
 
           {/* Kitchen / Service */}
           <div className="card">
