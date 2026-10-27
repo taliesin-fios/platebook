@@ -454,11 +454,14 @@ async fn submit(
     .bind(body.text_or_none("preferred_time"))
     .bind(body.text_or_none("scheduling_notes"))
     .bind(body.text_or_none("kitchen_notes"))
-    .bind(body.opt_flag("client_containers").unwrap_or(true))
+    // Likewise containers and groceries: null when not answered (false is
+    // an answer: the chef provides containers).
     .bind(
-        body.text_or_none("grocery_handling")
-            .unwrap_or_else(|| "Client shops".into()),
+        body.get("client_containers")
+            .filter(|v| !v.is_null())
+            .map(js::truthy),
     )
+    .bind(body.text_or_none("grocery_handling"))
     .bind(
         body.get("number_of_meals")
             .filter(|v| js::truthy(v))

@@ -361,12 +361,14 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
           )}
 
           {/* Kitchen / Service */}
+          {filled(intake.client_containers != null, intake.grocery_handling, intake.kitchen_notes) && (
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Kitchen & Service</p>
-            <InfoRow label="Containers"  value={intake.client_containers ? 'Client provides' : 'Chef provides (+ fee)'} />
+            <InfoRow label="Containers"  value={intake.client_containers == null ? null : intake.client_containers ? 'Client provides' : 'Chef provides (+ fee)'} />
             <InfoRow label="Grocery"     value={intake.grocery_handling} />
             <InfoRow label="Kitchen Notes" value={intake.kitchen_notes} />
           </div>
+          )}
 
           {/* Notes for chef */}
           {intake.notes_for_chef && (
