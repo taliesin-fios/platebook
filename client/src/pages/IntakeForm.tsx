@@ -20,9 +20,10 @@ interface IntakeFormData {
   phone: string;
   address: string;
   household_type: string;
-  adults: number;
-  children: number;
-  preferred_serving_size: number;
+  // '' = not answered (sent as null)
+  adults: number | '';
+  children: number | '';
+  preferred_serving_size: number | '';
   allergens: string[];
   dietary_styles: string[];
   liked_proteins: string[];
@@ -46,6 +47,12 @@ type FormErrors = Record<string, string | undefined> & { _global?: string };
 type ListField = 'allergens' | 'dietary_styles' | 'liked_proteins';
 
 const SERVING_OPTIONS = [2, 4, 6, 8];
+
+/** A whole number typed into a count field, or '' when it's cleared. */
+const countOrBlank = (v: string): number | '' => {
+  const n = parseInt(v, 10);
+  return Number.isNaN(n) ? '' : Math.max(0, n);
+};
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const SPICE = ['Mild','Medium','Bold','No Preference'];
 
@@ -243,10 +250,10 @@ export default function IntakeForm() {
           email: data.email || '',
           phone: data.phone || '',
           address: data.address || '',
-          household_type: data.household_type || 'Couple',
-          adults: data.adults ?? 2,
-          children: data.children ?? 0,
-          preferred_serving_size: data.preferred_serving_size ?? 4,
+          household_type: data.household_type || '',
+          adults: data.adults ?? '',
+          children: data.children ?? '',
+          preferred_serving_size: data.preferred_serving_size ?? '',
           allergens: data.allergens || [],
           dietary_styles: data.dietary_styles || [],
           liked_proteins: data.liked_proteins || [],
@@ -276,7 +283,8 @@ export default function IntakeForm() {
     // Contact
     name: '', email: '', phone: '', address: '',
     // Household
-    household_type: 'Couple', adults: 2, children: 0, preferred_serving_size: 4,
+    // Household starts blank: an untouched answer shouldn't read as one.
+    household_type: '', adults: '', children: '', preferred_serving_size: '',
     // Dietary
     allergens: [], dietary_styles: [], liked_proteins: [],
     disliked_foods: '', spice_tolerance: 'No Preference', cuisine_preferences: '',
@@ -318,6 +326,10 @@ export default function IntakeForm() {
       const payload = {
         ...form,
         ...(slug && !isEditMode ? { slug } : {}),
+        household_type: form.household_type || null,
+        adults: form.adults === '' ? null : form.adults,
+        children: form.children === '' ? null : form.children,
+        preferred_serving_size: form.preferred_serving_size === '' ? null : form.preferred_serving_size,
         client_containers: form.client_containers ? 1 : 0,
         number_of_meals: form.number_of_meals ? parseInt(String(form.number_of_meals)) : null,
       };
@@ -489,7 +501,8 @@ export default function IntakeForm() {
               <div className="flex gap-2 flex-wrap">
                 {['Individual','Couple','Small Family','Large Family'].map(t => (
                   <button key={t} type="button"
-                    onClick={() => set('household_type', t)}
+                    aria-pressed={form.household_type === t}
+                    onClick={() => set('household_type', form.household_type === t ? '' : t)}
                     className="px-3 py-2 rounded-xl text-sm font-medium border transition-colors"
                     style={form.household_type === t
                       ? { background: '#5E7F57', color: 'white', borderColor: '#5E7F57' }
@@ -502,20 +515,21 @@ export default function IntakeForm() {
               <div>
                 <Label>Adults</Label>
                 <Input type="number" min="1" max="20" value={form.adults}
-                  onChange={e => set('adults', parseInt(e.target.value) || 1)} />
+                  onChange={e => set('adults', countOrBlank(e.target.value))} placeholder="e.g., 2" />
               </div>
               <div>
                 <Label>Children</Label>
                 <Input type="number" min="0" max="20" value={form.children}
-                  onChange={e => set('children', parseInt(e.target.value) || 0)} />
+                  onChange={e => set('children', countOrBlank(e.target.value))} placeholder="e.g., 0" />
               </div>
             </div>
             <div>
               <Label>Preferred Serving Size</Label>
               <select value={form.preferred_serving_size}
-                onChange={e => set('preferred_serving_size', parseInt(e.target.value))}
+                onChange={e => set('preferred_serving_size', countOrBlank(e.target.value))}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-white focus:outline-hidden focus:ring-2 focus:ring-green-500"
               >
+                <option value="">Choose…</option>
                 {SERVING_OPTIONS.map(n => <option key={n} value={n}>{n} servings</option>)}
                 <option value={10}>10 servings</option>
                 <option value={12}>12 servings</option>
