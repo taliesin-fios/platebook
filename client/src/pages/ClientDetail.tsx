@@ -197,7 +197,8 @@ export default function ClientDetail() {
             <div className="card">
               <div className="section-header">Personal Info</div>
               <InfoRow label="Household" value={client.household_type} />
-              <InfoRow label="Adults / Children" value={`${client.adults} / ${client.children}`} />
+              <InfoRow label="Adults / Children"
+                value={client.adults == null && client.children == null ? null : `${client.adults ?? '–'} / ${client.children ?? '–'}`} />
               <InfoRow label="Serving Size" value={`${client.serving_size} servings`} />
               <InfoRow label="Phone" value={client.phone} />
               <InfoRow label="Email" value={client.email} />
