@@ -290,7 +290,7 @@ export default function SessionNew() {
               {selectedClient && (
                 <div className="mt-3 p-3 bg-blue-light rounded-xl text-sm">
                   <div className="font-semibold text-navy">{selectedClient.household_type}</div>
-                  <div className="text-gray-600">Serves {selectedClient.serving_size} · {selectedClient.adults} adults{selectedClient.children! > 0 ? `, ${selectedClient.children} children` : ''}</div>
+                  <div className="text-gray-600">Serves {selectedClient.serving_size}{selectedClient.adults != null ? ` · ${selectedClient.adults} adults` : ''}{selectedClient.children! > 0 ? `, ${selectedClient.children} children` : ''}</div>
                   {clientAllergens.length > 0 && (
                     <div className="mt-1 text-danger text-xs font-medium">⚠ Allergens: {clientAllergens.join(', ')}</div>
                   )}

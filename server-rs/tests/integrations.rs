@@ -47,12 +47,34 @@ async fn intake_public_token_and_chef_flows(pool: PgPool) {
     let intake = submit_intake(&app, "intake-kitchen").await;
     assert_eq!(intake["name"], "Lead");
     assert_eq!(intake["status"], "submitted");
-    assert_eq!(intake["household_type"], "Couple");
+    // Household questions the client skipped stay blank (no guessed answers).
+    for key in [
+        "household_type",
+        "adults",
+        "children",
+        "preferred_serving_size",
+    ] {
+        assert_eq!(intake[key], Value::Null, "{key}");
+    }
     assert_eq!(intake["client_containers"], 1);
     assert_eq!(intake["chef_slug"], "intake-kitchen");
     let id = intake["id"].as_i64().unwrap();
     let token = intake["edit_token"].as_str().unwrap();
     assert_eq!(intake["edit_url"], format!("/intake/{id}?token={token}"));
+    // Answered ones are kept as given, a zero included.
+    let answered = post_req(
+        "/api/intake",
+        json!({ "slug": "intake-kitchen", "name": "Household", "terms_accepted": true,
+                "household_type": "Small Family", "adults": 2, "children": 0,
+                "preferred_serving_size": "6" }),
+    )
+    .send(&app)
+    .await;
+    assert_eq!(answered.status, StatusCode::CREATED, "{}", answered.body);
+    assert_eq!(answered.body["household_type"], "Small Family");
+    assert_eq!(answered.body["adults"], 2);
+    assert_eq!(answered.body["children"], 0);
+    assert_eq!(answered.body["preferred_serving_size"], 6);
 
     for (body, field) in [
         (

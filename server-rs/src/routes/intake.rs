@@ -438,13 +438,12 @@ async fn submit(
     .bind(body.trimmed_or_none("email"))
     .bind(body.trimmed_or_none("phone"))
     .bind(body.trimmed_or_none("address"))
-    .bind(
-        body.text_or_none("household_type")
-            .unwrap_or_else(|| "Couple".into()),
-    )
-    .bind(body.i64_or("adults", 2) as i32)
-    .bind(body.i64_or("children", 0) as i32)
-    .bind(body.i64_or("preferred_serving_size", 4) as i32)
+    // Household answers the client skipped stay blank: the chef shouldn't
+    // read a guess as their answer.
+    .bind(body.text_or_none("household_type"))
+    .bind(body.opt_i64("adults").map(|n| n as i32))
+    .bind(body.opt_i64("children").map(|n| n as i32))
+    .bind(body.opt_i64("preferred_serving_size").map(|n| n as i32))
     .bind(json_or_empty(body.get("allergens")))
     .bind(json_or_empty(body.get("dietary_styles")))
     .bind(json_or_empty(body.get("liked_proteins")))
