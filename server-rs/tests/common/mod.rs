@@ -6,8 +6,11 @@
 
 #![allow(dead_code)]
 
+use std::net::SocketAddr;
+
 use axum::Router;
 use axum::body::Body;
+use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
 use chef_server::config::Config;
 use chef_server::state::AppState;
@@ -66,6 +69,7 @@ pub struct Req {
     body: Option<Value>,
     cookie: Option<String>,
     ip: String,
+    peer: Option<SocketAddr>,
 }
 
 pub fn get(uri: impl Into<String>) -> Req {
@@ -96,6 +100,7 @@ impl Req {
             body: None,
             cookie: None,
             ip: "10.0.0.1".to_string(),
+            peer: None,
         }
     }
 
@@ -110,11 +115,20 @@ impl Req {
         self
     }
 
+    /// Socket peer address (as `ConnectInfo`), for servers with no proxy.
+    pub fn peer(mut self, ip: &str) -> Self {
+        self.peer = Some(SocketAddr::new(ip.parse().unwrap(), 51000));
+        self
+    }
+
     pub async fn send(self, app: &Router) -> TestResponse {
         let mut builder = Request::builder()
             .method(self.method)
             .uri(&self.uri)
             .header("x-forwarded-for", &self.ip);
+        if let Some(addr) = self.peer {
+            builder = builder.extension(ConnectInfo(addr));
+        }
         if let Some(c) = &self.cookie {
             builder = builder.header(header::COOKIE, c);
         }
