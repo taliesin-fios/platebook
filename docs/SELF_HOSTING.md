@@ -44,6 +44,14 @@ To use the published image instead of building, replace the `build:` block in `d
 
 Run Platebook behind **exactly one** reverse proxy and don't expose port 3000 directly. Sign-in cookies are marked `Secure`, and rate limits use the client address the proxy adds to `X-Forwarded-For`.
 
+`TRUST_PROXY_HOPS` tells the app how many proxies to trust in that header:
+
+- `1` (the default): one reverse proxy, as in this guide.
+- `2` or more: a chain, for example a CDN in front of Caddy. Use the number of proxies that each append to `X-Forwarded-For`.
+- `0`: no proxy, clients connect to the app directly. The header is then ignored and rate limits use the connection's address.
+
+If the number is too high, clients can choose the address their rate limit counts against. If it is too low, everyone behind the outer proxy shares one limit.
+
 [Caddy](https://caddyserver.com) gets and renews certificates by itself. Its `/etc/caddy/Caddyfile`:
 
 ```
