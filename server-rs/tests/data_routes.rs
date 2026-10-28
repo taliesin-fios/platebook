@@ -463,6 +463,16 @@ async fn sessions_lifecycle(pool: PgPool) {
         json!({ "status": "void" }),
     )
     .await;
+    // A payment event on the void invoice (a failed card, say).
+    let inv_id = inv.body["id"].as_i64().unwrap();
+    sqlx::query(
+        "INSERT INTO payment_events (account_id, invoice_id, event_type) VALUES ($1, $2, 'payment_intent.payment_failed')",
+    )
+    .bind(c.id)
+    .bind(inv_id)
+    .execute(&pool)
+    .await
+    .unwrap();
     assert_eq!(
         c.delete(&format!("/api/sessions/{session}")).await.status,
         StatusCode::OK
@@ -471,6 +481,19 @@ async fn sessions_lifecycle(pool: PgPool) {
         c.get(&format!("/api/sessions/{session}")).await.status,
         StatusCode::NOT_FOUND
     );
+    // The void invoice stays as a record, unlinked from the deleted session,
+    // and keeps its payment events.
+    let kept = c.get(&format!("/api/invoices/{inv_id}")).await;
+    assert_eq!(kept.status, StatusCode::OK, "{}", kept.body);
+    assert_eq!(kept.body["status"], "void");
+    assert_eq!(kept.body["session_id"], Value::Null);
+    let events: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payment_events WHERE invoice_id = $1")
+            .bind(inv_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(events, 1);
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

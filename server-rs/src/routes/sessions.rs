@@ -556,15 +556,9 @@ async fn remove(mut t: Tenant, Path(raw_id): Path<String>) -> DbResult<Json<Succ
         .with("invoice_id", inv_id)
         .into());
     }
-    // Keep their payment events (the audit log) by detaching them.
-    sqlx::query(
-        "UPDATE payment_events SET invoice_id = NULL
-          WHERE invoice_id IN (SELECT id FROM invoices WHERE session_id = $1)",
-    )
-    .bind(id)
-    .execute(&mut *t.tx)
-    .await?;
-    sqlx::query("DELETE FROM invoices WHERE session_id = $1")
+    // Only void invoices are left: keep them as records (with their payment
+    // events), no longer linked to the session.
+    sqlx::query("UPDATE invoices SET session_id = NULL, updated_at = now() WHERE session_id = $1")
         .bind(id)
         .execute(&mut *t.tx)
         .await?;
