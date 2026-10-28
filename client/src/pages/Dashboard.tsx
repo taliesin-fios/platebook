@@ -6,10 +6,11 @@ import { useNavigate } from 'react-router';
 import { fmtSessionDate, localDateStrOffset, localTodayStr } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import { SkeletonStatGrid } from '../components/Skeleton';
-import { STATUS_COLORS, FEASIBILITY_COLORS, calcFeasibility, APP_NAME, bookingUrl, marginColor, marginLabel } from '../constants';
+import { STATUS_COLORS, FEASIBILITY_COLORS, calcFeasibility, APP_NAME, bookingUrl } from '../constants';
 import { SettingsContext } from '../App';
 import { parseNum } from '../utils/numbers';
 import { mtdTrend } from '../utils/trend';
+import { invoiceSummary, marginTile } from '../utils/dashboardStats';
 import type { ClientListItem, CostSummary, SessionListItem } from '../types';
 
 function IntakeLinkCard() {
@@ -115,18 +116,14 @@ export default function Dashboard() {
       value: fmt$(summary.collected_mtd ?? summary.total_revenue),
       trend: collectedTrend,
       trendTitle: `Compared with ${fmt$(summary.collected_prev_mtd)} collected over the same days last month`,
-      sub: summary.outstanding_total > 0
-        ? `${fmt$(summary.outstanding_total)} outstanding`
-        : 'All invoices paid',
+      sub: invoiceSummary(parseNum(summary.invoiced_total) || 0, parseNum(summary.outstanding_total) || 0, fmt$),
       valueClass: 'text-green-dark',
       subClass: summary.overdue_count > 0 ? 'text-danger font-medium' : '',
       subPrefix: summary.overdue_count > 0 ? `⚠ ${summary.overdue_count} overdue · ` : '',
     },
     {
       label: 'Avg Margin',
-      value: `${summary.margin_pct || 0}%`,
-      sub: marginLabel(summary.margin_pct),
-      valueClass: marginColor(summary.margin_pct),
+      ...marginTile(summary.session_count, parseNum(summary.total_revenue) || 0, parseNum(summary.margin_pct) || 0),
     },
   ] : null;
 
