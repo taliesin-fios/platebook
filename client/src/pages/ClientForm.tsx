@@ -394,13 +394,13 @@ export default function ClientForm() {
           <div>
             <Label>Oven Available</Label>
             <Segmented options={['Yes', 'No']}
-              value={form.oven_available ? 'Yes' : 'No'}
+              value={form.oven_available == null ? null : form.oven_available ? 'Yes' : 'No'}
               onChange={v => set('oven_available', v === 'Yes' ? 1 : 0)} />
           </div>
           <div>
             <Label>Stovetop Type</Label>
             <Segmented options={['Gas', 'Electric', 'Induction']}
-              value={form.stovetop_type || 'Gas'}
+              value={form.stovetop_type}
               onChange={v => set('stovetop_type', v)} />
           </div>
           <div>

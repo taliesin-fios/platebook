@@ -240,7 +240,7 @@ export default function ClientDetail() {
               <InfoRow label="Preferred Time" value={client.preferred_time} />
               <InfoRow label="Grocery Purchasing" value={client.grocery_handling} />
               <InfoRow label="Stovetop" value={client.stovetop_type} />
-              <InfoRow label="Oven Available" value={client.oven_available ? 'Yes' : 'No'} />
+              <InfoRow label="Oven Available" value={client.oven_available == null ? null : client.oven_available ? 'Yes' : 'No'} />
               <InfoRow label="Parking" value={client.parking_notes} />
             </div>
 

@@ -22,6 +22,17 @@ export function marginTile(sessionCount: number, revenue: number, marginPct: num
 }
 
 /**
+ * The dashboard's Active Clients tile. Onboarding's sample client is starter
+ * content, not a client, so it isn't counted (the line under says so).
+ */
+export function clientsTile(clients: { is_sample: 0 | 1 }[]): { value: number; sub: string } {
+  const samples = clients.filter(c => c.is_sample).length;
+  const value = clients.length - samples;
+  if (samples > 0) return { value, sub: samples === 1 ? 'Sample client not counted' : `${samples} sample clients not counted` };
+  return { value, sub: value === 0 ? 'No clients yet' : '' };
+}
+
+/**
  * The line under Collected: what's still owed, or that it's all paid, or
  * (when nothing has been invoiced) that there are no invoices yet, rather
  * than "All invoices paid" on a new account.
