@@ -522,3 +522,37 @@ async fn signup_is_rate_limited_per_ip(pool: PgPool) {
         .await;
     assert_eq!(other.status, StatusCode::CREATED);
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn without_a_proxy_a_forged_forwarded_for_does_not_reset_the_limit(pool: PgPool) {
+    // TRUST_PROXY_HOPS=0: clients connect directly, so the limit keys on the
+    // socket address and a different X-Forwarded-For on each try changes nothing.
+    let config = chef_server::config::Config {
+        trust_proxy_hops: 0,
+        ..test_config()
+    };
+    let (app, _) = app_with(pool, config);
+    for i in 0..5 {
+        let res = post(
+            "/api/auth/signup",
+            json!({ "email": format!("bad{i}"), "password": "x" }),
+        )
+        .ip(format!("203.0.113.{i}"))
+        .peer("192.0.2.9")
+        .send(&app)
+        .await;
+        assert_eq!(res.status, StatusCode::BAD_REQUEST);
+    }
+    let blocked = post("/api/auth/signup", signup_body("late@example.com"))
+        .ip("203.0.113.99")
+        .peer("192.0.2.9")
+        .send(&app)
+        .await;
+    assert_eq!(blocked.status, StatusCode::TOO_MANY_REQUESTS);
+    // A different socket address is a different client.
+    let other = post("/api/auth/signup", signup_body("late@example.com"))
+        .peer("192.0.2.10")
+        .send(&app)
+        .await;
+    assert_eq!(other.status, StatusCode::CREATED);
+}
