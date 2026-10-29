@@ -35,15 +35,41 @@ pub fn is_blocked_ip(ip: IpAddr) -> bool {
             if let Some(v4) = v6.to_ipv4_mapped() {
                 return is_blocked_v4(v4);
             }
-            let seg0 = v6.segments()[0];
+            if let Some(v4) = embedded_v4(v6)
+                && is_blocked_v4(v4)
+            {
+                return true;
+            }
+            let s = v6.segments();
             v6.is_loopback()
                 || v6.is_unspecified()
                 || v6.is_multicast()
-                || (seg0 & 0xfe00) == 0xfc00 // fc00::/7 unique local
-                || (seg0 & 0xffc0) == 0xfe80 // fe80::/10 link local
+                || (s[0] & 0xfe00) == 0xfc00 // fc00::/7 unique local
+                || (s[0] & 0xffc0) == 0xfe80 // fe80::/10 link local
+                || (s[0] & 0xffc0) == 0xfec0 // fec0::/10 site local (deprecated)
+                || (s[0] == 0x64 && s[1] == 0xff9b && s[2] == 1) // 64:ff9b:1::/48 local NAT64
+                || (s[0] == 0x2001 && s[1] == 0) // 2001::/32 Teredo
                 || v6 == Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)
         }
     }
+}
+
+/// The IPv4 address carried inside an IPv6 one, for the forms a host may
+/// route to that IPv4 address: NAT64 (`64:ff9b::/96`), 6to4 (`2002::/16`)
+/// and the deprecated IPv4-compatible `::a.b.c.d`.
+fn embedded_v4(v6: Ipv6Addr) -> Option<Ipv4Addr> {
+    let s = v6.segments();
+    let v4 = |hi: u16, lo: u16| Ipv4Addr::new((hi >> 8) as u8, hi as u8, (lo >> 8) as u8, lo as u8);
+    if s[0] == 0x64 && s[1] == 0xff9b && s[2..6] == [0, 0, 0, 0] {
+        return Some(v4(s[6], s[7]));
+    }
+    if s[0] == 0x2002 {
+        return Some(v4(s[1], s[2]));
+    }
+    if s[..6] == [0, 0, 0, 0, 0, 0] {
+        return Some(v4(s[6], s[7]));
+    }
+    None
 }
 
 fn is_blocked_v4(ip: Ipv4Addr) -> bool {
@@ -56,6 +82,9 @@ fn is_blocked_v4(ip: Ipv4Addr) -> bool {
         || ip.is_multicast()
         || a == 0                    // 0/8
         || (a == 100 && (64..128).contains(&b)) // 100.64/10 carrier-grade NAT
+        || (a == 192 && b == 0 && ip.octets()[2] == 0) // 192.0.0/24 IETF protocol assignments
+        || (a == 198 && (b == 18 || b == 19)) // 198.18/15 benchmarking
+        || a >= 240 // 240/4 reserved (and broadcast)
 }
 
 /// Port of `isSsrfBlocked(url)`: unparseable, non-http(s), localhost or a
@@ -220,6 +249,22 @@ mod tests {
             "http://[fd00::1]/",
             "http://[fe80::1]/",
             "http://[::ffff:127.0.0.1]/",
+            // IPv4 inside IPv6: NAT64, 6to4, IPv4-compatible.
+            "http://[64:ff9b::7f00:1]/",
+            "http://[64:ff9b::a9fe:a9fe]/",
+            "http://[2002:7f00:1::]/",
+            "http://[2002:a9fe:a9fe::]/",
+            "http://[::127.0.0.1]/",
+            "http://[::a00:1]/",
+            // Local-use NAT64, Teredo, site-local.
+            "http://[64:ff9b:1::a00:1]/",
+            "http://[2001:0:4136:e378:8000:63bf:80ff:fffe]/",
+            "http://[fec0::1]/",
+            // Reserved IPv4.
+            "http://192.0.0.1/",
+            "http://198.18.0.1/",
+            "http://198.19.255.255/",
+            "http://240.0.0.1/",
             "ftp://example.com/",
             "file:///etc/passwd",
             "not a url",
@@ -230,6 +275,12 @@ mod tests {
             "https://www.example.com/recipe",
             "http://172.32.0.1/",
             "http://8.8.8.8/",
+            // Public IPv4 reached through NAT64 / 6to4 stays allowed.
+            "http://[64:ff9b::808:808]/",
+            "http://[2002:808:808::]/",
+            "http://[2606:4700::1111]/",
+            "http://192.0.2.1/",
+            "http://198.20.0.1/",
             "https://fdafoods.com/",
         ] {
             assert!(!is_url_blocked(url), "{url} should be allowed");

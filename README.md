@@ -137,6 +137,7 @@ All configuration lives in `server-rs/.env` (gitignored). The annotated template
 | `NODE_ENV` | Optional | `production` hides internal error details and requires `JWT_SECRET` |
 | `PORT` | Optional | API port (`3002` in `.env.example`; the Docker image uses `3000`) |
 | `CLIENT_URL` | Optional | Frontend origin, used for CORS, emailed links and Stripe redirects |
+| `TRUST_PROXY_HOPS` | Optional | Reverse proxies in front of the API that append to `X-Forwarded-For` (default `1`; `0` = clients connect directly and the header is ignored). Rate limits key on the client address this picks |
 | `CLIENT_DIST` | Optional | Serve this React build at `/` (`npm start` and the Docker image set it) |
 | `ANTHROPIC_API_KEY` | Optional | Enables AI recipe import + menu suggestions |
 | `ANTHROPIC_MODEL` | Optional | Overrides the per-route Claude model defaults |

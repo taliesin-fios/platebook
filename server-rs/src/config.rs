@@ -39,6 +39,10 @@ pub struct Config {
     pub stripe_api_base: String,
     /// `BOOKING_FEE_CENTS`, used only when an account has no deposit setting.
     pub booking_fee_cents: i64,
+    /// `TRUST_PROXY_HOPS`: how many reverse proxies in front of the server
+    /// append to `X-Forwarded-For`. 0 = clients connect directly (the header
+    /// is ignored); 1 (default) = one proxy, e.g. Caddy or nginx.
+    pub trust_proxy_hops: u8,
     pub anthropic_api_key: Option<String>,
     /// `ANTHROPIC_MODEL` override; each route has its own default otherwise.
     pub anthropic_model: Option<String>,
@@ -153,6 +157,15 @@ impl Config {
         if production && intake_secret == DEV_INTAKE_SECRET {
             return Err(ConfigError::DevIntakeSecretInProduction);
         }
+        let trust_proxy_hops = match var("TRUST_PROXY_HOPS") {
+            Some(v) => v
+                .trim()
+                .parse::<u8>()
+                .ok()
+                .filter(|n| *n <= 10)
+                .ok_or(ConfigError::Invalid("TRUST_PROXY_HOPS"))?,
+            None => 1,
+        };
         let port = match var("PORT") {
             Some(p) => p.parse().map_err(|_| ConfigError::Invalid("PORT"))?,
             None => 3002,
@@ -183,6 +196,7 @@ impl Config {
             booking_fee_cents: var("BOOKING_FEE_CENTS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(5000),
+            trust_proxy_hops,
             anthropic_api_key: var("ANTHROPIC_API_KEY"),
             anthropic_model: var("ANTHROPIC_MODEL"),
             anthropic_api_base: var("ANTHROPIC_BASE_URL")
@@ -222,6 +236,7 @@ impl Config {
             stripe_webhook_secret: None,
             stripe_api_base: "https://api.stripe.com".to_string(),
             booking_fee_cents: 5000,
+            trust_proxy_hops: 1,
             anthropic_api_key: None,
             anthropic_model: None,
             anthropic_api_base: "https://api.anthropic.com".to_string(),
@@ -263,6 +278,7 @@ impl fmt::Debug for Config {
         f.debug_struct("Config")
             .field("database_url", &"<redacted>")
             .field("port", &self.port)
+            .field("trust_proxy_hops", &self.trust_proxy_hops)
             .field("production", &self.production)
             .field("jwt_secret", &"<redacted>")
             .field("client_url", &self.client_url)
