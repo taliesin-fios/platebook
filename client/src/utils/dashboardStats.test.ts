@@ -2,7 +2,7 @@
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
 import { describe, it, expect } from 'vitest';
-import { invoiceSummary, marginTile } from './dashboardStats';
+import { clientsTile, invoiceSummary, marginTile } from './dashboardStats';
 
 describe('marginTile', () => {
   it('shows a dash, not a red 0%, with no sessions this month', () => {
@@ -20,6 +20,24 @@ describe('marginTile', () => {
 
   it('still rates a real loss (fees below cost)', () => {
     expect(marginTile(1, 100, -20).value).toBe('-20%');
+  });
+});
+
+describe('clientsTile', () => {
+  const real = { is_sample: 0 as const };
+  const sample = { is_sample: 1 as const };
+
+  it('leaves the sample client out of the count, and says so', () => {
+    expect(clientsTile([sample])).toEqual({ value: 0, sub: 'Sample client not counted' });
+    expect(clientsTile([real, sample, sample])).toEqual({ value: 1, sub: '2 sample clients not counted' });
+  });
+
+  it('counts real clients', () => {
+    expect(clientsTile([real, real])).toEqual({ value: 2, sub: '' });
+  });
+
+  it('says there are none yet', () => {
+    expect(clientsTile([])).toEqual({ value: 0, sub: 'No clients yet' });
   });
 });
 
