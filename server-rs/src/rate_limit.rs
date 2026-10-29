@@ -215,29 +215,60 @@ impl AccountLimits {
     }
 }
 
-/// Client IP the way Express computes it with `trust proxy = 1` (Railway's
-/// single reverse proxy): the right-most `X-Forwarded-For` entry, else the
-/// socket peer address.
-pub fn client_ip(headers: &HeaderMap, peer: Option<&ConnectInfo<SocketAddr>>) -> String {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.rsplit(',').next())
-        .map(|ip| ip.trim().to_string())
+/// The client IP that rate limits key on, like Express's `trust proxy = N`.
+///
+/// Each of the `trusted_hops` reverse proxies in front of the server appends
+/// the address it saw to `X-Forwarded-For`, so the client is the entry
+/// `trusted_hops` places from the right (the left-most one if the header is
+/// shorter). Entries further left were written by the client and are never
+/// trusted. With 0 hops (clients connect directly) the header is ignored:
+/// anyone could put any address in it and get a fresh rate-limit bucket.
+/// Falls back to the socket peer address when there's no usable header.
+pub fn client_ip(
+    headers: &HeaderMap,
+    peer: Option<&ConnectInfo<SocketAddr>>,
+    trusted_hops: u8,
+) -> String {
+    let peer_ip = || peer.map(|ConnectInfo(addr)| addr.ip().to_string());
+    if trusted_hops == 0 {
+        return peer_ip().unwrap_or_else(|| "unknown".to_string());
+    }
+    // All X-Forwarded-For headers, in order, as one list.
+    let forwarded: Vec<&str> = headers
+        .get_all("x-forwarded-for")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(','))
+        .map(str::trim)
         .filter(|ip| !ip.is_empty())
-        .or_else(|| peer.map(|ConnectInfo(addr)| addr.ip().to_string()))
+        .collect();
+    let from_right = usize::from(trusted_hops) - 1;
+    forwarded
+        .iter()
+        .rev()
+        .nth(from_right)
+        .or_else(|| forwarded.first())
+        .map(|ip| ip.to_string())
+        .or_else(peer_ip)
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-/// Extractor: the caller's IP per [`client_ip`].
+/// Extractor: the caller's IP per [`client_ip`] and `TRUST_PROXY_HOPS`.
 pub struct ClientIp(pub String);
 
-impl<S: Send + Sync> FromRequestParts<S> for ClientIp {
+impl FromRequestParts<crate::state::AppState> for ClientIp {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &crate::state::AppState,
+    ) -> Result<Self, Self::Rejection> {
         let peer = parts.extensions.get::<ConnectInfo<SocketAddr>>();
-        Ok(ClientIp(client_ip(&parts.headers, peer)))
+        Ok(ClientIp(client_ip(
+            &parts.headers,
+            peer,
+            state.config.trust_proxy_hops,
+        )))
     }
 }
 
@@ -245,11 +276,48 @@ impl<S: Send + Sync> FromRequestParts<S> for ClientIp {
 mod tests {
     use super::*;
 
-    #[test]
-    fn uses_rightmost_forwarded_for() {
+    fn xff(v: &str) -> HeaderMap {
         let mut h = HeaderMap::new();
-        h.insert("x-forwarded-for", "1.1.1.1, 2.2.2.2".parse().unwrap());
-        assert_eq!(client_ip(&h, None), "2.2.2.2");
-        assert_eq!(client_ip(&HeaderMap::new(), None), "unknown");
+        h.insert("x-forwarded-for", v.parse().unwrap());
+        h
+    }
+
+    fn peer(ip: &str) -> ConnectInfo<SocketAddr> {
+        ConnectInfo(SocketAddr::new(ip.parse().unwrap(), 51000))
+    }
+
+    #[test]
+    fn one_proxy_uses_the_rightmost_entry() {
+        // The client sent "1.1.1.1"; the proxy appended the real 2.2.2.2.
+        assert_eq!(client_ip(&xff("1.1.1.1, 2.2.2.2"), None, 1), "2.2.2.2");
+        assert_eq!(client_ip(&HeaderMap::new(), None, 1), "unknown");
+        let p = peer("10.0.0.9");
+        assert_eq!(client_ip(&HeaderMap::new(), Some(&p), 1), "10.0.0.9");
+    }
+
+    #[test]
+    fn no_proxy_ignores_the_header() {
+        // Directly exposed: a spoofed header must not pick the bucket.
+        let p = peer("198.51.100.7");
+        assert_eq!(client_ip(&xff("203.0.113.1"), Some(&p), 0), "198.51.100.7");
+        assert_eq!(client_ip(&xff("203.0.113.1"), None, 0), "unknown");
+    }
+
+    #[test]
+    fn two_proxies_skip_the_inner_one() {
+        // client spoof, real client (added by the outer proxy), outer proxy
+        // (added by the inner proxy).
+        let h = xff("6.6.6.6, 2.2.2.2, 172.70.1.1");
+        assert_eq!(client_ip(&h, None, 2), "2.2.2.2");
+        // Shorter than the hop count: the left-most entry.
+        assert_eq!(client_ip(&xff("2.2.2.2"), None, 2), "2.2.2.2");
+    }
+
+    #[test]
+    fn several_headers_are_one_list() {
+        let mut h = HeaderMap::new();
+        h.append("x-forwarded-for", "6.6.6.6".parse().unwrap());
+        h.append("x-forwarded-for", "2.2.2.2".parse().unwrap());
+        assert_eq!(client_ip(&h, None, 1), "2.2.2.2");
     }
 }
