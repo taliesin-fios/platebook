@@ -161,6 +161,8 @@ async fn intake_public_token_and_chef_flows(pool: PgPool) {
     assert_eq!(converted.body["client"]["name"], "Lead");
     assert_eq!(converted.body["client"]["chef_notes"], "Hi\n\nGas stove");
     assert_eq!(converted.body["client"]["allergens"], json!(["Soy"]));
+    // The booking form doesn't ask about the oven: left blank, not "yes".
+    assert_eq!(converted.body["client"]["oven_available"], Value::Null);
     let again = c
         .post(&format!("/api/intake/{id}/convert"), json!({}))
         .await;

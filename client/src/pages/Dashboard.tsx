@@ -10,7 +10,7 @@ import { STATUS_COLORS, FEASIBILITY_COLORS, calcFeasibility, APP_NAME, bookingUr
 import { SettingsContext } from '../App';
 import { parseNum } from '../utils/numbers';
 import { mtdTrend } from '../utils/trend';
-import { invoiceSummary, marginTile } from '../utils/dashboardStats';
+import { clientsTile, invoiceSummary, marginTile } from '../utils/dashboardStats';
 import type { ClientListItem, CostSummary, SessionListItem } from '../types';
 
 function IntakeLinkCard() {
@@ -108,8 +108,7 @@ export default function Dashboard() {
     },
     {
       label: 'Active Clients',
-      value: clients.length,
-      sub: `${clients.filter(c => !c.is_sample).length} regular`,
+      ...clientsTile(clients),
     },
     {
       label: 'Collected (MTD)',
