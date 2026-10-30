@@ -540,13 +540,31 @@ async fn from_session(
                 c.address AS client_address, c.phone AS client_phone,
                 c.grocery_handling, c.serving_size AS client_serving
          FROM sessions s LEFT JOIN clients c ON c.id = s.client_id
-         WHERE s.id = $1 AND s.account_id = $2",
+         WHERE s.id = $1 AND s.account_id = $2
+         FOR UPDATE OF s",
     )
     .bind(session_id)
     .bind(account)
     .fetch_optional(&mut *t.tx)
     .await?
     .ok_or_else(not_found)?;
+    // One live invoice per session: a repeat (double click, retry) gets the
+    // existing one. The row lock above makes concurrent requests take turns.
+    let existing: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM invoices
+         WHERE session_id = $1 AND account_id = $2 AND deleted_at IS NULL
+           AND COALESCE(status, '') <> 'void'
+         ORDER BY id LIMIT 1",
+    )
+    .bind(session_id)
+    .bind(account)
+    .fetch_optional(&mut *t.tx)
+    .await?;
+    if let Some(id) = existing {
+        let inv = invoice_or_404(&mut t.tx, id).await?;
+        t.tx.commit().await?;
+        return Ok((StatusCode::OK, Json(inv)));
+    }
     let dishes: Vec<String> = sqlx::query_scalar(
         "SELECT r.name FROM session_dishes sd JOIN recipes r ON r.id = sd.recipe_id
          WHERE sd.session_id = $1 ORDER BY sd.sort_order, sd.id",
@@ -748,6 +766,34 @@ async fn update(
     }
     let items = line_items(&body);
     let totals = body_totals(&body, &items);
+    // A paid or void invoice is a financial record: only the chef's internal
+    // notes may change. A body whose amounts differ is refused; other fields
+    // are left as they are.
+    if let Some(old @ ("paid" | "void")) = existing_status.as_deref() {
+        let full_body = body.0.contains_key("line_items");
+        if full_body
+            && existing_total.map(money::to_cents).unwrap_or(0) != money::to_cents(totals.total)
+        {
+            return Err(AppError::new(
+                StatusCode::CONFLICT,
+                "STATUS_LOCKED",
+                format!("A {old} invoice can't be changed"),
+            )
+            .into());
+        }
+        if body.0.contains_key("internal_notes") {
+            sqlx::query(
+                "UPDATE invoices SET internal_notes = $1, updated_at = now() WHERE id = $2",
+            )
+            .bind(body.text_or_empty("internal_notes"))
+            .bind(id)
+            .execute(&mut *t.tx)
+            .await?;
+        }
+        let inv = invoice_or_404(&mut t.tx, id).await?;
+        t.tx.commit().await?;
+        return Ok(Json(inv));
+    }
     // paid_at: kept when status is absent, stamped on first "paid", else cleared
     let paid_at = match status.as_deref() {
         None => existing_paid,
@@ -1162,7 +1208,7 @@ async fn checkout(
     state
         .limits
         .checkout
-        .check(&state.pool, &ip)
+        .check(&state.limits_pool, &ip)
         .await
         .map_err(|e| e.with_code())?;
     // The link's token first, like every other route: no token, no answer.

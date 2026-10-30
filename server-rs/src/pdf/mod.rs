@@ -211,7 +211,7 @@ pub async fn check_limit(state: &AppState, account_id: i64) -> Result<(), AppErr
     state
         .account_limits
         .pdf
-        .check(&state.pool, &AccountLimits::key(account_id))
+        .check(&state.limits_pool, &AccountLimits::key(account_id))
         .await
         .map_err(|e| e.with_code())
 }

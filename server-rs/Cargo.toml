@@ -11,7 +11,7 @@ description = "Platebook API server"
 axum = { version = "0.8", features = ["macros"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "process", "fs"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace", "limit", "fs", "set-header"] }
+tower-http = { version = "0.6", features = ["catch-panic", "cors", "trace", "limit", "fs", "set-header"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "macros", "migrate", "chrono", "rust_decimal", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

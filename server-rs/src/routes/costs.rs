@@ -348,7 +348,7 @@ async fn export_csv(State(state): State<AppState>, mut t: Tenant) -> DbResult<Re
     if let Err(limited) = state
         .account_limits
         .csv_export
-        .check(&state.pool, &AccountLimits::key(t.account.id))
+        .check(&state.limits_pool, &AccountLimits::key(t.account.id))
         .await
     {
         return Ok(limited.with_code().into_response());
