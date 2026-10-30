@@ -61,7 +61,8 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { show } = useToast();
-  const isNew = id === 'new';
+  // /recipes/new has no :id param (its own route), so a missing id is new too.
+  const isNew = !id || id === 'new';
   const [editing, setEditing] = useState(editMode || isNew);
   const [showInstructions, setShowInstructions] = useState(false);
   const [saving, setSaving] = useState(false);

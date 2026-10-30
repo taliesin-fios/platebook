@@ -556,3 +556,23 @@ async fn without_a_proxy_a_forged_forwarded_for_does_not_reset_the_limit(pool: P
         .await;
     assert_eq!(other.status, StatusCode::CREATED);
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn one_time_tokens_are_not_session_cookies(pool: PgPool) {
+    let app = app(pool.clone());
+    let (id, _) = make_account(&pool, "Link Kitchen").await;
+    let acct = Account {
+        id,
+        email: "link.kitchen@example.com".into(),
+    };
+    // A magic-login or reset link, used as a cookie, signs nobody in: it is
+    // single-use and short-lived, a session is neither.
+    for purpose in ["magic-login", "password-reset"] {
+        let token = sign_one_time(&acct, purpose, Duration::from_secs(900), JWT_SECRET);
+        let res = get("/api/clients")
+            .cookie(format!("authToken={token}"))
+            .send(&app)
+            .await;
+        assert_eq!(res.status, StatusCode::UNAUTHORIZED, "{purpose}");
+    }
+}

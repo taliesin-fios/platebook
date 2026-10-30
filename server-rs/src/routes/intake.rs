@@ -392,7 +392,7 @@ async fn submit(
     state
         .limits
         .intake
-        .check(&state.pool, &ip)
+        .check(&state.limits_pool, &ip)
         .await
         .map_err(|e| e.with_code())?;
     let mut conn = state.pool.acquire().await?;
@@ -411,11 +411,7 @@ async fn submit(
     if !body.truthy("terms_accepted") {
         return Err(field_error("You must accept the terms to submit", "terms_accepted").into());
     }
-    if let Some(email) = body.text_or_none("email")
-        && !EMAIL_RE.is_match(email.trim())
-    {
-        return Err(field_error("Enter a valid email address", "email").into());
-    }
+    validate_client_fields(&body)?;
 
     let mut tx = begin_tenant(&state.pool, account.id).await?;
     let intake = sqlx::query_as::<_, IntakeRow>(
@@ -635,6 +631,79 @@ const ADMIN_TEXT: &[&str] = &[
     "pdf_path",
 ];
 
+/// Longest accepted text, per field (characters). The form is public, so
+/// every field is bounded; free-text notes get the most room.
+fn max_len(field: &str) -> usize {
+    match field {
+        "name" | "email" | "phone" => 254,
+        "address" | "household_type" | "spice_tolerance" | "preferred_day" | "preferred_time"
+        | "grocery_handling" => 500,
+        _ => 5000,
+    }
+}
+const MAX_COUNT: i64 = 1000;
+const MAX_LIST_ITEMS: usize = 50;
+const MAX_LIST_ITEM_LEN: usize = 100;
+
+/// Shape checks for the client-editable fields present in `body`: bounded
+/// text, small non-negative counts, and lists of short strings. Shared by the
+/// public submit and by edits, so an edit link can't store what the form
+/// would refuse.
+fn validate_client_fields(body: &JsonBody) -> Result<(), AppError> {
+    for &f in CLIENT_TEXT {
+        if let Some(v) = body.opt_text(f)
+            && v.chars().count() > max_len(f)
+        {
+            return Err(field_error(&format!("{f} is too long"), f));
+        }
+    }
+    if body.has("name") && body.trimmed_or_none("name").is_none() {
+        return Err(field_error("Name is required", "name"));
+    }
+    if let Some(email) = body.text_or_none("email")
+        && !EMAIL_RE.is_match(email.trim())
+    {
+        return Err(field_error("Enter a valid email address", "email"));
+    }
+    for &f in CLIENT_INT {
+        let given = match body.get(f) {
+            None | Some(Value::Null) => false,
+            Some(Value::String(s)) => !s.trim().is_empty(),
+            Some(_) => true,
+        };
+        if given
+            && !body
+                .opt_i64(f)
+                .is_some_and(|n| (0..=MAX_COUNT).contains(&n))
+        {
+            return Err(field_error(
+                &format!("{f} must be a number from 0 to {MAX_COUNT}"),
+                f,
+            ));
+        }
+    }
+    for &f in CLIENT_JSON {
+        let ok = match body.get(f) {
+            None | Some(Value::Null) => true,
+            Some(Value::Array(items)) => {
+                items.len() <= MAX_LIST_ITEMS
+                    && items.iter().all(|i| {
+                        i.as_str()
+                            .is_some_and(|s| s.chars().count() <= MAX_LIST_ITEM_LEN)
+                    })
+            }
+            Some(_) => false,
+        };
+        if !ok {
+            return Err(field_error(
+                &format!("{f} must be a list of up to {MAX_LIST_ITEMS} short answers"),
+                f,
+            ));
+        }
+    }
+    Ok(())
+}
+
 // ── PUT /api/intake/:id — token (client) or owner (chef) ─────────────────────
 async fn update(
     State(state): State<AppState>,
@@ -647,6 +716,28 @@ async fn update(
     let (Some(owner), Some(id)) = (owner, parse_id(&raw_id)) else {
         return Err(intake_not_found().into());
     };
+    validate_client_fields(&body)?;
+
+    let mut tx = begin_tenant(&state.pool, owner).await?;
+    // Once the chef has booked the request, the client's edit link is done:
+    // later changes go through the chef, who now owns the client record.
+    if role == Role::Client {
+        let converted: Option<bool> = sqlx::query_scalar(
+            "SELECT converted_client_id IS NOT NULL FROM client_intakes
+              WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if converted == Some(true) {
+            return Err(AppError::new(
+                StatusCode::CONFLICT,
+                "INTAKE_LOCKED",
+                "This request has been booked. Contact your chef to make changes.",
+            )
+            .into());
+        }
+    }
 
     let mut qb: QueryBuilder<Postgres> =
         QueryBuilder::new("UPDATE client_intakes SET updated_at = now()");
@@ -681,7 +772,6 @@ async fn update(
         .push_bind(id)
         .push(" AND deleted_at IS NULL");
 
-    let mut tx = begin_tenant(&state.pool, owner).await?;
     if qb.build().execute(&mut *tx).await?.rows_affected() == 0 {
         // Gone, or deleted: restore it before editing.
         return Err(intake_not_found().into());
@@ -894,7 +984,7 @@ async fn checkout(
     state
         .limits
         .checkout
-        .check(&state.pool, &ip)
+        .check(&state.limits_pool, &ip)
         .await
         .map_err(|e| e.with_code())?;
     let (_, owner) = access(&state, &who, &raw_id, &q).await?;

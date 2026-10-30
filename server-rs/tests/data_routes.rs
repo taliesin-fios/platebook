@@ -10,7 +10,7 @@ mod common;
 
 use axum::http::StatusCode;
 use chef_server::db::MIGRATOR;
-use common::{Chef, app, get};
+use common::{Chef, app, get, post};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
@@ -1045,4 +1045,112 @@ async fn collected_prev_mtd_covers_the_same_days_of_last_month(pool: PgPool) {
     };
     assert_eq!(s["collected_prev_mtd"], expected, "{s}");
     assert_eq!(s["collected_mtd"], 7.0, "{s}");
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn paid_and_void_invoices_are_locked(pool: PgPool) {
+    let c = chef(&pool, "Ledger Kitchen").await;
+    let (_, _, session) = basics(&c).await;
+    let inv = c
+        .post(&format!("/api/invoices/from-session/{session}"), json!({}))
+        .await;
+    assert_eq!(inv.status, StatusCode::CREATED, "{}", inv.body);
+    let id = inv.body["id"].as_i64().unwrap();
+    let uri = format!("/api/invoices/{id}");
+    let mut full = inv.body.clone();
+    full["status"] = json!("paid");
+    let paid = c.put(&uri, full.clone()).await;
+    assert_eq!(paid.status, StatusCode::OK, "{}", paid.body);
+    let total = paid.body["total"].clone();
+
+    // Repricing a paid invoice is refused...
+    let mut repriced = paid.body.clone();
+    repriced["line_items"] = json!([{ "description": "Changed", "quantity": 1, "unit_price": 1 }]);
+    let refused = c.put(&uri, repriced).await;
+    assert_eq!(refused.status, StatusCode::CONFLICT);
+    assert_eq!(refused.body["code"], "STATUS_LOCKED");
+    // ...a partial body can't wipe it, and only the internal notes change.
+    let mut noted = paid.body.clone();
+    noted["internal_notes"] = json!("paid by check #12");
+    noted["client_name"] = json!("Someone Else");
+    let saved = c.put(&uri, noted).await;
+    assert_eq!(saved.status, StatusCode::OK, "{}", saved.body);
+    assert_eq!(saved.body["internal_notes"], "paid by check #12");
+    assert_eq!(saved.body["client_name"], paid.body["client_name"]);
+    let status_only = c.put(&uri, json!({ "status": "paid" })).await;
+    assert_eq!(status_only.status, StatusCode::OK);
+    assert_eq!(status_only.body["total"], total);
+    assert_eq!(
+        status_only.body["line_items"].as_array().unwrap().len(),
+        paid.body["line_items"].as_array().unwrap().len()
+    );
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn invoice_from_session_is_idempotent(pool: PgPool) {
+    let c = chef(&pool, "Once Kitchen").await;
+    let (_, _, session) = basics(&c).await;
+    let uri = format!("/api/invoices/from-session/{session}");
+    let results = c.concurrently(6, || post(&uri, json!({}))).await;
+    let ids: std::collections::BTreeSet<i64> = results
+        .iter()
+        .map(|r| {
+            assert!(r.status.is_success(), "{} {}", r.status, r.body);
+            r.body["id"].as_i64().unwrap()
+        })
+        .collect();
+    assert_eq!(ids.len(), 1, "one invoice per session");
+    assert_eq!(
+        results
+            .iter()
+            .filter(|r| r.status == StatusCode::CREATED)
+            .count(),
+        1
+    );
+    // Once that invoice is void, a new one can be made.
+    let first = *ids.iter().next().unwrap();
+    c.put(
+        &format!("/api/invoices/{first}"),
+        json!({ "status": "void" }),
+    )
+    .await;
+    let again = c.post(&uri, json!({})).await;
+    assert_eq!(again.status, StatusCode::CREATED);
+    assert_ne!(again.body["id"].as_i64().unwrap(), first);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn absurd_amounts_never_crash_the_server(pool: PgPool) {
+    let c = chef(&pool, "Overflow Kitchen").await;
+    for body in [
+        json!({ "tax_rate": 1e20, "line_items": [{ "description": "a", "amount": 10 }] }),
+        json!({ "line_items": [{ "description": "a", "amount": 1e27 }] }),
+        json!({ "line_items": [{ "description": "a", "amount": 1e17 },
+                               { "description": "b", "amount": 1e17 }] }),
+        json!({ "service_fee": 1e17, "grocery_total": 1e17 }),
+    ] {
+        let res = c.post("/api/invoices", body.clone()).await;
+        // Rejected (or stored), but always a JSON answer, never a dropped
+        // connection.
+        assert!(res.body.is_object(), "{body}: {} {}", res.status, res.body);
+    }
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn concurrent_pdfs_dont_starve_the_pool(pool: PgPool) {
+    let c = chef(&pool, "Busy Kitchen").await;
+    let (_, _, session) = basics(&c).await;
+    // More concurrent requests than the pool has connections: each holds a
+    // tenant transaction while it checks its rate limit.
+    let n = pool.options().get_max_connections() as usize + 2;
+    let uri = format!("/api/sessions/{session}/pdf");
+    let results = c.concurrently(n, || get(&uri)).await;
+    for r in &results {
+        assert!(
+            r.status == StatusCode::OK || r.status == StatusCode::TOO_MANY_REQUESTS,
+            "{} {}",
+            r.status,
+            r.body
+        );
+    }
 }

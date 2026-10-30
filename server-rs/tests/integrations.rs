@@ -1956,8 +1956,8 @@ async fn changing_an_invoice_closes_the_clients_open_checkout(pool: PgPool) {
     assert_eq!(removed.status, StatusCode::OK, "{}", removed.body);
     assert_eq!(expired().last(), Some(&fourth));
 
-    // Paid online: the webhook keeps the (completed) session id; later edits
-    // to the paid invoice don't ask Stripe about it again.
+    // Paid online: the webhook keeps the (completed) session id; later saves
+    // of the paid invoice don't ask Stripe about it again, and can't reprice it.
     let online = create(70).await;
     open_checkout(online).await;
     *fake.status.lock().unwrap() = "complete".into();
@@ -1970,11 +1970,17 @@ async fn changing_an_invoice_closes_the_clients_open_checkout(pool: PgPool) {
     let after = c
         .put(
             &format!("/api/invoices/{online}"),
-            body(75, json!({ "message": "Thank you!" })),
+            body(70, json!({ "internal_notes": "Thank you!" })),
         )
         .await;
     assert_eq!(after.status, StatusCode::OK, "{}", after.body);
     assert_eq!(after.body["status"], "paid");
+    assert_eq!(after.body["internal_notes"], "Thank you!");
+    let repriced = c
+        .put(&format!("/api/invoices/{online}"), body(75, json!({})))
+        .await;
+    assert_eq!(repriced.status, StatusCode::CONFLICT, "{}", repriced.body);
+    assert_eq!(repriced.body["code"], "STATUS_LOCKED");
     *fake.status.lock().unwrap() = "open".into();
 
     // Stripe unreachable: 502, the invoice keeps its total and its checkout.
@@ -2020,4 +2026,66 @@ async fn invoice_emails_have_no_pay_link_without_online_payments(pool: PgPool) {
     let mail = state.outbox.messages().pop().unwrap();
     assert!(!mail.text.contains("Pay online"), "{}", mail.text);
     assert!(!mail.html.contains("/invoice/"), "{}", mail.html);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn intake_fields_are_bounded_and_the_edit_link_closes_on_booking(pool: PgPool) {
+    let app = app(pool.clone());
+    let c = Chef::new(&pool, &app, "Bounded Kitchen").await;
+    let submit = |extra: Value| {
+        let mut body = json!({ "slug": "bounded-kitchen", "name": "Lead", "terms_accepted": true });
+        body.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        post_req("/api/intake", body)
+    };
+    for (extra, field) in [
+        (
+            json!({ "notes_for_chef": "A".repeat(5001) }),
+            "notes_for_chef",
+        ),
+        (json!({ "name": "N".repeat(255) }), "name"),
+        (json!({ "adults": -1 }), "adults"),
+        (
+            json!({ "number_of_meals": 99_999_999_999i64 }),
+            "number_of_meals",
+        ),
+        (json!({ "allergens": "peanut" }), "allergens"),
+        (json!({ "dietary_styles": { "a": 1 } }), "dietary_styles"),
+    ] {
+        let r = submit(extra.clone()).send(&app).await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST, "{extra}: {}", r.body);
+        assert_eq!(r.body["field"], field);
+    }
+
+    let intake = submit_intake(&app, "bounded-kitchen").await;
+    let id = intake["id"].as_i64().unwrap();
+    let token = intake["edit_token"].as_str().unwrap();
+    let edit_uri = format!("/api/intake/{id}?token={token}");
+    // The edit link is held to the same rules as the form.
+    for body in [
+        json!({ "name": null }),
+        json!({ "name": "" }),
+        json!({ "email": "garbage" }),
+        json!({ "allergens": "x" }),
+    ] {
+        let r = put_req(edit_uri.clone(), body.clone()).send(&app).await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST, "{body}: {}", r.body);
+    }
+    let ok = put_req(edit_uri.clone(), json!({ "phone": "555-0101" }))
+        .send(&app)
+        .await;
+    assert_eq!(ok.status, StatusCode::OK, "{}", ok.body);
+
+    // Once the chef books it, the link can still be read but no longer edit.
+    let converted = c
+        .post(&format!("/api/intake/{id}/convert"), json!({}))
+        .await;
+    assert!(converted.status.is_success(), "{}", converted.body);
+    let late = put_req(edit_uri.clone(), json!({ "phone": "555-0102" }))
+        .send(&app)
+        .await;
+    assert_eq!(late.status, StatusCode::CONFLICT);
+    assert_eq!(late.body["code"], "INTAKE_LOCKED");
+    assert_eq!(get(edit_uri).send(&app).await.status, StatusCode::OK);
 }

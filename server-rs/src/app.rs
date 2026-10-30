@@ -13,6 +13,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Router, middleware};
 use tower::ServiceExt;
+use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -24,6 +25,9 @@ use crate::state::AppState;
 
 /// `express.json({ limit: '10mb' })`
 const BODY_LIMIT: usize = 10 * 1024 * 1024;
+
+/// How long a client may take to send its request body.
+const BODY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 pub fn build(state: AppState) -> Router {
     crate::config::set_production(state.config.production);
@@ -63,6 +67,7 @@ pub fn build(state: AppState) -> Router {
         .nest("/api/invoices", routes::invoices::router())
         .nest("/api/payments", routes::payments::router())
         .fallback(fallback)
+        .layer(middleware::from_fn(buffer_body))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth))
         .layer(axum::extract::DefaultBodyLimit::max(BODY_LIMIT))
         .layer(cors)
@@ -75,7 +80,51 @@ pub fn build(state: AppState) -> Router {
     Router::new()
         .route("/health", get(routes::health::health))
         .merge(api)
+        .layer(CatchPanicLayer::custom(panic_response))
         .layer(TraceLayer::new_for_http())
+}
+
+/// A handler that panics answers with the usual JSON 500 instead of
+/// dropping the connection (the panic is still logged).
+fn panic_response(err: Box<dyn std::any::Any + Send + 'static>) -> Response {
+    let detail = err
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| err.downcast_ref::<&str>().copied())
+        .unwrap_or("panic");
+    tracing::error!("handler panicked: {detail}");
+    AppError::internal(detail).into_response()
+}
+
+/// Reads the whole request body (up to `BODY_LIMIT`, within
+/// `BODY_TIMEOUT`) before the handler runs. `db::Tenant` opens its
+/// transaction during extraction, before the body is read, so without this a
+/// client that sends headers and then stalls holds a pool connection, and a
+/// handful of them lock every account out.
+async fn buffer_body(req: Request, next: middleware::Next) -> Response {
+    let (parts, body) = req.into_parts();
+    let bytes =
+        match tokio::time::timeout(BODY_TIMEOUT, axum::body::to_bytes(body, BODY_LIMIT)).await {
+            Ok(Ok(bytes)) => bytes,
+            Ok(Err(_)) => {
+                return AppError::new(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "PAYLOAD_TOO_LARGE",
+                    "Request body is too large",
+                )
+                .into_response();
+            }
+            Err(_) => {
+                return AppError::new(
+                    StatusCode::REQUEST_TIMEOUT,
+                    "REQUEST_TIMEOUT",
+                    "Request body was not received in time",
+                )
+                .into_response();
+            }
+        };
+    next.run(Request::from_parts(parts, axum::body::Body::from(bytes)))
+        .await
 }
 
 /// Unknown `/api/*` paths get a JSON 404; anything else is the React app
