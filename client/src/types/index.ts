@@ -12,3 +12,4 @@ export type * from './sessions';
 export type * from './invoices';
 export type * from './intake';
 export type * from './costs';
+export type * from './pnl';

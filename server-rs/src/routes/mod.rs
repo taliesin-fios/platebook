@@ -12,6 +12,7 @@ pub mod invoices;
 pub mod onboarding;
 pub mod payments;
 pub mod planner;
+pub mod pnl;
 pub mod public;
 pub mod recipes;
 pub mod sessions;

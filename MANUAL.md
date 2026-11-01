@@ -849,6 +849,8 @@ To restore the whole server from a backup:
 ### Export for Accounting
 **Settings → Export Costs CSV** downloads a spreadsheet with all sessions, dates, clients, fees, costs, and margins. Import this into Excel, Google Sheets, or your accounting software.
 
+**Costs → Profit & Loss** shows a month-by-month profit and loss for the year you choose, with **Export CSV** for your accountant. It counts invoices by the month they were *paid* (not issued) and subtracts the ingredient costs of that month's sessions. Sales tax you collected is listed separately. Booking deposits are listed as a note and aren't added to the totals, since you may have put them on an invoice already. Mileage isn't tracked yet.
+
 ### Moving to a New Computer
 1. Make a `pg_dump` backup (above)
 2. On the new machine, install the prerequisites and clone/copy the Platebook project folder

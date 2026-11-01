@@ -1046,3 +1046,99 @@ async fn collected_prev_mtd_covers_the_same_days_of_last_month(pool: PgPool) {
     assert_eq!(s["collected_prev_mtd"], expected, "{s}");
     assert_eq!(s["collected_mtd"], 7.0, "{s}");
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn pnl_is_cash_basis_by_month(pool: PgPool) {
+    let c = chef(&pool, "Books Kitchen").await;
+    let cid = c.post("/api/clients", json!({ "name": "Bo" })).await.body["id"]
+        .as_i64()
+        .unwrap();
+    // Sessions: cost counts unless cancelled; other years don't count.
+    for (date, cost, status) in [
+        ("2024-03-10", 40, "Completed"),
+        ("2024-03-20", 99, "Cancelled"),
+        ("2024-04-01", 10, "Completed"),
+        ("2023-03-10", 500, "Completed"),
+    ] {
+        let s = c
+            .post(
+                "/api/sessions",
+                json!({ "client_id": cid, "session_date": date, "ingredient_cost": cost }),
+            )
+            .await;
+        sqlx::query("UPDATE sessions SET status = $2 WHERE id = $1")
+            .bind(s.body["id"].as_i64().unwrap())
+            .bind(status)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    // Invoices: only paid, undeleted ones count, in the month paid.
+    for (status, paid_at, deleted) in [
+        ("paid", "2024-03-15 12:00:00+00", false),
+        ("paid", "2024-03-16 12:00:00+00", true),
+        ("void", "2024-03-17 12:00:00+00", false),
+        ("sent", "2024-03-18 12:00:00+00", false),
+        ("paid", "2023-03-15 12:00:00+00", false),
+    ] {
+        let inv = c
+            .post(
+                "/api/invoices",
+                json!({ "client_id": cid, "status": "sent",
+                        "line_items": [{ "quantity": 1, "unit_price": 300 }] }),
+            )
+            .await;
+        sqlx::query(
+            "UPDATE invoices SET status = $2, paid_at = $3::timestamptz, subtotal = 300,
+                    tax_amount = 30, total = 330,
+                    deleted_at = CASE WHEN $4 THEN now() END
+              WHERE id = $1",
+        )
+        .bind(inv.body["id"].as_i64().unwrap())
+        .bind(status)
+        .bind(paid_at)
+        .bind(deleted)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    let r = c.get("/api/costs/pnl?year=2024").await;
+    assert_eq!(r.status, StatusCode::OK);
+    let r = r.body;
+    assert_eq!(r["year"], 2024);
+    assert_eq!(r["months"].as_array().unwrap().len(), 12);
+    let mar = &r["months"][2];
+    assert_eq!(mar["month"], 3);
+    assert_eq!(mar["revenue"], 300.0, "{mar}");
+    assert_eq!(mar["sales_tax"], 30.0);
+    assert_eq!(mar["ingredient_costs"], 40.0);
+    assert_eq!(mar["net"], 260.0);
+    assert_eq!(mar["invoices_paid"], 1);
+    assert_eq!(mar["sessions"], 1);
+    let apr = &r["months"][3];
+    assert_eq!(apr["revenue"], 0.0);
+    assert_eq!(apr["net"], -10.0);
+    assert_eq!(r["totals"]["revenue"], 300.0);
+    assert_eq!(r["totals"]["ingredient_costs"], 50.0);
+    assert_eq!(r["totals"]["net"], 250.0);
+
+    let bad = c.get("/api/costs/pnl?year=abc").await;
+    assert_eq!(bad.status, StatusCode::BAD_REQUEST);
+
+    let csv = c.get("/api/costs/pnl/export-csv?year=2024").await;
+    assert_eq!(csv.status, StatusCode::OK);
+    assert!(
+        csv.headers["content-disposition"]
+            .to_str()
+            .unwrap()
+            .contains("pnl-2024.csv")
+    );
+    let lines: Vec<&str> = csv.text.lines().collect();
+    assert_eq!(lines.len(), 15, "{}", csv.text);
+    assert_eq!(
+        lines[3],
+        "\"March 2024\",\"300\",\"40\",\"260\",\"30\",\"1\",\"1\""
+    );
+    assert!(lines[13].starts_with("\"Total 2024\",\"300\",\"50\",\"250\""));
+}

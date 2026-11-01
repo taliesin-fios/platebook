@@ -413,6 +413,11 @@ async fn lists_and_aggregates_only_show_own_rows(pool: PgPool) {
     assert_eq!(b.get("/api/costs/sessions?days=365").await.body, json!([]));
     let csv = b.get("/api/costs/export-csv").await;
     assert!(!csv.text.contains("Alpha"));
+    let year = chrono::Utc::now().format("%Y");
+    let pnl = b.get(&format!("/api/costs/pnl?year={year}")).await.body;
+    assert_eq!(pnl["totals"]["revenue"], 0.0);
+    assert_eq!(pnl["totals"]["ingredient_costs"], 0.0);
+    assert_eq!(pnl["deposits_received"], 0.0);
 
     let export = b.get("/api/settings/export").await.body;
     for table in [

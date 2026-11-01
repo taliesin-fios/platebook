@@ -173,6 +173,15 @@ describe('lists only show the account\'s own rows', () => {
     assert.ok(res.body.every(r => r.client_name !== 'Alpha Client'));
   });
 
+  test('profit and loss is per account', async () => {
+    const res = await b.get('/api/costs/pnl');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.totals.revenue, 0);
+    assert.equal(res.body.totals.ingredient_costs, 0);
+    const csv = await b.get('/api/costs/pnl/export-csv');
+    assert.equal(csv.status, 200);
+  });
+
   test('data export only contains own rows', async () => {
     const res = await b.get('/api/settings/export');
     assert.equal(res.status, 200);
