@@ -5,6 +5,9 @@ import { useState } from 'react';
 import { useApi } from '../hooks/useApi';
 import type { PnlReport } from '../types';
 
+/** The server accepts years from 2000. */
+const MIN_YEAR = 2000;
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const money = (n: number) =>
@@ -21,7 +24,9 @@ export default function ProfitLoss() {
   );
   if (data && thisYear === null) setThisYear(data.year);
 
-  const shown = data?.year ?? year;
+  const shown = year ?? data?.year ?? null;
+  // While another year loads, don't show the previous year's numbers under the new label.
+  const report = data && data.year === shown ? data : null;
   const go = (delta: number) => {
     if (shown !== null) setYear(shown + delta);
   };
@@ -32,7 +37,8 @@ export default function ProfitLoss() {
         <div className="section-header mb-0">Profit &amp; Loss</div>
         <div className="flex items-center gap-2">
           <button type="button" aria-label="Previous year" onClick={() => go(-1)}
-            className="px-2 text-navy" style={{ minHeight: 'auto' }}>‹</button>
+            disabled={shown === null || shown <= MIN_YEAR}
+            className="px-2 text-navy disabled:opacity-30" style={{ minHeight: 'auto' }}>‹</button>
           <span className="text-sm font-medium text-navy">{shown ?? ''}</span>
           <button type="button" aria-label="Next year" onClick={() => go(1)}
             disabled={thisYear === null || shown === null || shown >= thisYear}
@@ -44,10 +50,10 @@ export default function ProfitLoss() {
         Sales tax collected is shown apart and isn&apos;t income.
       </p>
 
-      {loading && !data && <div className="text-sm text-gray-400">Loading…</div>}
-      {error && <div className="text-sm text-red-600">Couldn&apos;t load the report.</div>}
+      {loading && !report && <div className="text-sm text-gray-400">Loading…</div>}
+      {error && !loading && <div className="text-sm text-red-600">Couldn&apos;t load the report.</div>}
 
-      {data && (
+      {report && (
         <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -60,7 +66,7 @@ export default function ProfitLoss() {
                 </tr>
               </thead>
               <tbody>
-                {data.months.map(m => (
+                {report.months.map(m => (
                   <tr key={m.month} className="border-t border-gray-100 text-right">
                     <td className="text-left py-1.5 text-navy">{MONTHS[m.month - 1]}</td>
                     <td className="py-1.5">{money(m.revenue)}</td>
@@ -72,22 +78,22 @@ export default function ProfitLoss() {
               <tfoot>
                 <tr className="border-t-2 border-gray-200 text-right font-bold">
                   <td className="text-left py-1.5 text-navy">Total</td>
-                  <td className="py-1.5">{money(data.totals.revenue)}</td>
-                  <td className="py-1.5">{money(data.totals.ingredient_costs)}</td>
-                  <td className={`py-1.5 ${data.totals.net < 0 ? 'text-red-600' : 'text-navy'}`}>{money(data.totals.net)}</td>
+                  <td className="py-1.5">{money(report.totals.revenue)}</td>
+                  <td className="py-1.5">{money(report.totals.ingredient_costs)}</td>
+                  <td className={`py-1.5 ${report.totals.net < 0 ? 'text-red-600' : 'text-navy'}`}>{money(report.totals.net)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
           <div className="text-xs text-gray-500 mt-3 space-y-1">
-            <div>Sales tax collected: {money(data.totals.sales_tax)}</div>
+            <div>Sales tax collected: {money(report.totals.sales_tax)}</div>
             <div>
-              Booking deposits received: {money(data.deposits_received)} (not in the totals; if you
+              Booking deposits received: {money(report.deposits_received)} (not in the totals; if you
               put a deposit on an invoice it is already counted there)
             </div>
           </div>
           <button type="button"
-            onClick={() => window.open(`/api/costs/pnl/export-csv?year=${data.year}`, '_blank')}
+            onClick={() => window.open(`/api/costs/pnl/export-csv?year=${report.year}`, '_blank')}
             className="mt-3 text-xs text-navy-mid font-medium border border-navy-mid px-2 py-1 rounded-lg"
             style={{ minHeight: 'auto' }}>Export CSV</button>
         </>

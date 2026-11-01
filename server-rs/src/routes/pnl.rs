@@ -110,8 +110,8 @@ async fn build(t: &mut Tenant, q: &HashMap<String, String>) -> DbResult<PnlRepor
                 COUNT(*)                     AS invoices_paid
          FROM invoices
          WHERE account_id = $1 AND status = 'paid' AND deleted_at IS NULL
-           AND paid_at IS NOT NULL
-           AND EXTRACT(YEAR FROM paid_at AT TIME ZONE $2)::int = $3
+           AND paid_at >= make_timestamptz($3, 1, 1, 0, 0, 0, $2)
+           AND paid_at < make_timestamptz($3 + 1, 1, 1, 0, 0, 0, $2)
          GROUP BY 1",
     )
     .bind(id)
@@ -126,7 +126,8 @@ async fn build(t: &mut Tenant, q: &HashMap<String, String>) -> DbResult<PnlRepor
          FROM sessions
          WHERE account_id = $1 AND status != 'Cancelled'
            AND session_date <= $2
-           AND EXTRACT(YEAR FROM session_date)::int = $3
+           AND session_date >= make_date($3, 1, 1)
+           AND session_date < make_date($3 + 1, 1, 1)
          GROUP BY 1",
     )
     .bind(id)
@@ -137,9 +138,10 @@ async fn build(t: &mut Tenant, q: &HashMap<String, String>) -> DbResult<PnlRepor
     let deposits_received: Decimal = sqlx::query_scalar(
         "SELECT COALESCE(SUM(booking_fee_amount), 0)
          FROM client_intakes
-         WHERE account_id = $1 AND booking_fee_paid_at IS NOT NULL
+         WHERE account_id = $1 AND deleted_at IS NULL
            AND payment_status IN ('paid', 'paid_offline')
-           AND EXTRACT(YEAR FROM booking_fee_paid_at AT TIME ZONE $2)::int = $3",
+           AND booking_fee_paid_at >= make_timestamptz($3, 1, 1, 0, 0, 0, $2)
+           AND booking_fee_paid_at < make_timestamptz($3 + 1, 1, 1, 0, 0, 0, $2)",
     )
     .bind(id)
     .bind(&clock.tz)
@@ -257,6 +259,8 @@ async fn export_csv(
     mut t: Tenant,
     Query(q): Query<HashMap<String, String>>,
 ) -> DbResult<Response> {
+    // A bad year is refused before it can use up the shared export limit.
+    year_param(&q, 0)?;
     if let Err(limited) = state
         .account_limits
         .csv_export

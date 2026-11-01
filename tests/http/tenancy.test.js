@@ -174,12 +174,29 @@ describe('lists only show the account\'s own rows', () => {
   });
 
   test('profit and loss is per account', async () => {
+    // A gets a 2025 session with ingredient costs, and a paid invoice (paid now).
+    const s = await a.post('/api/sessions').send({
+      client_id: ids.client, session_date: '2025-06-10', service_fee: 200, ingredient_cost: 40,
+    });
+    assert.equal(s.status, 201);
+    const inv = await a.post(`/api/invoices/from-session/${s.body.id}`);
+    const full = await a.get(`/api/invoices/${inv.body.id}`); // PUT replaces the whole invoice
+    const paid = await a.put(`/api/invoices/${inv.body.id}`).send({ ...full.body, status: 'paid' });
+    assert.equal(paid.status, 200);
+
+    const mineCosts = await a.get('/api/costs/pnl?year=2025');
+    assert.ok(mineCosts.body.totals.ingredient_costs >= 40, 'A should see its costs');
+    const mineRevenue = await a.get('/api/costs/pnl');
+    assert.ok(mineRevenue.body.totals.revenue >= 200, 'A should see its revenue');
+
+    const costs = await b.get('/api/costs/pnl?year=2025');
+    assert.equal(costs.status, 200);
+    assert.equal(costs.body.totals.ingredient_costs, 0, "B sees A's costs");
     const res = await b.get('/api/costs/pnl');
-    assert.equal(res.status, 200);
-    assert.equal(res.body.totals.revenue, 0);
-    assert.equal(res.body.totals.ingredient_costs, 0);
+    assert.equal(res.body.totals.revenue, 0, "B sees A's revenue");
     const csv = await b.get('/api/costs/pnl/export-csv');
     assert.equal(csv.status, 200);
+    assert.ok(!csv.text.includes('"200"'), "B's CSV shows A's revenue");
   });
 
   test('data export only contains own rows', async () => {

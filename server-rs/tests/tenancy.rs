@@ -413,11 +413,39 @@ async fn lists_and_aggregates_only_show_own_rows(pool: PgPool) {
     assert_eq!(b.get("/api/costs/sessions?days=365").await.body, json!([]));
     let csv = b.get("/api/costs/export-csv").await;
     assert!(!csv.text.contains("Alpha"));
-    let year = chrono::Utc::now().format("%Y");
-    let pnl = b.get(&format!("/api/costs/pnl?year={year}")).await.body;
-    assert_eq!(pnl["totals"]["revenue"], 0.0);
-    assert_eq!(pnl["totals"]["ingredient_costs"], 0.0);
-    assert_eq!(pnl["deposits_received"], 0.0);
+    // Give A revenue, costs and a deposit in 2025, so a leak would show in B's P&L.
+    for (sql, id) in [
+        (
+            "UPDATE sessions SET session_date = '2025-06-10', ingredient_cost = 40 WHERE id = $1",
+            i.session,
+        ),
+        (
+            "UPDATE invoices SET status = 'paid', paid_at = '2025-06-12 12:00:00+00',
+                    subtotal = 300, tax_amount = 30, total = 330 WHERE id = $1",
+            i.invoice,
+        ),
+        (
+            "UPDATE client_intakes SET payment_status = 'paid', booking_fee_amount = 50,
+                    booking_fee_paid_at = '2025-06-01 12:00:00+00' WHERE id = $1",
+            i.intake,
+        ),
+    ] {
+        sqlx::query(sql).bind(id).execute(&pool).await.unwrap();
+    }
+    let mine = a.get("/api/costs/pnl?year=2025").await.body;
+    assert_eq!(mine["totals"]["revenue"], 300.0, "{mine}");
+    assert_eq!(mine["totals"]["ingredient_costs"], 40.0);
+    assert_eq!(mine["deposits_received"], 50.0);
+    let pnl = b.get("/api/costs/pnl?year=2025").await.body;
+    assert_eq!(pnl["totals"]["revenue"], 0.0, "B sees A's revenue");
+    assert_eq!(pnl["totals"]["ingredient_costs"], 0.0, "B sees A's costs");
+    assert_eq!(pnl["totals"]["sales_tax"], 0.0);
+    assert_eq!(pnl["deposits_received"], 0.0, "B sees A's deposits");
+    let pnl_csv = b.get("/api/costs/pnl/export-csv?year=2025").await.text;
+    assert!(
+        !pnl_csv.contains("300") && !pnl_csv.contains("\"40\""),
+        "B's P&L CSV shows A's numbers: {pnl_csv}"
+    );
 
     let export = b.get("/api/settings/export").await.body;
     for table in [
