@@ -278,11 +278,16 @@ export default function InvoiceBuilder() {
   // ── Save ──────────────────────────────────────────────────────────────────────
   const handleSave = async (nextStatus?: string): Promise<boolean> => {
     setSaving(true);
-    const payload = {
-      ...form,
-      status: nextStatus || form.status,
-      line_items: form.line_items.map((li, i) => ({ ...li, sort_order: i })),
-    };
+    // A paid or void invoice only takes internal notes. Sending just those means
+    // the server never compares totals, so a record whose stored total doesn't
+    // match its lines (e.g. migrated data) can still get notes.
+    const payload = locked
+      ? { internal_notes: form.internal_notes }
+      : {
+          ...form,
+          status: nextStatus || form.status,
+          line_items: form.line_items.map((li, i) => ({ ...li, sort_order: i })),
+        };
 
     try {
       const url    = isNew ? '/api/invoices' : `/api/invoices/${id}`;

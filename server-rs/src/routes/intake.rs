@@ -279,6 +279,16 @@ fn bare(status: StatusCode, msg: &str) -> AppError {
     AppError::bare(status, msg)
 }
 
+/// A field name as the client reads it: `kitchen_notes` → "Kitchen notes".
+fn field_label(f: &str) -> String {
+    let words = f.replace('_', " ");
+    let mut chars = words.chars();
+    match chars.next() {
+        Some(c) => c.to_uppercase().chain(chars).collect(),
+        None => words,
+    }
+}
+
 fn field_error(msg: &str, field: &str) -> AppError {
     bare(StatusCode::BAD_REQUEST, msg).with("field", field)
 }
@@ -654,7 +664,7 @@ fn validate_client_fields(body: &JsonBody) -> Result<(), AppError> {
         if let Some(v) = body.opt_text(f)
             && v.chars().count() > max_len(f)
         {
-            return Err(field_error(&format!("{f} is too long"), f));
+            return Err(field_error(&format!("{} is too long", field_label(f)), f));
         }
     }
     if body.has("name") && body.trimmed_or_none("name").is_none() {
@@ -677,7 +687,7 @@ fn validate_client_fields(body: &JsonBody) -> Result<(), AppError> {
                 .is_some_and(|n| (0..=MAX_COUNT).contains(&n))
         {
             return Err(field_error(
-                &format!("{f} must be a number from 0 to {MAX_COUNT}"),
+                &format!("{} must be a number from 0 to {MAX_COUNT}", field_label(f)),
                 f,
             ));
         }
@@ -696,7 +706,10 @@ fn validate_client_fields(body: &JsonBody) -> Result<(), AppError> {
         };
         if !ok {
             return Err(field_error(
-                &format!("{f} must be a list of up to {MAX_LIST_ITEMS} short answers"),
+                &format!(
+                    "{} must be a list of up to {MAX_LIST_ITEMS} short answers",
+                    field_label(f)
+                ),
                 f,
             ));
         }

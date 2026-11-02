@@ -2056,7 +2056,14 @@ async fn intake_fields_are_bounded_and_the_edit_link_closes_on_booking(pool: PgP
         let r = submit(extra.clone()).send(&app).await;
         assert_eq!(r.status, StatusCode::BAD_REQUEST, "{extra}: {}", r.body);
         assert_eq!(r.body["field"], field);
+        // Messages name the field the way the client reads it.
+        let msg = r.body["error"].as_str().unwrap();
+        assert!(!msg.contains('_'), "{msg}");
     }
+    let r = submit(json!({ "notes_for_chef": "A".repeat(5001) }))
+        .send(&app)
+        .await;
+    assert_eq!(r.body["error"], "Notes for chef is too long");
 
     let intake = submit_intake(&app, "bounded-kitchen").await;
     let id = intake["id"].as_i64().unwrap();
