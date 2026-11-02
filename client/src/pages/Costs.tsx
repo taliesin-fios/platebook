@@ -7,6 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { format } from 'date-fns';
 import { localTodayStr, parseLocalDate } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
+import ProfitLoss from '../components/ProfitLoss';
 import { SkeletonStatGrid } from '../components/Skeleton';
 import { marginColor } from '../constants';
 import { parseNum, type NumInput } from '../utils/numbers';
@@ -326,6 +327,8 @@ export default function Costs() {
             </div>
           </div>
         )}
+
+        <ProfitLoss />
       </div>
     </div>
   );
