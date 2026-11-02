@@ -212,4 +212,14 @@ impl Chef {
     pub async fn delete(&self, uri: &str) -> TestResponse {
         delete(uri).cookie(&self.cookie).send(&self.app).await
     }
+
+    /// `n` copies of a request, in flight at the same time.
+    pub async fn concurrently(&self, n: usize, req: impl Fn() -> Req) -> Vec<TestResponse> {
+        let mut set = tokio::task::JoinSet::new();
+        for _ in 0..n {
+            let (req, app) = (req().cookie(&self.cookie), self.app.clone());
+            set.spawn(async move { req.send(&app).await });
+        }
+        set.join_all().await
+    }
 }

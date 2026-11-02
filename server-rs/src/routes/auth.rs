@@ -201,7 +201,7 @@ fn signup_closed() -> AppError {
 
 // ── POST /api/auth/signup ────────────────────────────────────────────────────
 async fn signup(State(state): State<AppState>, ClientIp(ip): ClientIp, body: JsonBody) -> Response {
-    if let Err(limited) = state.limits.signup.check(&state.pool, &ip).await {
+    if let Err(limited) = state.limits.signup.check(&state.limits_pool, &ip).await {
         return limited.into_response();
     }
     signup_inner(&state, body)
@@ -269,7 +269,7 @@ fn is_email_conflict(err: &sqlx::Error) -> bool {
 
 // ── POST /api/auth/login ─────────────────────────────────────────────────────
 async fn login(State(state): State<AppState>, ClientIp(ip): ClientIp, body: JsonBody) -> Response {
-    if let Err(limited) = state.limits.login.check(&state.pool, &ip).await {
+    if let Err(limited) = state.limits.login.check(&state.limits_pool, &ip).await {
         return limited.into_response();
     }
     login_inner(&state, body)
@@ -312,7 +312,7 @@ async fn request_link(
     ClientIp(ip): ClientIp,
     body: JsonBody,
 ) -> Response {
-    if let Err(limited) = state.limits.magic_link.check(&state.pool, &ip).await {
+    if let Err(limited) = state.limits.magic_link.check(&state.limits_pool, &ip).await {
         return limited.into_response();
     }
     send_link(&state, body, "magic-login", MAGIC_TTL)
@@ -326,7 +326,7 @@ async fn forgot_password(
     ClientIp(ip): ClientIp,
     body: JsonBody,
 ) -> Response {
-    if let Err(limited) = state.limits.reset.check(&state.pool, &ip).await {
+    if let Err(limited) = state.limits.reset.check(&state.limits_pool, &ip).await {
         return limited.into_response();
     }
     send_link(&state, body, "password-reset", RESET_TTL)
@@ -445,7 +445,7 @@ async fn reset_password(
     ClientIp(ip): ClientIp,
     body: JsonBody,
 ) -> Response {
-    if let Err(limited) = state.limits.reset.check(&state.pool, &ip).await {
+    if let Err(limited) = state.limits.reset.check(&state.limits_pool, &ip).await {
         return limited.into_response();
     }
     reset_inner(&state, body)

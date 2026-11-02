@@ -160,6 +160,9 @@ const DepositPanel = ({ amount, status, online, methods, notice, paying, error, 
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
+/** Fields that show their own error under the input. */
+const INLINE_ERROR_FIELDS = ['name', 'email', 'terms'];
+
 export default function IntakeForm() {
   const { id: editId, slug } = useParams();
   const [searchParams] = useSearchParams();
@@ -348,7 +351,9 @@ export default function IntakeForm() {
       });
       const data: IntakeSubmitResponse & { error?: string; field?: string } = await res.json();
       if (!res.ok) {
-        if (data.field) {
+        // Fields with their own message slot show it there; any other field's
+        // error (length or range limits) goes in the box at the top.
+        if (data.field && INLINE_ERROR_FIELDS.includes(data.field)) {
           setErrors(prev => ({ ...prev, [data.field!]: data.error }));
           setTimeout(() => document.getElementById(`intake-${data.field}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
         } else {

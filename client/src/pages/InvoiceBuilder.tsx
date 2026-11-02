@@ -105,6 +105,8 @@ export default function InvoiceBuilder() {
   // Last failed email (server-recorded; not part of the editable form)
   const [emailFailedAt, setEmailFailedAt] = useState<string | null>(null);
   const [savedKey,    setSavedKey]    = useState('');
+  const [savedStatus, setSavedStatus] = useState('draft');
+  const locked = !isNew && (savedStatus === 'paid' || savedStatus === 'void');
   const presetsRef = useRef<HTMLDivElement>(null);
   const createdFromRef = useRef<string | null>(null); // StrictMode runs effects twice: POST once per source
 
@@ -221,6 +223,7 @@ export default function InvoiceBuilder() {
         setEmailFailedAt(inv.email_failed_at);
         setForm(loaded);
         setSavedKey(formKey(loaded));
+        setSavedStatus(loaded.status);
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -275,11 +278,16 @@ export default function InvoiceBuilder() {
   // ── Save ──────────────────────────────────────────────────────────────────────
   const handleSave = async (nextStatus?: string): Promise<boolean> => {
     setSaving(true);
-    const payload = {
-      ...form,
-      status: nextStatus || form.status,
-      line_items: form.line_items.map((li, i) => ({ ...li, sort_order: i })),
-    };
+    // A paid or void invoice only takes internal notes. Sending just those means
+    // the server never compares totals, so a record whose stored total doesn't
+    // match its lines (e.g. migrated data) can still get notes.
+    const payload = locked
+      ? { internal_notes: form.internal_notes }
+      : {
+          ...form,
+          status: nextStatus || form.status,
+          line_items: form.line_items.map((li, i) => ({ ...li, sort_order: i })),
+        };
 
     try {
       const url    = isNew ? '/api/invoices' : `/api/invoices/${id}`;
@@ -298,6 +306,7 @@ export default function InvoiceBuilder() {
         const saved = invToForm(inv);
         setForm(saved);
         setSavedKey(formKey(saved));
+        setSavedStatus(saved.status);
         show('Invoice saved', 'success');
       }
       return true;
@@ -410,6 +419,16 @@ export default function InvoiceBuilder() {
 
         {/* ══ LEFT: BUILDER ══════════════════════════════════════════════════ */}
         <div className="invoice-builder-panel space-y-4">
+
+          {locked && (
+            <div className="card text-sm text-gray-600" role="status">
+              This invoice is {savedStatus === 'paid' ? 'paid' : 'void'}, so its details are locked
+              for your records. You can still edit the internal notes.
+            </div>
+          )}
+
+          {/* Paid and void invoices are records: only the internal notes stay editable. */}
+          <fieldset disabled={locked} className={`space-y-4 min-w-0 ${locked ? 'opacity-60' : ''}`}>
 
           {/* Status selector */}
           <div className="card">
@@ -680,6 +699,8 @@ export default function InvoiceBuilder() {
               className="input-field w-full text-sm resize-none"
             />
           </div>
+
+          </fieldset>
 
           {/* Internal notes */}
           <div className="card">

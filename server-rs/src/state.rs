@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 
 use crate::config::Config;
 use crate::rate_limit::{AccountLimits, AuthLimits};
@@ -13,6 +14,10 @@ use crate::rate_limit::{AccountLimits, AuthLimits};
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    /// A few connections of their own for the rate-limit counters, so a
+    /// handler that already holds a tenant transaction can't wait forever
+    /// on `pool` for its limit check when every connection is taken.
+    pub limits_pool: PgPool,
     pub config: Arc<Config>,
     pub limits: Arc<AuthLimits>,
     pub account_limits: Arc<AccountLimits>,
@@ -25,8 +30,13 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(pool: PgPool, config: Config) -> Self {
+        let limits_pool = PgPoolOptions::new()
+            .max_connections(3)
+            .acquire_timeout(std::time::Duration::from_secs(5))
+            .connect_lazy_with((*pool.connect_options()).clone());
         AppState {
             pool,
+            limits_pool,
             config: Arc::new(config),
             limits: Arc::new(AuthLimits::default()),
             account_limits: Arc::new(AccountLimits::default()),
