@@ -1142,3 +1142,78 @@ async fn pnl_is_cash_basis_by_month(pool: PgPool) {
     );
     assert!(lines[13].starts_with("\"Total 2024\",\"300\",\"50\",\"250\""));
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn pnl_months_and_years_follow_the_account_time_zone(pool: PgPool) {
+    // UTC-8 in winter, UTC-7 in summer.
+    let c = chef(&pool, "Coast Kitchen").await;
+    let set = c
+        .put(
+            "/api/settings",
+            json!({ "timezone": "America/Los_Angeles" }),
+        )
+        .await;
+    assert_eq!(set.status, StatusCode::OK, "{}", set.body);
+    let cid = c.post("/api/clients", json!({ "name": "Lu" })).await.body["id"]
+        .as_i64()
+        .unwrap();
+    // UTC instants that fall in an earlier local month or year.
+    for paid_at in [
+        "2024-04-01 03:00:00+00", // 2024-03-31 20:00 local: March
+        "2025-01-01 05:00:00+00", // 2024-12-31 21:00 local: December 2024
+        "2024-01-01 07:00:00+00", // 2023-12-31 23:00 local: not in 2024
+    ] {
+        let inv = c
+            .post(
+                "/api/invoices",
+                json!({ "client_id": cid, "status": "sent",
+                        "line_items": [{ "quantity": 1, "unit_price": 100 }] }),
+            )
+            .await;
+        sqlx::query(
+            "UPDATE invoices SET status = 'paid', paid_at = $2::timestamptz, subtotal = 100
+              WHERE id = $1",
+        )
+        .bind(inv.body["id"].as_i64().unwrap())
+        .bind(paid_at)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    // Deposits: only paid ones, from inquiries that weren't deleted, in the local year.
+    for (status, paid_at, deleted, amount) in [
+        ("paid", "2024-06-01 12:00:00+00", false, 50),
+        ("paid_offline", "2025-01-01 05:00:00+00", false, 25), // still 2024 locally
+        ("paid", "2024-06-02 12:00:00+00", true, 1000),
+        ("refunded", "2024-06-03 12:00:00+00", false, 1000),
+        ("paid", "2024-01-01 07:00:00+00", false, 1000), // 2023 locally
+    ] {
+        sqlx::query(
+            "INSERT INTO client_intakes
+               (account_id, name, payment_status, booking_fee_amount, booking_fee_paid_at, deleted_at)
+             VALUES ($1, 'Lead', $2, $3, $4::timestamptz, CASE WHEN $5 THEN now() END)",
+        )
+        .bind(c.id)
+        .bind(status)
+        .bind(rust_decimal::Decimal::from(amount))
+        .bind(paid_at)
+        .bind(deleted)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    let r = c.get("/api/costs/pnl?year=2024").await.body;
+    assert_eq!(r["months"][2]["revenue"], 100.0, "March: {r}");
+    assert_eq!(r["months"][3]["revenue"], 0.0, "not April");
+    assert_eq!(r["months"][11]["revenue"], 100.0, "December");
+    assert_eq!(
+        r["months"][0]["revenue"], 0.0,
+        "2023's payment isn't in January"
+    );
+    assert_eq!(r["totals"]["revenue"], 200.0);
+    assert_eq!(r["deposits_received"], 75.0);
+    let r2023 = c.get("/api/costs/pnl?year=2023").await.body;
+    assert_eq!(r2023["months"][11]["revenue"], 100.0);
+    assert_eq!(r2023["deposits_received"], 1000.0);
+}

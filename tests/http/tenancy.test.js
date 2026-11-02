@@ -183,18 +183,21 @@ describe('lists only show the account\'s own rows', () => {
     const full = await a.get(`/api/invoices/${inv.body.id}`); // PUT replaces the whole invoice
     const paid = await a.put(`/api/invoices/${inv.body.id}`).send({ ...full.body, status: 'paid' });
     assert.equal(paid.status, 200);
+    // The year it was paid in (UTC, the account's default zone), so the test holds across New Year.
+    const paidAt = (await a.get(`/api/invoices/${inv.body.id}`)).body.paid_at;
+    const paidYear = Number(paidAt.slice(0, 4)); // "YYYY-MM-DD HH:MM:SS" UTC
 
     const mineCosts = await a.get('/api/costs/pnl?year=2025');
     assert.ok(mineCosts.body.totals.ingredient_costs >= 40, 'A should see its costs');
-    const mineRevenue = await a.get('/api/costs/pnl');
+    const mineRevenue = await a.get(`/api/costs/pnl?year=${paidYear}`);
     assert.ok(mineRevenue.body.totals.revenue >= 200, 'A should see its revenue');
 
     const costs = await b.get('/api/costs/pnl?year=2025');
     assert.equal(costs.status, 200);
     assert.equal(costs.body.totals.ingredient_costs, 0, "B sees A's costs");
-    const res = await b.get('/api/costs/pnl');
+    const res = await b.get(`/api/costs/pnl?year=${paidYear}`);
     assert.equal(res.body.totals.revenue, 0, "B sees A's revenue");
-    const csv = await b.get('/api/costs/pnl/export-csv');
+    const csv = await b.get(`/api/costs/pnl/export-csv?year=${paidYear}`);
     assert.equal(csv.status, 200);
     assert.ok(!csv.text.includes('"200"'), "B's CSV shows A's revenue");
   });
