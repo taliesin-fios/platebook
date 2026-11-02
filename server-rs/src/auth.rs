@@ -70,6 +70,12 @@ struct SessionClaims {
     account_id: Option<i64>,
     #[serde(default)]
     email: String,
+    /// Only one-time tokens (magic link, password reset) carry these; a
+    /// token that has either is never accepted as a session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    purpose: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    jti: Option<String>,
     iat: i64,
     exp: i64,
 }
@@ -131,6 +137,8 @@ pub fn sign_session(account: &Account, secret: &str) -> String {
         &SessionClaims {
             account_id: Some(account.id),
             email: account.email.clone(),
+            purpose: None,
+            jti: None,
             iat,
             exp: iat + SESSION_DAYS * 24 * 60 * 60,
         },
@@ -147,6 +155,9 @@ pub fn verify_session(token: &str, secret: &str) -> Result<Account, TokenError> 
 /// [`verify_session`] plus the token's `iat` (unix seconds).
 pub fn verify_session_issued(token: &str, secret: &str) -> Result<(Account, i64), TokenError> {
     let claims: SessionClaims = decode(token, secret)?;
+    if claims.purpose.is_some() || claims.jti.is_some() {
+        return Err(TokenError::Invalid);
+    }
     match claims.account_id {
         Some(id) => Ok((
             Account {
@@ -498,6 +509,8 @@ mod tests {
             &SessionClaims {
                 account_id: Some(1),
                 email: String::new(),
+                purpose: None,
+                jti: None,
                 iat: now - 100,
                 exp: now - 10,
             },
@@ -509,12 +522,27 @@ mod tests {
             &SessionClaims {
                 account_id: None,
                 email: "chef@example.com".into(),
+                purpose: None,
+                jti: None,
                 iat: now,
                 exp: now + 60,
             },
             "k",
         );
         assert_eq!(verify_session(&legacy, "k"), Err(TokenError::Invalid));
+    }
+
+    #[test]
+    fn one_time_tokens_are_not_sessions() {
+        let acct = Account {
+            id: 3,
+            email: "x@y.co".into(),
+        };
+        for purpose in ["magic-login", "password-reset"] {
+            let t = sign_one_time(&acct, purpose, Duration::from_secs(900), "k");
+            assert_eq!(verify_session(&t, "k"), Err(TokenError::Invalid));
+        }
+        assert!(verify_session(&sign_session(&acct, "k"), "k").is_ok());
     }
 
     #[test]

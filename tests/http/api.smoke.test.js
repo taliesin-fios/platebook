@@ -7,7 +7,8 @@
  */
 const { test, describe, before } = require('node:test');
 const assert = require('node:assert/strict');
-const { app, request, makeAccount } = require('./helpers');
+const net = require('node:net');
+const { app, request, makeAccount, cookieFor, as } = require('./helpers');
 
 let chef;
 before(async () => { chef = await makeAccount('Smoke Test Kitchen'); });
@@ -136,5 +137,35 @@ describe('Rate limiting', () => {
     const res = await request(app).post('/api/auth/request-link').send({ email: 'nobody@example.com' });
     assert.equal(res.status, 200);
     assert.equal(res.body.sent, true);
+  });
+});
+
+describe('stalled request bodies', () => {
+  test('clients that never finish sending a body do not lock out other accounts', async () => {
+    const attacker = await makeAccount('Stall Kitchen');
+    const { hostname, port } = new URL(app);
+    // More half-sent requests than the server has database connections.
+    const sockets = await Promise.all(Array.from({ length: 14 }, () => new Promise((resolve, reject) => {
+      const s = net.connect(Number(port), hostname, () => {
+        s.write(
+          'POST /api/clients HTTP/1.1\r\n' +
+          `Host: ${hostname}\r\n` +
+          `Cookie: ${cookieFor(attacker)}\r\n` +
+          'Content-Type: application/json\r\n' +
+          'Content-Length: 100000\r\n\r\n{"name":'
+        );
+        resolve(s);
+      });
+      s.on('error', reject);
+    })));
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      const res = await as(chef).get('/api/clients');
+      assert.equal(res.status, 200);
+      const booking = await request(app).get(`/api/public/${chef.slug}/settings`);
+      assert.equal(booking.status, 200);
+    } finally {
+      for (const s of sockets) s.destroy();
+    }
   });
 });

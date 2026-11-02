@@ -114,7 +114,7 @@ export default function SessionNew() {
     // Handle template pre-selection
     const templateId = params.get('template');
     if (templateId) {
-      fetch(`/api/sessions/from-template/${templateId}`)
+      fetch(`/api/sessions/from-template/${templateId}`, { method: 'POST' })
         .then(r => r.ok ? r.json() : {})
         .then((d: Partial<FromTemplateResponse>) => {
           const ids = d.recipe_ids;

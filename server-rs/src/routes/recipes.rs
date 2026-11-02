@@ -333,7 +333,7 @@ async fn check_import_limit(state: &AppState, account_id: i64) -> Result<(), App
     state
         .account_limits
         .import
-        .check(&state.pool, &AccountLimits::key(account_id))
+        .check(&state.limits_pool, &AccountLimits::key(account_id))
         .await
         .map_err(|l| l.with_code())
 }

@@ -128,6 +128,15 @@ describe('password reset', () => {
     const res = await request(app).post('/api/auth/reset-password').send({ token, password: 'brand-new-password' });
     assert.equal(res.status, 400);
   });
+
+  test('magic-link and reset tokens are not session cookies', async () => {
+    const acct = await makeAccount('Link As Cookie');
+    for (const purpose of ['magic-login', 'password-reset']) {
+      const token = signOneTime(acct, purpose, '15m');
+      const res = await request(app).get('/api/clients').set('Cookie', `authToken=${token}`);
+      assert.equal(res.status, 401, purpose);
+    }
+  });
 });
 
 describe('onboarding seed', () => {
