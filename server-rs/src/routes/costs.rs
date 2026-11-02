@@ -36,6 +36,7 @@ pub fn router() -> Router<AppState> {
         .route("/sessions", get(sessions))
         .route("/by-client", get(by_client))
         .route("/export-csv", get(export_csv))
+        .merge(super::pnl::router())
 }
 
 /// UTC "today", like SQLite `date('now')`.
