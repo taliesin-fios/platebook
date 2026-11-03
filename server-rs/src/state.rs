@@ -24,6 +24,9 @@ pub struct AppState {
     /// Outgoing HTTP (Anthropic, Stripe). Recipe URL import builds its own
     /// client with the SSRF-filtering resolver.
     pub http: reqwest::Client,
+    /// Outgoing HTTP to an AI provider a chef chose: public addresses only
+    /// (the SSRF-filtering resolver) and no redirects.
+    pub ai_http: reqwest::Client,
     /// Mail recorded instead of sent when SMTP isn't configured.
     pub outbox: Arc<crate::email::Outbox>,
 }
@@ -44,6 +47,13 @@ impl AppState {
                 .timeout(std::time::Duration::from_secs(120))
                 .build()
                 .expect("HTTP client"),
+            ai_http: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .dns_resolver(Arc::new(crate::safe_fetch::PublicResolver))
+                .no_proxy()
+                .timeout(std::time::Duration::from_secs(120))
+                .build()
+                .expect("AI HTTP client"),
             outbox: Arc::new(crate::email::Outbox::default()),
         }
     }

@@ -103,7 +103,7 @@ This section is for running your own copy of the app (developers / self-hosting)
    ```
    npm run db:setup
    ```
-3. (Optional) For AI features, add your Anthropic API key to `server-rs/.env`:
+3. (Optional) AI features: each chef adds their own provider and key in **Settings → AI Assistant**. To give every account a shared Claude key instead, add it to `server-rs/.env`:
    ```
    ANTHROPIC_API_KEY=sk-ant-your-key-here
    ```
@@ -398,7 +398,7 @@ Configure Platebook to match your business.
 
 **Reminder Emails** — off until you turn them on. See [Reminder Emails](#reminder-emails) below.
 
-**AI Assistant** — shows whether AI recipe import and menu suggestions are available on this server.
+**AI Assistant** — choose the AI provider for your account (Anthropic Claude, OpenAI, Google Gemini, OpenRouter, Mistral, Groq, or any OpenAI-compatible service), a model and your own API key. See [AI Features](#6-ai-features).
 
 **Data Management:**
 - **Export All My Data (JSON)** — downloads everything in your account (clients, recipes, sessions, invoices, intakes, settings)
@@ -567,24 +567,31 @@ Requests from your booking page land on the **Client Intakes** page. Tap one to 
 
 ## 6. AI Features
 
-Platebook includes two AI features powered by the Anthropic Claude API.
+Platebook includes two AI features. Each chef chooses their own AI provider and pays for it with their own API key, so chefs on a shared server don't depend on the person who runs it.
 
 ### Setup
-AI is configured once for the whole server by whoever runs it (it is shared by all accounts, and usage is rate-limited per account):
-1. Get an API key from [console.anthropic.com](https://console.anthropic.com)
-2. Open `server-rs/.env` and add:
-   ```
-   ANTHROPIC_API_KEY=sk-ant-your-key-here
-   ```
-3. Restart the API server
-4. In Platebook → Settings → AI Assistant, tap "Test Connection"
-5. The status should change to "● Available"
+1. Get an API key from your provider:
+   - **Anthropic (Claude):** [console.anthropic.com](https://console.anthropic.com/settings/keys). The model is optional: Platebook uses Claude Sonnet by default.
+   - **OpenAI:** [platform.openai.com](https://platform.openai.com/api-keys)
+   - **Google Gemini:** [aistudio.google.com](https://aistudio.google.com/apikey)
+   - **OpenRouter** (many models with one key): [openrouter.ai](https://openrouter.ai/settings/keys)
+   - **Mistral:** [console.mistral.ai](https://console.mistral.ai/api-keys)
+   - **Groq:** [console.groq.com](https://console.groq.com/keys)
+   - **Custom:** any service with an OpenAI-compatible Chat Completions API. Enter its base URL (e.g. `https://api.example.com/v1`). It must be a public `https://` address, unless the server's operator sets `AI_ALLOW_PRIVATE_URLS=true` (for a model server such as Ollama on their own network).
+2. In Platebook → **Settings → AI Assistant**, choose the provider, enter the model (for example `gpt-5-mini` or `gemini-2.5-flash`; your provider's docs list them) and paste your key.
+3. Tap **Save AI Settings**, then **Test Connection**.
+
+Your key is stored encrypted, is used only for your account, and is never shown again: Settings shows its last four characters. To change provider, choose the new one and enter its key. **Remove My AI Settings** deletes them.
+
+**Server-wide key (optional, for whoever runs the server):** with `ANTHROPIC_API_KEY` set in `server-rs/.env`, accounts that haven't set up their own AI use that Claude key, billed to the server's owner. Leave it empty so every chef uses their own.
+
+AI requests are rate-limited per account.
 
 ### Feature 1: Recipe Import
-When you paste recipe text into the Import page, Claude extracts all structured data automatically. See [Importing a Recipe with AI](#importing-a-recipe-with-ai) above.
+When you paste recipe text into the Import page, the AI extracts all structured data automatically. See [Importing a Recipe with AI](#importing-a-recipe-with-ai) above.
 
 ### Feature 2: AI Menu Suggestion
-In Step 3 of the session wizard, tap **"AI Suggest"**. Claude analyzes:
+In Step 3 of the session wizard, tap **"AI Suggest"**. The AI analyzes:
 - The client's allergens and dietary restrictions
 - Their liked proteins and disliked foods
 - The selected serving size
@@ -595,7 +602,7 @@ In Step 3 of the session wizard, tap **"AI Suggest"**. Claude analyzes:
 It returns 3 recommended recipes with a reasoning explanation. You can accept them all, remove some, or add others.
 
 ### Without an API Key
-Both AI features are disabled but the rest of the app works fully. You can plan sessions, manage clients, import recipes manually, and track costs without any AI.
+Without your own key (and no server-wide key), both AI features are disabled but the rest of the app works fully. You can plan sessions, manage clients, import recipes manually, and track costs without any AI.
 
 ---
 
@@ -899,10 +906,10 @@ Data from the **old SQLite version** of the app (`chef_app.db`) moves over with 
 - Restart the Vite frontend server after changing `vite.config.ts`
 
 ### AI features not working
-- Verify `ANTHROPIC_API_KEY` is set in `server-rs/.env`
-- Restart the API server after changing `.env`
-- Go to Settings → AI Configuration → "Test Connection"
-- Check that your API key has sufficient credits at console.anthropic.com
+- Go to Settings → AI Assistant and check the status line, then tap "Test Connection": its message comes from your provider
+- Check the model name is one your provider offers, and that your account with them has credit
+- "Your saved key needs to be entered again" means the server's `JWT_SECRET` changed: paste your key again and save
+- Using the server-wide key: verify `ANTHROPIC_API_KEY` is set in `server-rs/.env` and restart the API server
 
 ### Recipes page crashes or shows blank
 - Open your browser's developer console (F12) and look for the error

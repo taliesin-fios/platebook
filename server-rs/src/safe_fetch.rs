@@ -160,16 +160,24 @@ pub enum FetchError {
     Other(String),
 }
 
+/// True when [`PublicResolver`] refused the request's host.
+pub fn is_blocked_error(err: &reqwest::Error) -> bool {
+    let mut source: Option<&(dyn StdError + 'static)> = err.source();
+    while let Some(s) = source {
+        if s.is::<BlockedAddress>() {
+            return true;
+        }
+        source = s.source();
+    }
+    false
+}
+
 fn classify(err: reqwest::Error) -> FetchError {
     if err.is_timeout() {
         return FetchError::Timeout;
     }
-    let mut source: Option<&(dyn StdError + 'static)> = err.source();
-    while let Some(s) = source {
-        if s.is::<BlockedAddress>() {
-            return FetchError::Disallowed;
-        }
-        source = s.source();
+    if is_blocked_error(&err) {
+        return FetchError::Disallowed;
     }
     FetchError::Other(err.to_string())
 }
