@@ -4,6 +4,7 @@
 import { useRef, useState, useEffect, useContext, type ChangeEvent, type ReactNode } from 'react';
 import PageHeader from '../components/PageHeader';
 import ConfirmModal from '../components/ConfirmModal';
+import AiSettings from '../components/AiSettings';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { SettingsContext } from '../App';
@@ -22,9 +23,7 @@ export default function Settings() {
   const { show } = useToast();
   const { refreshSettings } = useContext(SettingsContext);
   const [settings,     setSettings]     = useState<SettingsData | null>(null);
-  const [aiStatus,     setAiStatus]     = useState<boolean | null>(null);
   const [deposit,      setDeposit]      = useState('0');
-  const [testing,      setTesting]      = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [saving,       setSaving]       = useState(false);
   const [logoPreview,  setLogoPreview]  = useState<string | null>(null);
@@ -36,7 +35,6 @@ export default function Settings() {
       .then((d: SettingsData) => {
         setSettings(d);
         setDeposit(centsToDollars(d.deposit_cents));
-        setAiStatus(d.ai_configured);
         if (d.logo_base64) setLogoPreview(d.logo_base64);
       })
       .catch(() => {});
@@ -79,23 +77,6 @@ export default function Settings() {
     navigator.clipboard?.writeText(bookingUrl(settings?.slug))
       .then(() => show('Booking link copied', 'success'))
       .catch(() => {});
-  };
-
-  const handleTestAI = async () => {
-    setTesting(true);
-    try {
-      const result = await apiCall<{ configured: boolean; working: boolean }>('/api/ai/test', 'POST');
-      if (result.working) {
-        show('AI connection successful ✓', 'success');
-        setAiStatus(true);
-      } else {
-        show('AI key invalid — check and retry', 'error');
-      }
-    } catch {
-      show('AI not configured', 'error');
-    } finally {
-      setTesting(false);
-    }
   };
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -325,7 +306,6 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* AI Configuration */}
         {/* Reminder emails */}
         <div className="card">
           <SectionHeader>Reminder Emails</SectionHeader>
@@ -362,28 +342,7 @@ export default function Settings() {
 
         <div className="card">
           <SectionHeader>AI Assistant</SectionHeader>
-          <div className="space-y-3">
-            <p className="text-xs text-gray-500">
-              AI powers recipe import from links and text, and menu suggestions when planning a session.
-            </p>
-            <div className="flex items-center justify-between p-3 bg-warm-white rounded-xl">
-              <div className="text-sm">
-                <span className="font-medium">Status: </span>
-                <span className={aiStatus ? 'text-green-dark font-semibold' : 'text-danger font-semibold'}>
-                  {aiStatus ? '● Available' : '● Not available on this server'}
-                </span>
-              </div>
-              <button
-                onClick={handleTestAI}
-                disabled={testing}
-                className="px-3 py-2 bg-navy text-white rounded-xl text-xs font-medium disabled:opacity-60"
-                style={{ minHeight: '36px' }}
-              >
-                {testing ? 'Testing...' : 'Test Connection'}
-              </button>
-            </div>
-
-          </div>
+          <AiSettings />
         </div>
 
         {/* Data Management */}

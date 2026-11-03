@@ -23,11 +23,11 @@ use serde_json::Value;
 use sqlx::{PgConnection, Postgres, QueryBuilder};
 use ts_rs::TS;
 
-use crate::anthropic;
 use crate::auth::Account;
 use crate::db::Tenant;
 use crate::error::{AppError, DbResult};
 use crate::js;
+use crate::llm::{self, Purpose};
 use crate::models::{Ingredient, Recipe, RecipeRow, SUCCESS, Success};
 use crate::rate_limit::AccountLimits;
 use crate::recipe_import::{self, ParsedRecipe, confidence_level};
@@ -456,17 +456,14 @@ async fn import_text(
             "Text too long — please trim to under 50 KB",
         ));
     }
-    if state.config.anthropic_api_key.is_none() {
-        return Err(AppError::new(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "API_KEY_MISSING",
-            "Anthropic API key not configured",
-        ));
-    }
+    let mut tx = crate::db::begin_tenant(&state.pool, account.id).await?;
+    let ai = crate::routes::ai::account_ai(&state, &mut tx, account.id).await?;
+    tx.commit().await?;
 
-    let text = match anthropic::message(
+    let text = match llm::message(
         &state,
-        anthropic::DEFAULT_MODEL,
+        &ai,
+        Purpose::Task,
         4096,
         Some(RECIPE_SYSTEM_PROMPT),
         &raw,
@@ -490,7 +487,7 @@ async fn import_text(
             ));
         }
     };
-    let Ok(parsed) = serde_json::from_str::<Value>(text.trim()) else {
+    let Ok(parsed) = serde_json::from_str::<Value>(llm::json_text(&text)) else {
         return Err(AppError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
             "PARSE_ERROR",

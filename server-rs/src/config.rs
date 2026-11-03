@@ -48,6 +48,11 @@ pub struct Config {
     pub anthropic_model: Option<String>,
     /// Anthropic API base (overridable so tests can point at a fake).
     pub anthropic_api_base: String,
+    /// `AI_ALLOW_PRIVATE_URLS=true`: let chefs point their AI settings at
+    /// private or plain-HTTP addresses (a model server on the operator's own
+    /// network). Off by default, so a chef can't make the server call
+    /// internal services.
+    pub ai_allow_private_urls: bool,
     /// Directory with the built React app, served when set (production).
     pub client_dist: Option<String>,
     /// Optional pg_dump backups (Railway Postgres has its own; off by default).
@@ -201,6 +206,7 @@ impl Config {
             anthropic_model: var("ANTHROPIC_MODEL"),
             anthropic_api_base: var("ANTHROPIC_BASE_URL")
                 .unwrap_or_else(|| "https://api.anthropic.com".to_string()),
+            ai_allow_private_urls: var("AI_ALLOW_PRIVATE_URLS").as_deref() == Some("true"),
             client_dist: var("CLIENT_DIST")
                 .or_else(|| production.then(|| "../client/dist".to_string())),
             backup: BackupConfig {
@@ -240,6 +246,7 @@ impl Config {
             anthropic_api_key: None,
             anthropic_model: None,
             anthropic_api_base: "https://api.anthropic.com".to_string(),
+            ai_allow_private_urls: false,
             client_dist: None,
             backup: BackupConfig::default(),
             signup_mode: SignupMode::Open,
@@ -286,7 +293,8 @@ impl fmt::Debug for Config {
             .field("allow_dev_link", &self.allow_dev_link)
             .field("payments_mode", &self.payments_mode)
             .field("stripe_configured", &self.stripe_secret_key.is_some())
-            .field("ai_configured", &self.anthropic_api_key.is_some())
+            .field("ai_server_key", &self.anthropic_api_key.is_some())
+            .field("ai_allow_private_urls", &self.ai_allow_private_urls)
             .field("client_dist", &self.client_dist)
             .field("auto_backup", &self.backup.enabled)
             .field("signup_mode", &self.signup_mode)

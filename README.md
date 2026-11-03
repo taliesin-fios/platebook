@@ -18,7 +18,7 @@ Platebook is for chefs who cook in clients' homes, run weekly meal prep, or cate
 - **Clients:** households with allergies, dietary styles, likes and dislikes, and kitchen notes.
 - **A booking page:** your own link (`/book/<your-name>`) where new clients fill in an intake form and, optionally, pay a deposit (recorded by hand or taken through Stripe).
 - **Sessions:** a calendar with conflict warnings, sessions that repeat every 1–4 weeks, menus checked against each client's allergies, and a feasibility check on cooking time.
-- **Recipes:** a library that scales to each household's serving size. Import a recipe from a URL or pasted text (optional, uses the Claude API), or start from a 20-recipe starter library.
+- **Recipes:** a library that scales to each household's serving size. Import a recipe from a URL or pasted text (optional AI: each chef brings their own Claude, OpenAI, Gemini or other provider key), or start from a 20-recipe starter library.
 - **Grocery lists:** built from the menu and grouped by store section, ready to share, print or copy.
 - **PDFs and email:** meal plans and invoices rendered on the server and emailed to the client under your business name.
 - **Money:** invoices, ingredient costs, margins and profitability, plus CSV export.
@@ -139,8 +139,9 @@ All configuration lives in `server-rs/.env` (gitignored). The annotated template
 | `CLIENT_URL` | Optional | Frontend origin, used for CORS, emailed links and Stripe redirects |
 | `TRUST_PROXY_HOPS` | Optional | Reverse proxies in front of the API that append to `X-Forwarded-For` (default `1`; `0` = clients connect directly and the header is ignored). Rate limits key on the client address this picks |
 | `CLIENT_DIST` | Optional | Serve this React build at `/` (`npm start` and the Docker image set it) |
-| `ANTHROPIC_API_KEY` | Optional | Enables AI recipe import + menu suggestions |
-| `ANTHROPIC_MODEL` | Optional | Overrides the per-route Claude model defaults |
+| `ANTHROPIC_API_KEY` | Optional | A shared Claude key for accounts that haven't added their own AI provider in Settings → AI Assistant (billed to you). Empty = each chef uses their own |
+| `ANTHROPIC_MODEL` | Optional | Overrides the Claude model defaults for that shared key |
+| `AI_ALLOW_PRIVATE_URLS` | Optional | `true` lets chefs point a Custom AI provider at private or plain-HTTP addresses (e.g. Ollama on your network). Off by default |
 | `PAYMENTS_MODE` | Optional | `manual` (default) / `disabled` / `stripe` |
 | `STRIPE_SECRET_KEY` | If Stripe | Stripe secret key |
 | `STRIPE_WEBHOOK_SECRET` | If Stripe | Stripe webhook signing secret |

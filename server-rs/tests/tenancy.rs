@@ -640,3 +640,51 @@ async fn database_backstop_when_a_query_forgets_its_filter(pool: PgPool) {
     sp.rollback().await.unwrap();
     tx.rollback().await.unwrap();
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn ai_settings_and_keys_stay_with_their_account(pool: PgPool) {
+    let (a, b, _) = two_chefs(&pool).await;
+    let saved = a
+        .put(
+            "/api/ai/settings",
+            json!({ "provider": "openai", "model": "gpt-a", "api_key": "sk-alpha-1111" }),
+        )
+        .await;
+    assert_eq!(saved.status, StatusCode::OK, "{}", saved.body);
+
+    // B sees none of it, and its own changes don't touch A's row.
+    let seen = b.get("/api/ai/status").await.body;
+    assert_eq!(seen["provider"], Value::Null);
+    assert_eq!(seen["key_hint"], Value::Null);
+    assert_eq!(seen["configured"], false);
+    b.put(
+        "/api/ai/settings",
+        json!({ "provider": "mistral", "model": "m-b", "api_key": "sk-beta-2222" }),
+    )
+    .await;
+    b.delete("/api/ai/settings").await;
+    let mine = a.get("/api/ai/status").await.body;
+    assert_eq!(mine["provider"], "openai");
+    assert_eq!(mine["model"], "gpt-a");
+    assert_eq!(mine["key_hint"], "1111");
+
+    // A's encrypted key is bound to A: copied into B's row, it doesn't decrypt.
+    let a_key: String =
+        sqlx::query_scalar("SELECT ai_api_key_enc FROM settings WHERE account_id = $1")
+            .bind(a.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    sqlx::query(
+        "UPDATE settings SET ai_provider = 'openai', ai_model = 'gpt-a', ai_api_key_enc = $1
+         WHERE account_id = $2",
+    )
+    .bind(&a_key)
+    .bind(b.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let stolen = b.get("/api/ai/status").await.body;
+    assert_eq!(stolen["configured"], false);
+    assert_eq!(stolen["key_unreadable"], true);
+}

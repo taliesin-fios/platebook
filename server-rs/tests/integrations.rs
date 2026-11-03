@@ -996,10 +996,13 @@ async fn ai_routes_call_the_messages_api(pool: PgPool) {
     let c = Chef::new(&pool, &app, "AI Kitchen").await;
     c.put("/api/settings", json!({ "location": "Austin" }))
         .await;
-    assert_eq!(
-        c.get("/api/ai/status").await.body,
-        json!({ "configured": true })
-    );
+    // No settings of its own: the account runs on the server's key.
+    let status = c.get("/api/ai/status").await.body;
+    assert_eq!(status["configured"], true);
+    assert_eq!(status["source"], "server");
+    assert_eq!(status["server_key"], true);
+    assert_eq!(status["provider"], Value::Null);
+    assert_eq!(status["providers"].as_array().unwrap().len(), 7);
     assert_eq!(c.get("/api/settings").await.body["ai_configured"], true);
 
     let client = c
@@ -1120,6 +1123,214 @@ async fn ai_and_import_guards_without_a_key(pool: PgPool) {
         )
         .await;
     assert_eq!(r.status, StatusCode::BAD_REQUEST);
+}
+
+type Seen = Arc<Mutex<Vec<(String, Value)>>>;
+
+/// A fake OpenAI-style Chat Completions API: records each request's
+/// `Authorization` header and body, and answers with `reply` inside a
+/// Markdown code fence, as models other than Claude often do. Returns the
+/// base URL (`…/v1`).
+async fn fake_chat(reply: Value) -> (String, Seen) {
+    let seen: Seen = Arc::default();
+    let log = seen.clone();
+    let url = fake_server(Router::new().route(
+        "/v1/chat/completions",
+        post(move |headers: HeaderMap, Json(body): Json<Value>| {
+            let log = log.clone();
+            let reply = reply.clone();
+            async move {
+                let auth = headers
+                    .get("authorization")
+                    .map(|v| v.to_str().unwrap().to_string())
+                    .unwrap_or_default();
+                log.lock().unwrap().push((auth, body));
+                Json(json!({ "choices": [{ "message": {
+                    "role": "assistant",
+                    "content": format!("```json\n{reply}\n```"),
+                } }] }))
+            }
+        }),
+    ))
+    .await;
+    (format!("{url}/v1"), seen)
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn each_account_uses_its_own_ai_provider_and_key(pool: PgPool) {
+    let (chat, seen) =
+        fake_chat(json!({ "name": "Toast", "ingredients": [{ "name": "bread" }] })).await;
+    // The server key points nowhere: a request that fell back to it would fail.
+    let config = Config {
+        ai_allow_private_urls: true,
+        ..ai_config("http://127.0.0.1:9")
+    };
+    let (app, _) = app_with(pool.clone(), config);
+    let a = Chef::new(&pool, &app, "Own AI Kitchen").await;
+    let b = Chef::new(&pool, &app, "Server AI Kitchen").await;
+
+    let saved = a
+        .put(
+            "/api/ai/settings",
+            json!({ "provider": "custom", "base_url": format!("{chat}/"),
+                    "model": "llama-test", "api_key": " sk-own-1234 " }),
+        )
+        .await;
+    assert_eq!(saved.status, StatusCode::OK, "{}", saved.body);
+    assert_eq!(saved.body["configured"], true);
+    assert_eq!(saved.body["source"], "account");
+    assert_eq!(saved.body["provider"], "custom");
+    assert_eq!(saved.body["model"], "llama-test");
+    assert_eq!(saved.body["base_url"], chat);
+    assert_eq!(saved.body["key_hint"], "1234");
+    assert!(!saved.body.to_string().contains("sk-own"));
+    // Stored encrypted, never as the plain key.
+    let stored: String =
+        sqlx::query_scalar("SELECT ai_api_key_enc FROM settings WHERE account_id = $1")
+            .bind(a.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(stored.starts_with("v1:") && !stored.contains("sk-own"));
+    assert_eq!(a.get("/api/settings").await.body["ai_configured"], true);
+    let export = a.get("/api/settings/export").await.body.to_string();
+    assert!(!export.contains("sk-own") && !export.contains(&stored));
+
+    let parsed = a
+        .post(
+            "/api/recipes/import/text",
+            json!({ "raw_text": "Toast: toast some bread, then butter it." }),
+        )
+        .await;
+    assert_eq!(parsed.status, StatusCode::OK, "{}", parsed.body);
+    assert_eq!(parsed.body["parsed"]["name"], "Toast");
+    let (auth, req) = seen.lock().unwrap().last().unwrap().clone();
+    assert_eq!(auth, "Bearer sk-own-1234");
+    assert_eq!(req["model"], "llama-test");
+    assert_eq!(req["max_tokens"], 4096);
+    assert_eq!(req["messages"][0]["role"], "system");
+    assert_eq!(req["messages"][1]["role"], "user");
+
+    let ping = a.post("/api/ai/test", json!({})).await;
+    assert_eq!(ping.body, json!({ "configured": true, "working": true }));
+    let (_, ping_req) = seen.lock().unwrap().last().unwrap().clone();
+    assert_eq!(ping_req["max_tokens"], 10);
+    assert_eq!(ping_req["model"], "llama-test");
+
+    // B sees none of A's settings and stays on the server's key.
+    let other = b.get("/api/ai/status").await.body;
+    assert_eq!(other["source"], "server");
+    assert_eq!(other["provider"], Value::Null);
+    assert_eq!(other["key_hint"], Value::Null);
+    assert_eq!(seen.lock().unwrap().len(), 2);
+
+    // Same provider without a key keeps the saved one...
+    let kept = a
+        .put(
+            "/api/ai/settings",
+            json!({ "provider": "custom", "base_url": chat, "model": "llama-2" }),
+        )
+        .await;
+    assert_eq!(kept.body["key_hint"], "1234");
+    assert_eq!(kept.body["model"], "llama-2");
+    // ...but a new provider needs its own key.
+    let switched = a
+        .put(
+            "/api/ai/settings",
+            json!({ "provider": "openai", "model": "gpt-test" }),
+        )
+        .await;
+    assert_eq!(switched.status, StatusCode::BAD_REQUEST);
+    assert_eq!(switched.body["error"], "Enter your OpenAI API key");
+
+    // A key that no longer decrypts (JWT_SECRET changed) asks to be re-entered.
+    sqlx::query("UPDATE settings SET ai_api_key_enc = 'v1:AAAA' WHERE account_id = $1")
+        .bind(a.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let unreadable = a.get("/api/ai/status").await.body;
+    assert_eq!(unreadable["configured"], false);
+    assert_eq!(unreadable["key_unreadable"], true);
+    let blocked = a
+        .post("/api/ai/suggest-menu", json!({ "client_id": 1 }))
+        .await;
+    assert_eq!(blocked.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(blocked.body["code"], "API_KEY_MISSING");
+    assert!(
+        blocked.body["error"]
+            .as_str()
+            .unwrap()
+            .contains("Enter it again")
+    );
+
+    // Removing the settings falls back to the server's key.
+    let removed = a.delete("/api/ai/settings").await;
+    assert_eq!(removed.body["source"], "server");
+    assert_eq!(removed.body["provider"], Value::Null);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn ai_settings_are_validated(pool: PgPool) {
+    let app = app(pool.clone());
+    let c = Chef::new(&pool, &app, "Checked AI Kitchen").await;
+    let status = c.get("/api/ai/status").await.body;
+    assert_eq!(status["configured"], false);
+    assert_eq!(status["source"], Value::Null);
+    assert_eq!(status["server_key"], false);
+    assert_eq!(status["allow_private_urls"], false);
+
+    for (body, error) in [
+        (json!({}), "Choose an AI provider"),
+        (json!({ "provider": "skynet" }), "Choose an AI provider"),
+        (
+            json!({ "provider": "openai", "api_key": "k" }),
+            "Enter the model to use with OpenAI",
+        ),
+        (
+            json!({ "provider": "openai", "model": "m" }),
+            "Enter your OpenAI API key",
+        ),
+        (
+            json!({ "provider": "custom", "model": "m" }),
+            "Enter the base URL for Custom (OpenAI-compatible)",
+        ),
+        (
+            json!({ "provider": "custom", "model": "m", "base_url": "http://api.example.com/v1" }),
+            "Base URL must start with https://",
+        ),
+        (
+            json!({ "provider": "custom", "model": "m", "base_url": "https://127.0.0.1:11434/v1" }),
+            "Base URL must be a public address",
+        ),
+        (
+            json!({ "provider": "gemini", "model": "m", "api_key": "k",
+                    "base_url": "https://169.254.169.254/v1" }),
+            "Base URL must be a public address",
+        ),
+        (
+            json!({ "provider": "openai", "model": "m", "api_key": "k".repeat(501) }),
+            "API key is too long",
+        ),
+    ] {
+        let r = c.put("/api/ai/settings", body.clone()).await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST, "{body}");
+        assert_eq!(r.body["error"], error, "{body}");
+    }
+
+    // Claude needs only a key: the models default.
+    let claude = c
+        .put(
+            "/api/ai/settings",
+            json!({ "provider": "anthropic", "api_key": "sk-ant-mine" }),
+        )
+        .await;
+    assert_eq!(claude.status, StatusCode::OK, "{}", claude.body);
+    assert_eq!(claude.body["configured"], true);
+    assert_eq!(claude.body["source"], "account");
+    assert_eq!(claude.body["model"], Value::Null);
+    assert_eq!(claude.body["base_url"], Value::Null);
+    assert_eq!(claude.body["key_hint"], "mine");
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
