@@ -13,7 +13,7 @@
 | Backend | Rust: Axum + Tokio (`server-rs/`) |
 | Database | PostgreSQL 14+ via SQLx, Row-Level Security per account |
 | Auth | Accounts: email + password (bcrypt) or magic link → httpOnly JWT cookie `{ accountId, email }` |
-| AI | Anthropic Claude API (reqwest) |
+| AI | Per-account provider (`llm.rs`, reqwest): Anthropic Messages API or OpenAI-style Chat Completions; keys encrypted at rest (`ai_keys.rs`) |
 | PDF | Typst, rendered on the server (`server-rs/src/pdf/`); the client only downloads them |
 | Email | lettre (SMTP); logged when `EMAIL_HOST` is empty |
 | Payments | Mode-gated: `manual` (default) / `stripe` / `disabled` |
@@ -121,7 +121,7 @@ The client `AuthGate` (App.tsx) sends signed-out visitors to `/welcome` (or `/lo
 - Pre-tenant lookups (login, the auth middleware's session check, public profile and intake by slug, intake by token, Stripe webhook, and the reminder job's scan for due sessions) use the pool as the connecting user for that one lookup only.
 - Background jobs (`main.rs`): hourly pruning of rate-limit windows and used token ids; every 5 minutes `reminders::run_once`, which sends due reminders one at a time: each in a transaction that locks the session (`FOR UPDATE SKIP LOCKED`, safe with several instances), switches to the owning tenant (`db::enter_tenant`), marks it sent, sends, and commits only after the send. A crash or failed send rolls back for a retry (at-least-once).
 - Invoice numbers (`<PREFIX>-<YEAR>-0001`) and template names are unique per account.
-- AI, import, CSV, PDF and client-email rate limits are keyed by account (the Anthropic key is platform-wide). Public intake submission is limited per IP.
+- AI, import, CSV, PDF and client-email rate limits are keyed by account (each account uses its own AI key; the optional `ANTHROPIC_API_KEY` is a shared fallback). Public intake submission is limited per IP.
 - Emails to clients attach PDFs the server renders itself; the email routes never accept file content from the request.
 
 
@@ -199,7 +199,7 @@ List columns (`allergens`, `dietary_styles`, `liked_proteins`, `equipment`, `rec
 | `jsonwebtoken` | JWT sign/verify for auth cookies (same format as the old Express server) |
 | `bcrypt` | Password hashes (reads the old bcryptjs `$2a$` hashes) |
 | `lettre` | SMTP email |
-| `reqwest` | Claude API, Stripe REST, recipe URL import (SSRF-guarded) |
+| `reqwest` | AI providers (chef-supplied base URLs SSRF-guarded), Stripe REST, recipe URL import (SSRF-guarded) |
 | `typst` | Server-side PDFs |
 | `rust_decimal` | Money |
 | `ts-rs` | Generates the client's API types |

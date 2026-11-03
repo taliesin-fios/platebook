@@ -5,7 +5,7 @@
 //! Express server. See `server-rs/README.md`.
 
 pub mod accounts;
-pub mod anthropic;
+pub mod ai_keys;
 pub mod api_types;
 pub mod app;
 pub mod auth;
@@ -16,6 +16,7 @@ pub mod email;
 pub mod error;
 pub mod intake_token;
 pub mod js;
+pub mod llm;
 pub mod models;
 pub mod money;
 pub mod ownership;

@@ -9,7 +9,7 @@ This guide runs Platebook on your own server with Docker Compose: one container 
 - Optional:
   - an SMTP mailbox, to send meal plans, invoices and sign-in links;
   - a Stripe account, for online deposits;
-  - an Anthropic API key, for AI recipe import and menu suggestions.
+  - nothing for AI: each chef adds their own provider and key in Settings. You can add a shared Anthropic key.
 
 ## Quick start
 
@@ -71,7 +71,7 @@ Client emails use the chef's business email (Settings) as `Reply-To`. To keep ma
 ## Payments and AI (optional)
 
 - **Deposits:** `PAYMENTS_MODE=manual` (the default) records deposits the chef collects by hand. `stripe` takes them online and needs `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Add a Stripe webhook to `https://<your domain>/api/payments/webhook` for `checkout.session.completed`, `payment_intent.payment_failed` and `charge.refunded`. Clients pay from their booking page and Stripe returns them there, so `CLIENT_URL` must be your public address. Try it with test-mode keys first. `disabled` hides deposits.
-- **AI:** with `ANTHROPIC_API_KEY` set, chefs can import recipes from pasted text and get menu suggestions. Usage is billed to your Anthropic account and rate-limited per chef account.
+- **AI:** each chef chooses a provider (Anthropic, OpenAI, Google Gemini, OpenRouter, Mistral, Groq or any OpenAI-compatible service) in **Settings → AI Assistant** and enters their own API key, billed to them. Keys are encrypted with a key derived from `JWT_SECRET`: if you change `JWT_SECRET`, chefs have to enter their keys again. Optionally, `ANTHROPIC_API_KEY` gives accounts without their own settings a shared Claude key, billed to you. Chefs' custom base URLs must be public HTTPS addresses; set `AI_ALLOW_PRIVATE_URLS=true` only if you trust every account on the server and want them to reach a model server on your network. AI requests are rate-limited per chef account.
 
 ## Backups and restore
 
