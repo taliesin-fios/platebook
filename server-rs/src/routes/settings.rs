@@ -96,11 +96,12 @@ fn js_len(s: &str) -> usize {
 async fn with_meta(state: &AppState, tx: &mut Tx, account_id: i64) -> DbResult<SettingsResponse> {
     let settings = accounts::get_settings(tx, account_id).await?;
     let account = accounts::get_account(tx, account_id).await?;
+    let ai = crate::llm::load_settings(tx, account_id).await?;
     Ok(SettingsResponse {
         settings,
         slug: account.as_ref().map(|a| a.slug.clone()).unwrap_or_default(),
         account_email: account.map(|a| a.email).unwrap_or_default(),
-        ai_configured: state.config.anthropic_api_key.is_some(),
+        ai_configured: crate::llm::resolve(state, account_id, &ai).is_ok(),
     })
 }
 

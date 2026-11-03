@@ -185,11 +185,8 @@ export default function SessionNew() {
       setSession(prev => ({ ...prev, recipe_ids: result.suggested_recipe_ids || [] }));
       setAiReasoning(result.reasoning || '');
     } catch (err) {
-      if (errorMessage(err).includes('API_KEY_MISSING')) {
-        show('AI not configured — add API key in Settings', 'error');
-      } else {
-        show('AI took too long — try again or select manually', 'error');
-      }
+      // The server's messages say what to do: set up AI in Settings, retry, or pick manually.
+      show(errorMessage(err) || 'AI took too long — try again or select manually', 'error');
     } finally {
       setAiLoading(false);
     }
