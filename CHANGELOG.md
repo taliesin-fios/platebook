@@ -7,6 +7,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-04
+
+**Upgrading from 0.2.0:** on start, the server applies two migrations: `0010_invoice_payments.sql` and `0011_account_ai_provider.sql`. They only add nullable columns (0010 also adds a foreign key, validated after it's added), so they're safe on a database with data, but take a backup first as usual. If you set `ANTHROPIC_API_KEY`, it keeps working as the shared key for accounts that haven't added their own AI. Don't change `JWT_SECRET` after chefs save AI keys: the keys are encrypted with a key derived from it.
+
+**Online payments are beta.** Online deposits and invoice payments (`PAYMENTS_MODE=stripe`) use one Stripe account for the whole server, so they suit a self-hosted server for one chef. Try them with Stripe test-mode keys before taking real payments. The default, `PAYMENTS_MODE=manual`, is unchanged: the chef records deposits and payments by hand.
+
 ### Added
 - **Clients can pay the booking deposit online** (`PAYMENTS_MODE=stripe`). The client's booking page (the link in their confirmation email) shows **Pay $X deposit**. So does the screen right after they book. Each press opens a fresh Stripe Checkout (`POST /api/intake/:id/checkout`, checked with their edit token and rate-limited), so their link never goes stale. Stripe brings them back to that page, which says whether the payment went through or was cancelled, and shows "✓ paid" once the webhook confirms it.
 - **Copy client's booking link** on each inquiry (`GET /api/intake/:id/client-link`), to send a client their page again.
@@ -19,6 +25,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Migration `0011_account_ai_provider.sql`:** `settings.ai_provider`, `ai_model`, `ai_base_url`, `ai_api_key_enc` and `ai_key_hint` (nullable, additive). The data export doesn't include them.
 
 ### Changed
+- **Phones:** Invoices is in the bottom bar, in place of Sign Out, which moved to the bottom of Settings (desktop keeps it in the side nav).
+- The landing page has a "Self-host it free" section with the GitHub link and the license terms, and its allergen line now says to confirm with the client.
+- Client build tools (Vite, Tailwind, the React plugin, TypeScript) moved to `devDependencies`, and the npm audit findings in them (postcss, nanoid, browserslist, source-map-js) are fixed.
 - `ANTHROPIC_API_KEY` is now optional and shared: accounts that haven't set up their own AI keep using it, as before. Leave it empty so each chef uses their own key. Changing `JWT_SECRET` makes saved AI keys unreadable: chefs see "Your saved key needs to be entered again".
 - Menu suggestions show the server's message when AI isn't set up, instead of "AI took too long".
 
