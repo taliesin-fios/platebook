@@ -91,7 +91,7 @@ async fn signup_mode_first_allows_only_the_first_account(pool: PgPool) {
     );
     let status = get("/api/auth/signup").send(&app).await;
     assert_eq!(status.status, StatusCode::OK);
-    assert_eq!(status.body, json!({ "open": true }));
+    assert_eq!(status.body, json!({ "open": true, "invite_only": false }));
 
     let first = post("/api/auth/signup", signup_body("owner@example.com"))
         .send(&app)
@@ -100,7 +100,7 @@ async fn signup_mode_first_allows_only_the_first_account(pool: PgPool) {
 
     assert_eq!(
         get("/api/auth/signup").send(&app).await.body,
-        json!({ "open": false })
+        json!({ "open": false, "invite_only": false })
     );
     let second = post("/api/auth/signup", signup_body("second@example.com"))
         .send(&app)
@@ -128,7 +128,7 @@ async fn signup_mode_closed_refuses_every_signup(pool: PgPool) {
     );
     assert_eq!(
         get("/api/auth/signup").send(&app).await.body,
-        json!({ "open": false })
+        json!({ "open": false, "invite_only": false })
     );
     let res = post("/api/auth/signup", signup_body("new@example.com"))
         .send(&app)
@@ -138,10 +138,186 @@ async fn signup_mode_closed_refuses_every_signup(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
+async fn signup_mode_invite_needs_a_one_time_link(pool: PgPool) {
+    use chef_server::invites;
+    let (app, _) = app_with(
+        pool.clone(),
+        chef_server::config::Config {
+            signup_mode: SignupMode::Invite,
+            ..test_config()
+        },
+    );
+    // Each sign-up from its own address, so the per-IP sign-up limit never trips.
+    let n = std::cell::Cell::new(0);
+    let next_ip = || {
+        n.set(n.get() + 1);
+        format!("10.20.0.{}", n.get())
+    };
+    let closed = json!({ "open": false, "invite_only": true });
+    assert_eq!(get("/api/auth/signup").send(&app).await.body, closed);
+    assert_eq!(
+        get("/api/auth/signup?invite=made-up").send(&app).await.body,
+        closed
+    );
+
+    // No invite, or an unknown one: refused.
+    let none = post("/api/auth/signup", signup_body("chef@example.com"))
+        .send(&app)
+        .await;
+    assert_eq!(none.status, StatusCode::FORBIDDEN);
+    assert_eq!(none.body["code"], "INVITE_INVALID");
+
+    let any = invites::create(&pool, None, 14, Some("first beta chef"))
+        .await
+        .unwrap();
+    let uri = format!("/api/auth/signup?invite={}", any.token);
+    assert_eq!(
+        get(uri.as_str()).send(&app).await.body,
+        json!({ "open": true, "invite_only": true })
+    );
+    let mut body = signup_body("chef@example.com");
+    body["invite"] = json!(any.token);
+    let first = post("/api/auth/signup", body.clone()).send(&app).await;
+    assert_eq!(first.status, StatusCode::CREATED, "{}", first.body);
+
+    // Used up: the same link can't make a second account.
+    body["email"] = json!("other@example.com");
+    let again = post("/api/auth/signup", body)
+        .ip(next_ip())
+        .send(&app)
+        .await;
+    assert_eq!(again.status, StatusCode::FORBIDDEN);
+    assert_eq!(again.body["code"], "INVITE_INVALID");
+    assert_eq!(get(uri.as_str()).send(&app).await.body, closed);
+    let listed = invites::list(&pool).await.unwrap();
+    assert_eq!(listed[0].used_by_email.as_deref(), Some("chef@example.com"));
+
+    // An invite for one address works only for that address.
+    let for_one = invites::create(&pool, Some(" Named@Example.com "), 7, None)
+        .await
+        .unwrap();
+    let mut wrong = signup_body("someone@example.com");
+    wrong["invite"] = json!(for_one.token);
+    let mismatch = post("/api/auth/signup", wrong)
+        .ip(next_ip())
+        .send(&app)
+        .await;
+    assert_eq!(mismatch.status, StatusCode::FORBIDDEN);
+    assert_eq!(mismatch.body["code"], "INVITE_EMAIL_MISMATCH");
+    let mut right = signup_body("named@example.com");
+    right["invite"] = json!(for_one.token);
+    assert_eq!(
+        post("/api/auth/signup", right)
+            .ip(next_ip())
+            .send(&app)
+            .await
+            .status,
+        StatusCode::CREATED
+    );
+
+    // A sign-up that fails (email taken) leaves the invite usable.
+    let spare = invites::create(&pool, None, 1, None).await.unwrap();
+    let mut taken = signup_body("chef@example.com");
+    taken["invite"] = json!(spare.token);
+    let dup = post("/api/auth/signup", taken)
+        .ip(next_ip())
+        .send(&app)
+        .await;
+    assert_eq!(dup.status, StatusCode::CONFLICT);
+    assert_eq!(
+        get(format!("/api/auth/signup?invite={}", spare.token))
+            .send(&app)
+            .await
+            .body["open"],
+        true
+    );
+
+    // Revoked and expired invites don't work.
+    assert!(invites::revoke(&pool, spare.id).await.unwrap());
+    assert!(!invites::revoke(&pool, spare.id).await.unwrap());
+    let expired = invites::create(&pool, None, 1, None).await.unwrap();
+    sqlx::query("UPDATE signup_invites SET expires_at = now() - interval '1 minute' WHERE id = $1")
+        .bind(expired.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    for token in [&spare.token, &expired.token] {
+        let mut b = signup_body("late@example.com");
+        b["invite"] = json!(token);
+        let res = post("/api/auth/signup", b).ip(next_ip()).send(&app).await;
+        assert_eq!(res.body["code"], "INVITE_INVALID");
+    }
+    assert!(invites::create(&pool, None, 0, None).await.is_err());
+    assert!(invites::create(&pool, None, 91, None).await.is_err());
+    assert!(invites::create(&pool, Some("nope"), 7, None).await.is_err());
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn invite_cli_creates_lists_and_revokes(pool: PgPool) {
+    use chef_server::invites::run_cli;
+    let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let base = "https://beta.example.com";
+    let out = run_cli(
+        &pool,
+        base,
+        &args(&[
+            "create",
+            "--email",
+            "a@example.com",
+            "--days",
+            "3",
+            "--note",
+            "Ana",
+        ]),
+    )
+    .await
+    .unwrap();
+    assert!(
+        out.contains("https://beta.example.com/signup?invite="),
+        "{out}"
+    );
+    assert!(
+        out.contains("Only a@example.com can sign up with it."),
+        "{out}"
+    );
+    let listed = run_cli(&pool, base, &args(&["list"])).await.unwrap();
+    assert!(listed.contains("a@example.com  open until"), "{listed}");
+    assert!(listed.contains("(Ana)"), "{listed}");
+    assert_eq!(
+        run_cli(&pool, base, &args(&["revoke", "1"])).await.unwrap(),
+        "Invite 1 revoked."
+    );
+    assert!(
+        run_cli(&pool, base, &args(&["list"]))
+            .await
+            .unwrap()
+            .contains("revoked")
+    );
+    assert!(run_cli(&pool, base, &args(&["revoke", "1"])).await.is_err());
+    assert!(
+        run_cli(&pool, base, &args(&["create", "--days"]))
+            .await
+            .is_err()
+    );
+    assert!(
+        run_cli(&pool, base, &args(&["create", "--bogus", "x"]))
+            .await
+            .is_err()
+    );
+    assert!(run_cli(&pool, base, &args(&["nope"])).await.is_err());
+    assert!(
+        run_cli(&pool, base, &args(&[]))
+            .await
+            .unwrap()
+            .starts_with("Usage")
+    );
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
 async fn signup_status_is_open_by_default(pool: PgPool) {
     let res = get("/api/auth/signup").send(&app(pool)).await;
     assert_eq!(res.status, StatusCode::OK);
-    assert_eq!(res.body, json!({ "open": true }));
+    assert_eq!(res.body, json!({ "open": true, "invite_only": false }));
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

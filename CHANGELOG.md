@@ -7,6 +7,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Invite-only sign-up.** `SIGNUP_MODE=invite` lets in only people with a one-time invite link. The server owner makes links on the server with `chef-server invite create [--email ADDRESS] [--days N] [--note TEXT]`, and checks or cancels them with `chef-server invite list` and `chef-server invite revoke ID` (see `docs/SELF_HOSTING.md`). A link signs up one account, then stops working; it also stops when it expires (14 days by default, at most 90) or is revoked. With `--email`, only that address can use it. Only a SHA-256 of each link's token is stored. The sign-up page explains when a link no longer works, and says sign-up is by invitation when there's no link. `GET /api/auth/signup` now returns `{ open, invite_only }` and takes `?invite=` to check a link; `POST /api/auth/signup` takes `invite` (`403 INVITE_INVALID` / `INVITE_EMAIL_MISMATCH`).
+- **Migration `0012_signup_invites.sql`:** a new `signup_invites` table (server-wide, no tenant data, no `chef_app` access). Additive.
+
 ### Changed
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 

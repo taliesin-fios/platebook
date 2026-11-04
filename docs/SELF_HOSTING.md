@@ -27,7 +27,7 @@ Fill in `.env`. Generate each secret with `openssl rand -hex 32`.
 | `JWT_SECRET` | Signs sign-in cookies and one-time links. Changing it signs everyone out. |
 | `INTAKE_SECRET` | Signs the edit links emailed to clients after they book. Changing it breaks old links. |
 | `CLIENT_URL` | The public `https://` address. It's used in emailed links and Stripe redirects. |
-| `SIGNUP_MODE` | `first` (default in this file) lets only the first person sign up: you. Use `open` to let anyone create an account, or `closed` to allow no new accounts. |
+| `SIGNUP_MODE` | `first` (default in this file) lets only the first person sign up: you. Use `invite` to let in only people you send a link to, `open` to let anyone create an account, or `closed` to allow no new accounts. |
 
 Then start it:
 
@@ -101,8 +101,21 @@ Database migrations run automatically when the app starts. Take a backup first. 
 Each account is a separate chef business. Its clients, recipes and money are private to it, enforced by Postgres row-level security. `SIGNUP_MODE` decides who may create one:
 
 - `first`: a single chef on their own server. Sign-up closes after the first account.
+- `invite`: only people you invite. Each invite is a one-time link (see below).
 - `closed`: no new accounts. Existing ones keep working.
 - `open`: anyone who can reach the server can sign up. Use it only if you mean to host other chefs, and remember the license: you may not offer Platebook as a paid or competing service (see [LICENSE](../LICENSE)).
+
+### Invite links
+
+With `SIGNUP_MODE=invite`, create a link for each chef from a shell where the server's `DATABASE_URL` and `CLIENT_URL` are set: inside the app container (`docker compose exec app chef-server invite create`, or `railway ssh` then `chef-server invite create` on Railway).
+
+```bash
+chef-server invite create --email chef@example.com --days 14 --note "Ana, beta"
+chef-server invite list
+chef-server invite revoke 3
+```
+
+`create` prints a `…/signup?invite=…` link. It's shown only once: only a hash of it is stored. It signs up one account, then stops working; it also stops when it expires (14 days by default, at most 90) or you revoke it. With `--email`, only that address can use it. Send the link yourself: Platebook doesn't email invites.
 
 ## Your responsibilities
 

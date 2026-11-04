@@ -60,7 +60,7 @@ const TABLES = [
 ];
 // Tables that exist on one side only, on purpose.
 const SQLITE_ONLY = new Set(['db_meta', 'sqlite_sequence']);
-const PG_ONLY = new Set(['_sqlx_migrations', 'used_jtis', 'rate_limit_hits']);
+const PG_ONLY = new Set(['_sqlx_migrations', 'used_jtis', 'rate_limit_hits', 'signup_invites']);
 
 // ── Arguments ───────────────────────────────────────────────────────────────
 

@@ -15,7 +15,7 @@ describe('signup', () => {
   test('reports whether sign-up is open, without a session', async () => {
     const res = await request(app).get('/api/auth/signup');
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { open: true }); // SIGNUP_MODE defaults to open
+    assert.deepEqual(res.body, { open: true, invite_only: false }); // SIGNUP_MODE defaults to open
   });
 
   test('creates an account, settings row and session cookie', async () => {
