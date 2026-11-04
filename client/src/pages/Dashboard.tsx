@@ -10,7 +10,7 @@ import { STATUS_COLORS, FEASIBILITY_COLORS, calcFeasibility, APP_NAME, bookingUr
 import { SettingsContext } from '../App';
 import { parseNum } from '../utils/numbers';
 import { mtdTrend } from '../utils/trend';
-import { clientsTile, invoiceSummary, marginTile } from '../utils/dashboardStats';
+import { clientsTile, invoiceSummary, marginTile, parseStringList } from '../utils/dashboardStats';
 import type { ClientListItem, CostSummary, SessionListItem } from '../types';
 
 function IntakeLinkCard() {
@@ -263,9 +263,7 @@ export default function Dashboard() {
             </div>
             {/* Allergen warning */}
             {(() => {
-              const allergens = (() => {
-                try { return JSON.parse(nextSession.client_allergens || '[]') as string[]; } catch { return []; }
-              })();
+              const allergens = parseStringList(nextSession.client_allergens);
               return allergens.length > 0 ? (
                 <div className="mt-2 flex items-center gap-1.5 flex-wrap border-t border-gray-100 pt-2">
                   <span className="text-xs text-danger font-semibold">⚠ Allergens:</span>
