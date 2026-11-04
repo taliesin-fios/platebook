@@ -1,22 +1,37 @@
-# Weekly dependency update PRs. Minor and patch bumps are grouped into one PR
-# per ecosystem so they don't flood the queue; majors come one at a time.
+# Dependency update PRs.
+# - npm and cargo: minor and patch bumps come grouped, one PR per ecosystem
+#   per week. Major bumps (including 0.x -> 0.y for Rust crates) are skipped
+#   here and done on purpose in their own PR, since they can change APIs
+#   (eslint, vitest, recharts, the crypto crates behind JWTs and saved AI
+#   keys, ...).
+# - Docker: the client build stays on Node 20 (CI and `engines` use 20.x),
+#   so base-image majors are skipped too.
+# - GitHub Actions: monthly; majors are allowed, as CI exercises every one.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /client
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     groups:
       client-minor:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: cargo
     directory: /server-rs
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     groups:
       server-minor:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
@@ -27,3 +42,6 @@ updates:
     directory: /server-rs
     schedule:
       interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
