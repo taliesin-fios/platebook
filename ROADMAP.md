@@ -10,7 +10,7 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| 1 | Release v0.3.0: online deposits and invoice payments (migration 0010), plus the P&L and the audit phase 1 fixes under `[Unreleased]`. First, one end-to-end Stripe test-mode run of both (book and pay a deposit, email and pay an invoice), then bump versions, move `[Unreleased]` to `[0.3.0]` in `CHANGELOG.md` with an upgrade note for migration 0010, and tag `v0.3.0` on `main`. | S | Next |
+| 1 | Tag `v0.3.0` on `main` once the release PR is merged (versions bumped, `[0.3.0]` in `CHANGELOG.md` with upgrade notes for migrations 0010 and 0011). Online payments ship as beta for self-hosted single-chef servers; an end-to-end Stripe test-mode run is no longer a blocker. | S | In review |
 
 ## Later: features, ordered by what chefs ask for
 
@@ -22,13 +22,14 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 ## Known limitations
 
+- **Online payments are beta, and suit one chef per server.** `PAYMENTS_MODE=stripe` uses one Stripe account for the whole server, so on a server hosting several chefs every chef's client payments would go to that one account. Payments for many chefs on one server would need each chef to connect their own Stripe account (Stripe Connect); that's not planned until chefs ask for it.
 - **The P&L has no mileage.** The first version covers revenue, ingredient costs and sales tax. Mileage needs a per-session field and a per-account rate setting (no hardcoded rate), so it is a follow-up.
 - **Allergen detection is advisory only.** It matches keywords in ingredient names (`detectAllergens`). It is not a certified check, and a chef must always confirm allergens with the client.
 
 ## Done
 
-- **P&L / tax export (merged, unreleased; ships in v0.3.0):** a monthly Profit & Loss card on the Costs page with CSV export. Cash basis, no mileage yet.
-- **v0.3 (unreleased):** clients pay the booking deposit online from their booking page and invoices from their invoice link (Stripe), with working return pages, retries that can't double-charge, the webhook marking them paid, and copyable client links for the chef.
+- **P&L / tax export (in v0.3.0):** a monthly Profit & Loss card on the Costs page with CSV export. Cash basis, no mileage yet.
+- **v0.3.0 (2026-11-04; tag after the release PR merges):** clients pay the booking deposit online from their booking page and invoices from their invoice link (Stripe), with working return pages, retries that can't double-charge, the webhook marking them paid, and copyable client links for the chef.
 - **v0.2.0 (released 2026-11-02, tag `v0.2.0` on `7c27e62`):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation. A client's booking link no longer exposes the chef's private notes. Inquiries can be deleted and restored without losing their history, and each shows its payment history. The deletion rule for every table is in `ARCHITECTURE.md`. The dashboard's Collected (MTD) tile shows a trend against the same days of last month.
 - **v0.1.1 (never published; part of v0.2.0):** failed meal-plan and invoice emails are remembered and shown with **Try again**, every email gets one automatic retry, and "today", "this month" and "overdue" follow the account's time zone.
 - **v0.1.0:** session reminder emails, recurring sessions, time-aware calendar conflicts, a real "this week" dashboard stat, a share/print/copy grocery list, and consistent margin colors.

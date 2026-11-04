@@ -1,6 +1,6 @@
 {
   "name": "chef-app-client",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Platebook React frontend",
   "type": "module",

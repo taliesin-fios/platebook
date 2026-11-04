@@ -16,7 +16,7 @@
 Platebook is for chefs who cook in clients' homes, run weekly meal prep, or cater dinner parties. Each chef gets:
 
 - **Clients:** households with allergies, dietary styles, likes and dislikes, and kitchen notes.
-- **A booking page:** your own link (`/book/<your-name>`) where new clients fill in an intake form and, optionally, pay a deposit (recorded by hand or taken through Stripe).
+- **A booking page:** your own link (`/book/<your-name>`) where new clients fill in an intake form and, optionally, pay a deposit (recorded by hand, or taken through Stripe: beta, for single-chef servers).
 - **Sessions:** a calendar with conflict warnings, sessions that repeat every 1–4 weeks, menus checked against each client's allergies, and a feasibility check on cooking time.
 - **Recipes:** a library that scales to each household's serving size. Import a recipe from a URL or pasted text (optional AI: each chef brings their own Claude, OpenAI, Gemini or other provider key), or start from a 20-recipe starter library.
 - **Grocery lists:** built from the menu and grouped by store section, ready to share, print or copy.
