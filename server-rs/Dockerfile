@@ -14,7 +14,7 @@
 # build context.
 
 # ── 1. React client (Node 20, as CI and Railway use) ────────────────────────
-FROM node:20-bookworm-slim AS client
+FROM node:26-bookworm-slim AS client
 WORKDIR /app/client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci --no-audit --no-fund
