@@ -254,7 +254,7 @@ export const APP_NAME = 'Platebook';
 export const APP_TAGLINE = 'The all-in-one kitchen office for home & personal chefs';
 /** Platebook's author and home page, credited in the app (see NOTICE). */
 export const APP_VERSION = '0.3.0';
-export const APP_AUTHOR = 'taliesin-fios';
+export const APP_AUTHOR = 'Taliesin Fios';
 export const APP_REPO_URL = 'https://github.com/taliesin-fios/platebook';
 
 // Ways a chef can describe their business during onboarding (multi-select)
