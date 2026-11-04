@@ -31,7 +31,7 @@ ts-rs = { version = "11", features = ["chrono-impl", "serde-json-impl", "no-serd
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots", "hostname"] }
 chacha20poly1305 = "0.10"
-hmac = "0.12"
+hmac = "0.13"
 sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
