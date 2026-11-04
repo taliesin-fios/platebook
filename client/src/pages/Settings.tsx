@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import AiSettings from '../components/AiSettings';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
-import { SettingsContext } from '../App';
+import { SettingsContext, useAuth } from '../App';
 import { SERVICE_TYPES, APP_AUTHOR, APP_NAME, APP_REPO_URL, APP_TAGLINE, APP_VERSION, bookingUrl, dollarsToCents, centsToDollars, TIMEZONE_OPTIONS, browserTimeZone } from '../constants';
 import type { Settings as SettingsData } from '../types';
 
@@ -22,6 +22,7 @@ const SectionHeader = ({ children }: { children: ReactNode }) => (
 export default function Settings() {
   const { show } = useToast();
   const { refreshSettings } = useContext(SettingsContext);
+  const { logout } = useAuth();
   const [settings,     setSettings]     = useState<SettingsData | null>(null);
   const [deposit,      setDeposit]      = useState('0');
   const [clearConfirm, setClearConfirm] = useState(false);
@@ -390,6 +391,11 @@ export default function Settings() {
 
         <button onClick={handleSave} disabled={saving} className="w-full py-3.5 bg-navy text-white rounded-xl font-semibold text-base disabled:opacity-60">
           {saving ? 'Saving...' : 'Save Settings'}
+        </button>
+
+        {/* Phones: the bottom bar has no room for Sign Out, so it lives here (desktop has it in the side nav). */}
+        <button onClick={logout} className="md:hidden w-full py-3.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold text-base">
+          Sign Out
         </button>
       </div>
 

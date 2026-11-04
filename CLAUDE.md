@@ -14,7 +14,7 @@ npm --prefix client test          # vitest
 npm --prefix client run build     # type-checks (tsc), then vite build; no warnings (incl. the 500 kB chunk warning)
 # in server-rs/ (node server-rs/scripts/cargo.mjs <args> finds cargo when it isn't on the PATH):
 cargo fmt --check
-cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets -- -D warnings   # with Postgres down, prefix SQLX_OFFLINE=true (else the query! macros fail)
 cargo test                        # throwaway Postgres DB per test; regenerates client/src/types/generated/ (commit it)
 npm run test:http                 # tests/http: api.smoke / auth / tenancy against a fresh server-rs
 npm run test:migrate              # tools/migrate-sqlite: conversion tests + end-to-end migration into server-rs

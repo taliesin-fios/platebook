@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router';
-import { useAuth } from '../App';
 import { localTodayStr } from '../utils/dateUtils';
 
 interface IconProps {
@@ -43,6 +42,15 @@ const RecipeIcon = ({ filled }: IconProps) => (
   </svg>
 );
 
+const InvoiceIcon = ({ filled }: IconProps) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+  </svg>
+);
+
 const CostIcon = ({ filled }: IconProps) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
     <line x1="12" y1="1" x2="12" y2="23" />
@@ -55,13 +63,13 @@ const TABS = [
   { path: '/clients', label: 'Clients', Icon: ClientIcon },
   { path: '/sessions', label: 'Sessions', Icon: CalendarIcon },
   { path: '/recipes', label: 'Recipes', Icon: RecipeIcon },
+  { path: '/invoices', label: 'Invoices', Icon: InvoiceIcon },
   { path: '/costs', label: 'Costs', Icon: CostIcon },
 ];
 
 export default function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
   const [upcomingCount, setUpcomingCount] = useState(0);
 
   // C8: use AbortController so the fetch is cancelled when the component unmounts
@@ -103,15 +111,6 @@ export default function BottomNav() {
           </button>
         );
       })}
-      {/* Sign out */}
-      <button className="bottom-nav-item inactive" onClick={logout}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-          <polyline points="16 17 21 12 16 7"/>
-          <line x1="21" y1="12" x2="9" y2="12"/>
-        </svg>
-        <span className="text-[11px] font-medium">Sign Out</span>
-      </button>
     </nav>
   );
 }
