@@ -26,6 +26,7 @@ Local Node is 24; CI uses Node 20 for the client (`engines: 20.x`). Don't use No
 
 ## Git, PRs and deploys
 
+- Commit authorship: the author of every commit is the maintainer, `taliesin-fios <273487487+taliesin-fios@users.noreply.github.com>`. Never set Claude or another AI tool as the commit author or committer (no `--author`, no `GIT_AUTHOR_*` / `GIT_COMMITTER_*` pointing at it); credit AI help only with a `Co-Authored-By:` trailer. If git has no identity configured, pass the maintainer's with `git -c user.name=… -c user.email=…`. Never use any other email address of the maintainer's.
 - Never push to `main` directly. Work on a branch, open a PR, merge only when the maintainer says so. If a change adds a migration in `server-rs/migrations/`, say so in the PR.
 - CI (`.github/workflows/ci.yml`) lints, tests and builds the client on Node 20 and runs fmt, clippy, cargo test and the HTTP suites. Still run them locally before pushing.
 - `.db` files and `.env` files (`server-rs/.env`, and `server/.env` in older checkouts) are gitignored and may hold real data and secrets. Never commit them, never delete them, never print `.env` values. Open a legacy SQLite file read-only, and only through the migrator. Test fixtures are SQL text with synthetic data only.
