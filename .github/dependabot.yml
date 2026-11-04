@@ -1,0 +1,29 @@
+# Weekly dependency update PRs. Minor and patch bumps are grouped into one PR
+# per ecosystem so they don't flood the queue; majors come one at a time.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+    groups:
+      client-minor:
+        update-types: [minor, patch]
+
+  - package-ecosystem: cargo
+    directory: /server-rs
+    schedule:
+      interval: weekly
+    groups:
+      server-minor:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: docker
+    directory: /server-rs
+    schedule:
+      interval: monthly
