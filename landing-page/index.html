@@ -93,6 +93,7 @@
       <div class="nav-links">
         <a href="#features" class="hide-sm">Features</a>
         <a href="#how" class="hide-sm">How it works</a>
+        <a href="#self-host" class="hide-sm">Self-host</a>
         <a data-app-path="/login" href="/login">Sign in</a>
         <a data-app-path="/signup" href="/signup" class="btn btn-primary btn-small">Get started</a>
       </div>
@@ -108,7 +109,7 @@
       </p>
       <div class="ctas">
         <a data-app-path="/signup" href="/signup" class="btn btn-primary">Create your account</a>
-        <a href="#features" class="btn btn-ghost">See what’s inside</a>
+        <a href="#self-host" class="btn btn-ghost">Self-host it free</a>
       </div>
       <div class="who">
         <span>🏡 In-home personal chefs</span>
@@ -156,7 +157,7 @@
         <ul>
           <li>Plan menus that share ingredients to cut grocery cost and waste</li>
           <li>Scale any recipe to the household’s serving size</li>
-          <li>Never miss an allergy: flagged on every dish and menu</li>
+          <li>Allergens flagged on every dish and menu, so nothing slips past you (always confirm with your client)</li>
           <li>Works on your phone in a client’s kitchen</li>
           <li>Your clients and data are private to your account, exportable any time</li>
         </ul>
@@ -172,6 +173,25 @@
     </div>
   </section>
 
+  <section id="self-host">
+    <div class="wrap">
+      <div class="eyebrow">Run it yourself</div>
+      <h2>Free to self-host, source on GitHub</h2>
+      <div class="grid">
+        <div class="card"><h3>One Docker Compose file</h3><p>The app and its Postgres database run together. Put HTTPS in front and you’re live.</p></div>
+        <div class="card"><h3>Your data, your server</h3><p>Host one chef or a whole team. Each account’s data is kept apart by Postgres row-level security.</p></div>
+        <div class="card"><h3>Bring your own AI</h3><p>AI features are optional. Each chef adds their own Claude, OpenAI, Gemini or other key.</p></div>
+      </div>
+      <p style="text-align:center;margin-top:28px">
+        <a href="https://github.com/taliesin-fios/platebook" class="btn btn-ghost">View on GitHub</a>
+      </p>
+      <p style="text-align:center;margin-top:16px;font-size:0.9rem;color:var(--gray)">
+        Source-available under the <a href="https://polyformproject.org/licenses/shield/1.0.0">PolyForm Shield License 1.0.0</a>:
+        free to use, change and self-host, including for your own paid chef business. Not for resale.
+      </p>
+    </div>
+  </section>
+
   <section class="cta-banner">
     <div class="wrap">
       <h2>Spend less time on admin and more time cooking</h2>
@@ -181,7 +201,7 @@
   </section>
 
   <footer>
-    <div class="wrap">© <span id="year"></span> Platebook · <a data-app-path="/login" href="/login">Sign in</a></div>
+    <div class="wrap">© <span id="year"></span> Platebook · <a href="https://github.com/taliesin-fios/platebook">GitHub</a> · <a data-app-path="/login" href="/login">Sign in</a></div>
   </footer>
 
   <script>
