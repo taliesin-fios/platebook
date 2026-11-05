@@ -2,17 +2,19 @@
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
 import { useState, type ChangeEvent, type FormEvent } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import AuthLayout, { Field, PrimaryButton, Alert } from '../components/AuthLayout';
 import { apiCall, errorMessage } from '../hooks/useApi';
-import { useSignupOpen } from '../hooks/useSignupOpen';
+import { useSignupStatus } from '../hooks/useSignupOpen';
 import { PASSWORD_MIN_LENGTH } from '../constants';
 
 export default function Signup() {
   const [form, setForm] = useState({ business_name: '', email: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const signupOpen = useSignupOpen();
+  const [searchParams] = useSearchParams();
+  const invite = (searchParams.get('invite') || '').trim();
+  const status = useSignupStatus(invite);
   const set = (k: keyof typeof form) => (e: ChangeEvent<HTMLInputElement>) => setForm(prev => ({ ...prev, [k]: e.target.value }));
 
   const handleSubmit = async (e: FormEvent) => {
@@ -24,7 +26,7 @@ export default function Signup() {
     }
     setBusy(true);
     try {
-      await apiCall('/api/auth/signup', 'POST', form);
+      await apiCall('/api/auth/signup', 'POST', invite ? { ...form, invite } : form);
       // Full reload so the auth gate picks up the new session cookie
       window.location.href = '/onboarding';
     } catch (err) {
@@ -33,12 +35,31 @@ export default function Signup() {
     }
   };
 
-  if (!signupOpen) {
+  if (!status.open) {
+    const signIn = <>Already have an account? <Link to="/login" className="font-semibold text-green-dark">Sign in</Link></>;
+    if (status.invite_only && invite) {
+      return (
+        <AuthLayout
+          title="This invite link doesn't work"
+          subtitle="It may have been used already, revoked or expired. Ask whoever sent it for a new one."
+          footer={signIn}
+        />
+      );
+    }
+    if (status.invite_only) {
+      return (
+        <AuthLayout
+          title="Sign-up is by invitation"
+          subtitle="New accounts need an invite link. If you've been sent one, open it to create your account."
+          footer={signIn}
+        />
+      );
+    }
     return (
       <AuthLayout
         title="Sign-up is closed"
         subtitle="This server isn't taking new accounts. If you should have one, ask its owner."
-        footer={<>Already have an account? <Link to="/login" className="font-semibold text-green-dark">Sign in</Link></>}
+        footer={signIn}
       />
     );
   }

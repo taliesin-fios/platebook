@@ -5,9 +5,14 @@
  */
 export type SignupStatus = { 
 /**
- * Whether `SIGNUP_MODE` lets a new account be created now.
+ * Whether `SIGNUP_MODE` lets a new account be created now. With
+ * `SIGNUP_MODE=invite`, whether the `?invite=` token is an open invite.
  */
 open: boolean, 
+/**
+ * `SIGNUP_MODE=invite`: sign-up needs a one-time invite link.
+ */
+invite_only: boolean, 
 /**
  * Whether "Try the demo" (`POST /api/auth/demo`) is available.
  */

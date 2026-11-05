@@ -3,7 +3,7 @@
 
 //! Port of `server/routes/auth.js` (accounts: email + password, magic link).
 //!
-//! GET  /api/auth/signup          — { open }: may a new account be created (SIGNUP_MODE)
+//! GET  /api/auth/signup          — { open, invite_only }: may a new account be created (SIGNUP_MODE; ?invite=)
 //! POST /api/auth/signup          — create an account (+ settings row), sign in
 //! POST /api/auth/login           — email + password
 //! POST /api/auth/request-link    — email a one-click magic login link
@@ -35,6 +35,7 @@ use crate::config::SignupMode;
 use crate::demo::DEMO_EMAIL;
 use crate::email;
 use crate::error::{AppError, AppResult, is_unique_violation};
+use crate::invites::{self, Refused};
 use crate::rate_limit::ClientIp;
 use crate::routes::JsonBody;
 use crate::state::AppState;
@@ -100,8 +101,11 @@ pub struct DemoInfo {
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
 pub struct SignupStatus {
-    /// Whether `SIGNUP_MODE` lets a new account be created now.
+    /// Whether `SIGNUP_MODE` lets a new account be created now. With
+    /// `SIGNUP_MODE=invite`, whether the `?invite=` token is an open invite.
     pub open: bool,
+    /// `SIGNUP_MODE=invite`: sign-up needs a one-time invite link.
+    pub invite_only: bool,
     /// Whether "Try the demo" (`POST /api/auth/demo`) is available.
     pub demo: bool,
 }
@@ -195,21 +199,37 @@ fn email_taken() -> AppError {
 }
 
 // ── GET /api/auth/signup ─────────────────────────────────────────────────────
-/// `{ open }`: whether `SIGNUP_MODE` lets a new account be created now, so the
-/// client can hide its sign-up links.
-async fn signup_status(State(state): State<AppState>) -> AppResult<Response> {
+/// `{ open, invite_only, demo }`: whether `SIGNUP_MODE` lets a new account be
+/// created now, so the client can hide its sign-up links. In invite mode the
+/// client passes the link's `?invite=` token to learn whether it still works.
+async fn signup_status(
+    State(state): State<AppState>,
+    Query(q): Query<HashMap<String, String>>,
+) -> AppResult<Response> {
+    let mode = state.config.signup_mode;
     let mut conn = state.pool.acquire().await?;
-    let open = signup_open(state.config.signup_mode, &mut conn).await?;
+    let open = if mode == SignupMode::Invite {
+        let token = q.get("invite").map(String::as_str).unwrap_or("");
+        invites::is_open(&mut conn, token).await?
+    } else {
+        signup_open(mode, &mut conn).await?
+    };
     let demo = state.config.demo.enabled && state.demo.account_id().is_some();
-    Ok(Json(SignupStatus { open, demo }).into_response())
+    Ok(Json(SignupStatus {
+        open,
+        invite_only: mode == SignupMode::Invite,
+        demo,
+    })
+    .into_response())
 }
 
 /// `first` allows sign-up only while the server has no account at all (the
-/// demo account doesn't count).
+/// demo account doesn't count). `invite` never allows an open sign-up: each
+/// one needs an invite.
 async fn signup_open(mode: SignupMode, conn: &mut PgConnection) -> Result<bool, sqlx::Error> {
     Ok(match mode {
         SignupMode::Open => true,
-        SignupMode::Closed => false,
+        SignupMode::Closed | SignupMode::Invite => false,
         SignupMode::First => {
             !sqlx::query_scalar::<_, bool>(
                 "SELECT EXISTS (SELECT 1 FROM accounts WHERE lower(email) <> $1)",
@@ -219,6 +239,21 @@ async fn signup_open(mode: SignupMode, conn: &mut PgConnection) -> Result<bool, 
             .await?
         }
     })
+}
+
+fn invite_refused(why: Refused) -> AppError {
+    match why {
+        Refused::NotOpen => AppError::new(
+            StatusCode::FORBIDDEN,
+            "INVITE_INVALID",
+            "This invite link doesn't work any more: it may have been used, revoked or expired. Ask for a new one.",
+        ),
+        Refused::WrongEmail => AppError::new(
+            StatusCode::FORBIDDEN,
+            "INVITE_EMAIL_MISMATCH",
+            "This invite is for a different email address. Sign up with the address it was sent to.",
+        ),
+    }
 }
 
 fn signup_closed() -> AppError {
@@ -259,8 +294,14 @@ async fn signup_inner(state: &AppState, body: JsonBody) -> AppResult<Response> {
     }
 
     let mode = state.config.signup_mode;
+    let invite = body.str("invite");
     let mut conn = state.pool.acquire().await?;
-    if !signup_open(mode, &mut conn).await? {
+    if mode == SignupMode::Invite {
+        // Checked again, under a row lock, in the transaction below.
+        if !invites::is_open(&mut conn, &invite).await? {
+            return Err(invite_refused(Refused::NotOpen));
+        }
+    } else if !signup_open(mode, &mut conn).await? {
         return Err(signup_closed());
     }
     if accounts::find_by_email(&mut conn, &email).await?.is_some() {
@@ -280,6 +321,14 @@ async fn signup_inner(state: &AppState, body: JsonBody) -> AppResult<Response> {
             return Err(signup_closed());
         }
     }
+    let invite_id = if mode == SignupMode::Invite {
+        match invites::claim(&mut tx, &invite, &email).await? {
+            Ok(id) => Some(id),
+            Err(why) => return Err(invite_refused(why)),
+        }
+    } else {
+        None
+    };
     let account = match accounts::create_account(&mut tx, &email, Some(&hash), &business_name).await
     {
         Ok(a) => a,
@@ -288,6 +337,9 @@ async fn signup_inner(state: &AppState, body: JsonBody) -> AppResult<Response> {
         }
         Err(err) => return Err(err.into()),
     };
+    if let Some(id) = invite_id {
+        invites::mark_used(&mut tx, id, account.id).await?;
+    }
     tx.commit().await?;
     touch_login(state, account.id).await?;
     Ok(signed_in(state, StatusCode::CREATED, &account))

@@ -99,9 +99,10 @@ React page
 Every chef business is an `accounts` row (`email`, bcrypt `password_hash`, public `slug`, `onboarding_completed_at`).
 
 ```
-Sign up   POST /api/auth/signup {email, password, business_name} → account + settings row, session cookie
-          SIGNUP_MODE=open (default) | first (only while no account exists) | closed → 403 SIGNUP_CLOSED;
-          GET /api/auth/signup → { open, demo } so the client hides its sign-up links
+Sign up   POST /api/auth/signup {email, password, business_name, invite?} → account + settings row, session cookie
+          SIGNUP_MODE=open (default) | first (only while no account exists) | closed → 403 SIGNUP_CLOSED
+          | invite (needs a one-time link from `chef-server invite create`) → 403 INVITE_INVALID / INVITE_EMAIL_MISMATCH;
+          GET /api/auth/signup[?invite=] → { open, invite_only, demo } so the client hides its sign-up links
 Demo      DEMO_MODE=true: POST /api/auth/demo signs in to a shared account (demo@platebook.invalid, no
           password) that server-rs/src/demo.rs wipes and reseeds on start and every DEMO_RESET_HOURS.
           It sends no email, can't save AI keys and doesn't count for SIGNUP_MODE=first.
@@ -174,6 +175,7 @@ draft ──→ sent ──→ paid
 | `accounts` | One row per chef business: login email, password hash, booking slug, onboarding state |
 | `settings` | Per-account business config and booking policy (`account_id` primary key) |
 | `used_jtis`, `rate_limit_hits` | Single-use token ids and rate-limit windows shared across instances (no tenant data) |
+| `signup_invites` | One-time sign-up invites for `SIGNUP_MODE=invite` (token SHA-256, optional email, expiry, used/revoked). Server-wide, read before any account exists; `chef_app` has no access. Rows are kept as a record (revoking sets `revoked_at`) |
 
 ### What "delete" does, per table
 
@@ -229,7 +231,7 @@ Public (no cookie required; `req.account` is still set when signed in):
 |---|---|
 | POST | `/api/auth/signup`, `/login`, `/request-link`, `/forgot-password`, `/reset-password`, `/logout` |
 | POST | `/api/auth/demo` (signs in to the shared demo account; 404 unless `DEMO_MODE=true`; rate-limited like login) |
-| GET | `/api/auth/verify`, `/api/auth/signup` (`{ open, demo }`: may an account be created now, per `SIGNUP_MODE`, and is there a demo) |
+| GET | `/api/auth/verify`, `/api/auth/signup` (`{ open, invite_only, demo }`: may an account be created now, per `SIGNUP_MODE` (`?invite=` checks an invite link), and is there a demo) |
 | GET | `/api/public/:slug/settings` |
 | GET | `/api/settings/public` (legacy: account #1) |
 | POST | `/api/intake` |

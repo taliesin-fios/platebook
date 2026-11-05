@@ -133,7 +133,7 @@ All configuration lives in `server-rs/.env` (gitignored). The annotated template
 | `DATABASE_URL` | **Yes** | Postgres connection URL (the server runs migrations on start) |
 | `JWT_SECRET` | **Yes** (prod) | Signs session JWTs and one-time sign-in / password-reset links |
 | `INTAKE_SECRET` | **Yes** (prod) | Signs HMAC tokens for client intake edit links |
-| `SIGNUP_MODE` | Optional | `open` (default) / `first` (only while no account exists) / `closed` |
+| `SIGNUP_MODE` | Optional | `open` (default) / `first` (only while no account exists) / `invite` (one-time links from `chef-server invite create`) / `closed` |
 | `DEMO_MODE` | Optional | `true` adds a public **Try the demo** button: a shared account filled with sample clients, sessions and invoices that resets on its own and never sends email (see `docs/SELF_HOSTING.md`). Off by default |
 | `DEMO_RESET_HOURS` | Optional | How often the demo is wiped and reseeded, 1–168 (default `24`). It also resets when the server starts |
 | `NODE_ENV` | Optional | `production` hides internal error details and requires `JWT_SECRET` |

@@ -16,6 +16,7 @@ pub mod demo;
 pub mod email;
 pub mod error;
 pub mod intake_token;
+pub mod invites;
 pub mod js;
 pub mod llm;
 pub mod models;

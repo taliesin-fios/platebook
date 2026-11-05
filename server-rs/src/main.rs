@@ -18,6 +18,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let config = Config::from_env()?;
+
+    // `chef-server invite …`: manage sign-up invites, then exit (no server).
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("invite") {
+        let pool = db::connect(&config.database_url).await?;
+        match chef_server::invites::run_cli(&pool, &config.client_url, &args[1..]).await {
+            Ok(out) => {
+                println!("{out}");
+                return Ok(());
+            }
+            Err(msg) => {
+                eprintln!("{msg}");
+                std::process::exit(2);
+            }
+        }
+    }
+
     tracing::info!(?config, "starting");
 
     let pool = db::connect(&config.database_url).await?;

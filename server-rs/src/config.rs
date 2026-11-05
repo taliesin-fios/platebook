@@ -127,11 +127,13 @@ impl PaymentsMode {
 }
 
 /// `SIGNUP_MODE`: `open` (default), `first` (only while the server has no
-/// account, for a single chef on their own server) or `closed`.
+/// account, for a single chef on their own server), `invite` (only with a
+/// one-time link from `chef-server invite create`) or `closed`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SignupMode {
     Open,
     First,
+    Invite,
     Closed,
 }
 
@@ -140,6 +142,7 @@ impl SignupMode {
         match v {
             None | Some("open") => Ok(Self::Open),
             Some("first") => Ok(Self::First),
+            Some("invite") => Ok(Self::Invite),
             Some("closed") => Ok(Self::Closed),
             Some(_) => Err(ConfigError::Invalid("SIGNUP_MODE")),
         }
@@ -368,6 +371,11 @@ mod tests {
             SignupMode::Closed
         );
         assert!(SignupMode::parse(Some("Closed")).is_err());
+        assert_eq!(
+            SignupMode::parse(Some("invite")).unwrap(),
+            SignupMode::Invite
+        );
+        assert!(SignupMode::parse(Some("invites")).is_err());
     }
 
     #[test]
@@ -382,6 +390,5 @@ mod tests {
         assert!(DemoConfig::parse(Some("true"), Some("0")).is_err());
         assert!(DemoConfig::parse(Some("true"), Some("169")).is_err());
         assert!(DemoConfig::parse(Some("true"), Some("12h")).is_err());
-        assert!(SignupMode::parse(Some("invite")).is_err());
     }
 }

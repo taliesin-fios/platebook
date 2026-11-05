@@ -15,7 +15,7 @@ describe('signup', () => {
   test('reports whether sign-up is open, without a session', async () => {
     const res = await request(app).get('/api/auth/signup');
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { open: true, demo: false }); // SIGNUP_MODE defaults to open, DEMO_MODE to off
+    assert.deepEqual(res.body, { open: true, invite_only: false, demo: false }); // SIGNUP_MODE defaults to open, DEMO_MODE to off
   });
 
   test('has no demo to sign in to unless DEMO_MODE is on', async () => {
