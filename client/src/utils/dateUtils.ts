@@ -51,3 +51,18 @@ export function fmtUtcTimestamp(ts: string | null | undefined, fmt: string, fall
     return fallback;
   }
 }
+
+/**
+ * "in about 5 hours" / "in under an hour" until a `YYYY-MM-DD HH:MM:SS` UTC
+ * timestamp; `fallback` when it's missing, unreadable or already past.
+ */
+export function fmtTimeUntilUtc(ts: string | null | undefined, fallback: string, now: Date = new Date()): string {
+  if (!ts) return fallback;
+  const iso = String(ts).replace(' ', 'T') + (String(ts).endsWith('Z') ? '' : 'Z');
+  const ms = new Date(iso).getTime() - now.getTime();
+  if (!Number.isFinite(ms) || ms <= 0) return fallback;
+  const hours = Math.round(ms / 3_600_000);
+  if (hours < 1) return 'in under an hour';
+  if (hours < 48) return `in about ${hours} hour${hours === 1 ? '' : 's'}`;
+  return `in about ${Math.round(hours / 24)} days`;
+}

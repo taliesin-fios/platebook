@@ -2,7 +2,7 @@
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, fmtSessionDate, fmtUtcTimestamp, localTodayStr, localDateStrOffset } from './dateUtils';
+import { parseLocalDate, fmtSessionDate, fmtUtcTimestamp, fmtTimeUntilUtc, localTodayStr, localDateStrOffset } from './dateUtils';
 
 describe('parseLocalDate', () => {
   it('anchors a date-only string to local noon, not UTC midnight', () => {
@@ -87,5 +87,20 @@ describe('localDateStrOffset', () => {
   });
   it('accepts negative offsets', () => {
     expect(localDateStrOffset(-1, new Date(2026, 0, 1, 12))).toBe('2025-12-31');
+  });
+});
+
+describe('fmtTimeUntilUtc', () => {
+  const now = new Date(Date.UTC(2026, 10, 5, 12, 0, 0));
+  it('rounds to hours, then days', () => {
+    expect(fmtTimeUntilUtc('2026-11-05 17:10:00', 'soon', now)).toBe('in about 5 hours');
+    expect(fmtTimeUntilUtc('2026-11-05 13:00:00', 'soon', now)).toBe('in about 1 hour');
+    expect(fmtTimeUntilUtc('2026-11-05 12:20:00', 'soon', now)).toBe('in under an hour');
+    expect(fmtTimeUntilUtc('2026-11-09 12:00:00', 'soon', now)).toBe('in about 4 days');
+  });
+  it('falls back when missing or past', () => {
+    expect(fmtTimeUntilUtc(null, 'soon', now)).toBe('soon');
+    expect(fmtTimeUntilUtc('2026-11-05 11:00:00', 'soon', now)).toBe('soon');
+    expect(fmtTimeUntilUtc('not a date', 'soon', now)).toBe('soon');
   });
 });

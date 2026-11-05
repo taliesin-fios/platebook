@@ -104,6 +104,15 @@ Each account is a separate chef business. Its clients, recipes and money are pri
 - `closed`: no new accounts. Existing ones keep working.
 - `open`: anyone who can reach the server can sign up. Use it only if you mean to host other chefs, and remember the license: you may not offer Platebook as a paid or competing service (see [LICENSE](../LICENSE)).
 
+## A public demo
+
+To show Platebook to others (a portfolio link, a demo for a chef you're talking to), set `DEMO_MODE=true`. The welcome and sign-in pages then offer **Try the demo**, which opens a shared account, "Demo Kitchen", without a password. It holds the starter recipes, five sample clients, two months of sessions, invoices (paid, sent, overdue and a draft) and three booking inquiries, all dated around today.
+
+- Visitors can change anything. On start and every `DEMO_RESET_HOURS` (default 24) the server wipes the demo's data and seeds it again. A banner in the app says when.
+- The demo never sends email: emailing an invoice or meal plan is refused, and booking-page confirmations and reminders for it are dropped. It can't save AI keys either.
+- It has no password, so it can't be signed in to any other way, and it doesn't count as the first account for `SIGNUP_MODE=first`. Your own account and data are separate from it, as with any two accounts.
+- Use `SIGNUP_MODE=first` or `closed` on a demo server unless you want visitors to create accounts of their own.
+
 ## Your responsibilities
 
 A self-hosted server holds your clients' names, addresses, allergies and payment records. Keep the server patched, keep backups off the machine, use strong secrets, and follow the privacy rules that apply where you work. Allergen detection in Platebook is keyword-based and advisory only. Always confirm allergies with the client.

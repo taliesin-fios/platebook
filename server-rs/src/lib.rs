@@ -12,6 +12,7 @@ pub mod auth;
 pub mod backup;
 pub mod config;
 pub mod db;
+pub mod demo;
 pub mod email;
 pub mod error;
 pub mod intake_token;

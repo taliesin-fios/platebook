@@ -7,6 +7,7 @@ import { ToastProvider } from './components/Toast';
 import BottomNav from './components/BottomNav';
 import SideNav from './components/SideNav';
 import ErrorBoundary from './components/ErrorBoundary';
+import DemoBanner from './components/DemoBanner';
 import { APP_NAME } from './constants';
 import type { AppSettings, Chef, Settings } from './types';
 // Login and Welcome are loaded eagerly — they're the first thing an
@@ -177,6 +178,7 @@ function ChefShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <SideNav />
       <div className="app-content-col">
+        <DemoBanner />
         <main className="app-main">
           <ErrorBoundary resetKey={location.key}>{children}</ErrorBoundary>
         </main>

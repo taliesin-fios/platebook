@@ -29,6 +29,8 @@ pub struct AppState {
     pub ai_http: reqwest::Client,
     /// Mail recorded instead of sent when SMTP isn't configured.
     pub outbox: Arc<crate::email::Outbox>,
+    /// The public demo account, when `DEMO_MODE=true` (see `demo.rs`).
+    pub demo: Arc<crate::demo::DemoState>,
 }
 
 impl AppState {
@@ -55,6 +57,7 @@ impl AppState {
                 .build()
                 .expect("AI HTTP client"),
             outbox: Arc::new(crate::email::Outbox::default()),
+            demo: Arc::new(crate::demo::DemoState::default()),
         }
     }
 }

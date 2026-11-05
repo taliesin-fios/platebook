@@ -7,6 +7,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Public demo (`DEMO_MODE=true`).** The welcome and sign-in pages offer **Try the demo**: one click opens a shared account ("Demo Kitchen", `demo@platebook.invalid`, no password) filled with the starter recipes, five sample clients with allergies, about two months of sessions with grocery lists, invoices in every state and three booking inquiries, dated around today. A banner says it's a demo and when it resets. The server wipes and reseeds it on start and every `DEMO_RESET_HOURS` (default 24), in one transaction, leaving every other account untouched. The demo sends no email (emailing invoices and meal plans returns `403 DEMO_DISABLED`; its booking confirmations and reminders are dropped), can't save AI keys, can't be signed in to with a password or link, and doesn't count for `SIGNUP_MODE=first`. New public route `POST /api/auth/demo` (rate-limited like login); `GET /api/auth/signup` now returns `{ open, demo }`, and `/api/auth/me` includes `demo` (reset schedule) only for the demo account. No migration.
+
 ### Changed
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 

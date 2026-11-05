@@ -104,6 +104,7 @@ fn transport(config: &Config) -> Result<AsyncSmtpTransport<Tokio1Executor>, Emai
 
 /// Per-account limit on the routes that email a client (`acct.email`).
 pub async fn check_limit(state: &AppState, account_id: i64) -> Result<(), AppError> {
+    crate::demo::refuse(state, account_id, "Email")?;
     state
         .account_limits
         .email
@@ -112,8 +113,18 @@ pub async fn check_limit(state: &AppState, account_id: i64) -> Result<(), AppErr
         .map_err(|e| e.with_code())
 }
 
-/// Core send. Falls back to logging + the outbox if SMTP isn't configured.
-pub async fn send(state: &AppState, email: OutgoingEmail) -> Result<(), EmailError> {
+/// Core send for `account_id`'s mail. Falls back to logging + the outbox if
+/// SMTP isn't configured. Mail for the demo account is dropped: anyone can
+/// use the demo, so it must not reach real inboxes.
+pub async fn send(
+    state: &AppState,
+    account_id: i64,
+    email: OutgoingEmail,
+) -> Result<(), EmailError> {
+    if state.demo.is_demo(account_id) {
+        tracing::info!(subject = %email.subject, "[demo] email not sent");
+        return Ok(());
+    }
     let config = &state.config;
     if !config.email_configured() {
         if !config.production {
@@ -361,6 +372,7 @@ pub async fn send_intake_confirmation(
     );
     send(
         state,
+        account_id,
         OutgoingEmail {
             to: email.to_string(),
             reply_to: s.email.clone().filter(|e| !e.is_empty()),
@@ -445,6 +457,7 @@ pub async fn send_meal_plan_pdf(state: &AppState, m: MealPlan<'_>) -> Result<(),
         .collect();
     send(
         state,
+        m.account_id,
         OutgoingEmail {
             to: m.client_email.to_string(),
             reply_to: s.email.clone().filter(|e| !e.is_empty()),
@@ -599,6 +612,7 @@ pub async fn send_invoice_pdf(state: &AppState, m: InvoiceMail<'_>) -> Result<()
     let attachments = vec![(format!("invoice-{safe}.pdf"), m.pdf)];
     send(
         state,
+        m.account_id,
         OutgoingEmail {
             to: m.client_email.to_string(),
             reply_to: s.email.clone().filter(|e| !e.is_empty()),
@@ -698,6 +712,7 @@ pub async fn send_client_reminder(state: &AppState, r: &Reminder<'_>) -> Result<
     );
     send(
         state,
+        r.account_id,
         OutgoingEmail {
             to: to.to_string(),
             reply_to: (!biz_email.is_empty()).then_some(biz_email),
@@ -803,6 +818,7 @@ pub async fn send_chef_reminder(state: &AppState, r: &Reminder<'_>) -> Result<()
     ));
     send(
         state,
+        r.account_id,
         OutgoingEmail {
             to: chef_email,
             reply_to: None,
@@ -906,6 +922,7 @@ pub async fn send_chef_new_intake(
     text.push_str(&format!("\nReview the inquiry: {full}"));
     send(
         state,
+        account_id,
         OutgoingEmail {
             to: chef_email,
             reply_to: None,
@@ -959,6 +976,7 @@ pub async fn send_magic_link(
     );
     send(
         state,
+        account_id,
         OutgoingEmail {
             to: email.to_string(),
             reply_to: None,
@@ -1007,6 +1025,7 @@ pub async fn send_password_reset(
     );
     send(
         state,
+        account_id,
         OutgoingEmail {
             to: email.to_string(),
             reply_to: None,

@@ -10,6 +10,7 @@
 //! GET  /api/auth/verify          — validate magic link, set session cookie, redirect /
 //! POST /api/auth/forgot-password — email a password-reset link
 //! POST /api/auth/reset-password  — set a new password from a reset token, sign in
+//! POST /api/auth/demo           — sign in to the shared demo account (DEMO_MODE)
 //! GET  /api/auth/me              — current account (protected)
 //! POST /api/auth/logout          — clear session cookie
 
@@ -31,6 +32,7 @@ use ts_rs::TS;
 use crate::accounts::{self, AccountRow};
 use crate::auth::{self, Account, TokenError, clear_cookie, session_cookie};
 use crate::config::SignupMode;
+use crate::demo::DEMO_EMAIL;
 use crate::email;
 use crate::error::{AppError, AppResult, is_unique_violation};
 use crate::rate_limit::ClientIp;
@@ -60,6 +62,7 @@ pub fn router() -> Router<AppState> {
         .route("/verify", get(verify))
         .route("/forgot-password", post(forgot_password))
         .route("/reset-password", post(reset_password))
+        .route("/demo", post(demo_login))
         .route("/me", get(me))
         .route("/logout", post(logout))
 }
@@ -78,6 +81,19 @@ pub struct ChefAccount {
     /// Public booking-link slug (`/book/:slug`).
     pub slug: String,
     pub onboarding_completed: bool,
+    /// Only on the shared demo account (`DEMO_MODE`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub demo: Option<DemoInfo>,
+}
+
+/// The demo account's reset schedule, for the in-app banner.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct DemoInfo {
+    pub reset_hours: u32,
+    /// `YYYY-MM-DD HH:MM:SS` UTC.
+    pub next_reset_at: Option<String>,
 }
 
 /// GET /api/auth/signup.
@@ -86,6 +102,8 @@ pub struct ChefAccount {
 pub struct SignupStatus {
     /// Whether `SIGNUP_MODE` lets a new account be created now.
     pub open: bool,
+    /// Whether "Try the demo" (`POST /api/auth/demo`) is available.
+    pub demo: bool,
 }
 
 /// POST /api/auth/request-link and /api/auth/forgot-password.
@@ -100,12 +118,19 @@ pub struct LinkSentResponse {
     pub dev_link: Option<String>,
 }
 
-fn account_json(a: &AccountRow) -> ChefAccount {
+fn account_json(state: &AppState, a: &AccountRow) -> ChefAccount {
     ChefAccount {
         id: a.id,
         email: a.email.clone(),
         slug: a.slug.clone(),
         onboarding_completed: a.onboarding_completed_at.is_some(),
+        demo: state.demo.is_demo(a.id).then(|| DemoInfo {
+            reset_hours: state.config.demo.reset_hours,
+            next_reset_at: state
+                .demo
+                .next_reset()
+                .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string()),
+        }),
     }
 }
 
@@ -119,7 +144,7 @@ fn signed_in(state: &AppState, status: StatusCode, account: &AccountRow) -> Resp
         &state.config.jwt_secret,
         state.config.production,
     );
-    let mut res = (status, Json(account_json(account))).into_response();
+    let mut res = (status, Json(account_json(state, account))).into_response();
     res.headers_mut().append(header::SET_COOKIE, cookie);
     res
 }
@@ -175,18 +200,23 @@ fn email_taken() -> AppError {
 async fn signup_status(State(state): State<AppState>) -> AppResult<Response> {
     let mut conn = state.pool.acquire().await?;
     let open = signup_open(state.config.signup_mode, &mut conn).await?;
-    Ok(Json(SignupStatus { open }).into_response())
+    let demo = state.config.demo.enabled && state.demo.account_id().is_some();
+    Ok(Json(SignupStatus { open, demo }).into_response())
 }
 
-/// `first` allows sign-up only while the server has no account at all.
+/// `first` allows sign-up only while the server has no account at all (the
+/// demo account doesn't count).
 async fn signup_open(mode: SignupMode, conn: &mut PgConnection) -> Result<bool, sqlx::Error> {
     Ok(match mode {
         SignupMode::Open => true,
         SignupMode::Closed => false,
         SignupMode::First => {
-            !sqlx::query_scalar::<_, bool>("SELECT EXISTS (SELECT 1 FROM accounts)")
-                .fetch_one(conn)
-                .await?
+            !sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM accounts WHERE lower(email) <> $1)",
+            )
+            .bind(DEMO_EMAIL)
+            .fetch_one(conn)
+            .await?
         }
     })
 }
@@ -280,7 +310,8 @@ async fn login(State(state): State<AppState>, ClientIp(ip): ClientIp, body: Json
 async fn login_inner(state: &AppState, body: JsonBody) -> AppResult<Response> {
     let email = norm_email(&body.str("email"));
     let password = body.str("password");
-    let account = if email.is_empty() {
+    // The demo account has no password and is answered like an unknown one.
+    let account = if email.is_empty() || email == DEMO_EMAIL {
         None
     } else {
         let mut conn = state.pool.acquire().await?;
@@ -351,7 +382,8 @@ async fn send_link(
         .into_response()
     };
 
-    let account = if email.is_empty() {
+    // No sign-in or reset links for the demo account.
+    let account = if email.is_empty() || email == DEMO_EMAIL {
         None
     } else {
         let mut conn = state.pool.acquire().await?;
@@ -486,8 +518,9 @@ async fn reset_inner(state: &AppState, body: JsonBody) -> AppResult<Response> {
     }
 
     let mut conn = state.pool.acquire().await?;
-    let Some(account) =
-        accounts::get_account(&mut conn, claims.account_id.unwrap_or_default()).await?
+    let Some(account) = accounts::get_account(&mut conn, claims.account_id.unwrap_or_default())
+        .await?
+        .filter(|a| a.email != DEMO_EMAIL)
     else {
         return Err(invalid_reset());
     };
@@ -517,11 +550,46 @@ fn invalid_reset() -> AppError {
     )
 }
 
+// ── POST /api/auth/demo ──────────────────────────────────────────────────────
+/// Signs in to the shared demo account, when the server runs one.
+async fn demo_login(State(state): State<AppState>, ClientIp(ip): ClientIp) -> Response {
+    if let Err(limited) = state.limits.login.check(&state.limits_pool, &ip).await {
+        return limited.into_response();
+    }
+    demo_inner(&state)
+        .await
+        .unwrap_or_else(IntoResponse::into_response)
+}
+
+async fn demo_inner(state: &AppState) -> AppResult<Response> {
+    let unavailable = || {
+        AppError::new(
+            StatusCode::NOT_FOUND,
+            "DEMO_UNAVAILABLE",
+            "This server doesn't have a demo.",
+        )
+    };
+    let Some(id) = state
+        .demo
+        .account_id()
+        .filter(|_| state.config.demo.enabled)
+    else {
+        return Err(unavailable());
+    };
+    let mut conn = state.pool.acquire().await?;
+    let account = accounts::get_account(&mut conn, id)
+        .await?
+        .ok_or_else(unavailable)?;
+    drop(conn);
+    touch_login(state, account.id).await?;
+    Ok(signed_in(state, StatusCode::OK, &account))
+}
+
 // ── GET /api/auth/me ─────────────────────────────────────────────────────────
 async fn me(State(state): State<AppState>, account: Account) -> AppResult<Response> {
     let mut conn = state.pool.acquire().await?;
     match accounts::get_account(&mut conn, account.id).await? {
-        Some(a) => Ok(Json(account_json(&a)).into_response()),
+        Some(a) => Ok(Json(account_json(&state, &a)).into_response()),
         None => {
             let mut res = AppError::unauthorized("Account not found").into_response();
             res.headers_mut().append(header::SET_COOKIE, clear_cookie());

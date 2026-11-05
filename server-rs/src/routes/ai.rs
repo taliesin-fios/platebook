@@ -317,6 +317,7 @@ async fn put_settings(
     body: JsonBody,
 ) -> Result<Json<AiStatus>, AppError> {
     let id = t.account.id;
+    crate::demo::refuse(&state, id, "Saving an AI key")?;
     let provider = body
         .trimmed_or_none("provider")
         .and_then(|p| Provider::parse(&p))

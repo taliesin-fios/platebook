@@ -309,6 +309,7 @@ pub fn is_public_route(method: &Method, path: &str) -> bool {
                 | "/api/auth/request-link"
                 | "/api/auth/forgot-password"
                 | "/api/auth/reset-password"
+                | "/api/auth/demo"
                 | "/api/auth/logout"
         )
     {
@@ -445,6 +446,8 @@ mod tests {
         assert!(is_public_route(&get, "/assets/index.js"));
         assert!(is_public_route(&post, "/api/auth/login"));
         assert!(is_public_route(&post, "/api/auth/logout"));
+        assert!(is_public_route(&post, "/api/auth/demo"));
+        assert!(!is_public_route(&get, "/api/auth/demo"));
         assert!(!is_public_route(&get, "/api/auth/login"));
         assert!(is_public_route(&get, "/api/auth/verify"));
         assert!(is_public_route(&get, "/api/auth/signup"));

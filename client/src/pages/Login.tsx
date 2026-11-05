@@ -5,7 +5,8 @@ import { useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import AuthLayout, { Field, PrimaryButton, Alert } from '../components/AuthLayout';
 import { apiCall, errorMessage } from '../hooks/useApi';
-import { useSignupOpen } from '../hooks/useSignupOpen';
+import { useSignupStatus } from '../hooks/useSignupOpen';
+import TryDemoButton from '../components/TryDemoButton';
 import type { Chef, LinkSentResponse } from '../types';
 
 // Map server redirect error codes (from magic links) → friendly messages
@@ -18,7 +19,7 @@ const LINK_ERRORS: Record<string, string> = {
 
 export default function Login() {
   const [searchParams] = useSearchParams();
-  const signupOpen = useSignupOpen();
+  const { open: signupOpen, demo } = useSignupStatus();
   const [mode, setMode]       = useState<'password' | 'link'>('password');
   const [email, setEmail]     = useState('');
   const [password, setPassword] = useState('');
@@ -111,6 +112,15 @@ export default function Login() {
         </button>
         <Link to="/forgot" className="font-medium text-gray-500 underline">Forgot password?</Link>
       </div>
+
+      {demo && (
+        <div className="mt-6 pt-5 border-t border-gray-200 text-center">
+          <p className="text-sm text-gray-500 mb-3">Just looking around?</p>
+          <TryDemoButton className="w-full py-3 rounded-xl bg-white text-green-dark font-semibold border border-gray-200">
+            Try the demo, no account needed
+          </TryDemoButton>
+        </div>
+      )}
     </AuthLayout>
   );
 }

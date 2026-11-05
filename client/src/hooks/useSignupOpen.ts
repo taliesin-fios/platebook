@@ -10,6 +10,14 @@ import type { SignupStatus } from '../types';
  * away; the server still refuses a closed sign-up.
  */
 export function useSignupOpen(): boolean {
+  return useSignupStatus().open;
+}
+
+/**
+ * `open` as above, and `demo`: whether "Try the demo" is available
+ * (`DEMO_MODE`). `demo` is `false` until the check answers.
+ */
+export function useSignupStatus(): SignupStatus {
   const { data } = useApi<SignupStatus>('/api/auth/signup');
-  return data?.open ?? true;
+  return { open: data?.open ?? true, demo: data?.demo ?? false };
 }
