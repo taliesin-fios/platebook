@@ -12,4 +12,8 @@ open: boolean,
 /**
  * `SIGNUP_MODE=invite`: sign-up needs a one-time invite link.
  */
-invite_only: boolean, };
+invite_only: boolean, 
+/**
+ * Whether "Try the demo" (`POST /api/auth/demo`) is available.
+ */
+demo: boolean, };

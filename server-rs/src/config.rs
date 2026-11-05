@@ -59,6 +59,40 @@ pub struct Config {
     pub backup: BackupConfig,
     /// `SIGNUP_MODE`: who may create an account.
     pub signup_mode: SignupMode,
+    /// `DEMO_MODE=true`: keep a shared demo account, open to anyone with
+    /// "Try the demo", and wipe and reseed it every `DEMO_RESET_HOURS`.
+    pub demo: DemoConfig,
+}
+
+/// The public demo account (`DEMO_MODE`, `DEMO_RESET_HOURS`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DemoConfig {
+    pub enabled: bool,
+    /// Hours between resets (1-168), default 24.
+    pub reset_hours: u32,
+}
+
+impl DemoConfig {
+    pub fn parse(mode: Option<&str>, hours: Option<&str>) -> Result<Self, ConfigError> {
+        let enabled = match mode {
+            None | Some("false") => false,
+            Some("true") => true,
+            Some(_) => return Err(ConfigError::Invalid("DEMO_MODE")),
+        };
+        let reset_hours = match hours {
+            None => 24,
+            Some(h) => h
+                .trim()
+                .parse::<u32>()
+                .ok()
+                .filter(|h| (1..=168).contains(h))
+                .ok_or(ConfigError::Invalid("DEMO_RESET_HOURS"))?,
+        };
+        Ok(DemoConfig {
+            enabled,
+            reset_hours,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -222,6 +256,10 @@ impl Config {
                 pg_dump: var("PG_DUMP_PATH").unwrap_or_else(|| "pg_dump".to_string()),
             },
             signup_mode: SignupMode::parse(var("SIGNUP_MODE").as_deref())?,
+            demo: DemoConfig::parse(
+                var("DEMO_MODE").as_deref(),
+                var("DEMO_RESET_HOURS").as_deref(),
+            )?,
         })
     }
 
@@ -253,6 +291,7 @@ impl Config {
             client_dist: None,
             backup: BackupConfig::default(),
             signup_mode: SignupMode::Open,
+            demo: DemoConfig::default(),
         }
     }
 
@@ -301,6 +340,7 @@ impl fmt::Debug for Config {
             .field("client_dist", &self.client_dist)
             .field("auto_backup", &self.backup.enabled)
             .field("signup_mode", &self.signup_mode)
+            .field("demo", &self.demo)
             .finish()
     }
 }
@@ -336,5 +376,19 @@ mod tests {
             SignupMode::Invite
         );
         assert!(SignupMode::parse(Some("invites")).is_err());
+    }
+
+    #[test]
+    fn demo_config_parses_mode_and_hours() {
+        let off = DemoConfig::parse(None, None).unwrap();
+        assert!(!off.enabled);
+        assert_eq!(off.reset_hours, 24);
+        let on = DemoConfig::parse(Some("true"), Some("6")).unwrap();
+        assert!(on.enabled);
+        assert_eq!(on.reset_hours, 6);
+        assert!(DemoConfig::parse(Some("yes"), None).is_err());
+        assert!(DemoConfig::parse(Some("true"), Some("0")).is_err());
+        assert!(DemoConfig::parse(Some("true"), Some("169")).is_err());
+        assert!(DemoConfig::parse(Some("true"), Some("12h")).is_err());
     }
 }

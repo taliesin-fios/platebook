@@ -91,7 +91,10 @@ async fn signup_mode_first_allows_only_the_first_account(pool: PgPool) {
     );
     let status = get("/api/auth/signup").send(&app).await;
     assert_eq!(status.status, StatusCode::OK);
-    assert_eq!(status.body, json!({ "open": true, "invite_only": false }));
+    assert_eq!(
+        status.body,
+        json!({ "open": true, "invite_only": false, "demo": false })
+    );
 
     let first = post("/api/auth/signup", signup_body("owner@example.com"))
         .send(&app)
@@ -100,7 +103,7 @@ async fn signup_mode_first_allows_only_the_first_account(pool: PgPool) {
 
     assert_eq!(
         get("/api/auth/signup").send(&app).await.body,
-        json!({ "open": false, "invite_only": false })
+        json!({ "open": false, "invite_only": false, "demo": false })
     );
     let second = post("/api/auth/signup", signup_body("second@example.com"))
         .send(&app)
@@ -128,7 +131,7 @@ async fn signup_mode_closed_refuses_every_signup(pool: PgPool) {
     );
     assert_eq!(
         get("/api/auth/signup").send(&app).await.body,
-        json!({ "open": false, "invite_only": false })
+        json!({ "open": false, "invite_only": false, "demo": false })
     );
     let res = post("/api/auth/signup", signup_body("new@example.com"))
         .send(&app)
@@ -153,7 +156,7 @@ async fn signup_mode_invite_needs_a_one_time_link(pool: PgPool) {
         n.set(n.get() + 1);
         format!("10.20.0.{}", n.get())
     };
-    let closed = json!({ "open": false, "invite_only": true });
+    let closed = json!({ "open": false, "invite_only": true, "demo": false });
     assert_eq!(get("/api/auth/signup").send(&app).await.body, closed);
     assert_eq!(
         get("/api/auth/signup?invite=made-up").send(&app).await.body,
@@ -173,7 +176,7 @@ async fn signup_mode_invite_needs_a_one_time_link(pool: PgPool) {
     let uri = format!("/api/auth/signup?invite={}", any.token);
     assert_eq!(
         get(uri.as_str()).send(&app).await.body,
-        json!({ "open": true, "invite_only": true })
+        json!({ "open": true, "invite_only": true, "demo": false })
     );
     let mut body = signup_body("chef@example.com");
     body["invite"] = json!(any.token);
@@ -317,7 +320,10 @@ async fn invite_cli_creates_lists_and_revokes(pool: PgPool) {
 async fn signup_status_is_open_by_default(pool: PgPool) {
     let res = get("/api/auth/signup").send(&app(pool)).await;
     assert_eq!(res.status, StatusCode::OK);
-    assert_eq!(res.body, json!({ "open": true, "invite_only": false }));
+    assert_eq!(
+        res.body,
+        json!({ "open": true, "invite_only": false, "demo": false })
+    );
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

@@ -49,6 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     let state = AppState::new(pool, config);
     chef_server::reminders::start(state.clone());
+    chef_server::demo::start(state.clone()).await;
     let router = app::build(state);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");

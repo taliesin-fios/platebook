@@ -542,6 +542,7 @@
   /* Hide everything that isn't the invoice preview */
   .side-nav,
   .bottom-nav,
+  .demo-banner,
   .invoice-no-print,
   .invoice-builder-panel,
   .page-header,
