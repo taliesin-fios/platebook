@@ -52,7 +52,7 @@ use crate::models::{Client, IntakeRow, SUCCESS, Success};
 use crate::rate_limit::ClientIp;
 use crate::routes::sessions::EmailSentResponse;
 use crate::routes::settings::EMAIL_RE;
-use crate::routes::{JsonBody, json_or_empty, parse_id};
+use crate::routes::{JsonBody, MAX_LIST_ITEMS, is_short_string_list, json_or_empty, parse_id};
 use crate::serde_util::{json_array, opt_bool_as_int, ts};
 use crate::state::AppState;
 
@@ -652,8 +652,6 @@ fn max_len(field: &str) -> usize {
     }
 }
 const MAX_COUNT: i64 = 1000;
-const MAX_LIST_ITEMS: usize = 50;
-const MAX_LIST_ITEM_LEN: usize = 100;
 
 /// Shape checks for the client-editable fields present in `body`: bounded
 /// text, small non-negative counts, and lists of short strings. Shared by the
@@ -693,18 +691,7 @@ fn validate_client_fields(body: &JsonBody) -> Result<(), AppError> {
         }
     }
     for &f in CLIENT_JSON {
-        let ok = match body.get(f) {
-            None | Some(Value::Null) => true,
-            Some(Value::Array(items)) => {
-                items.len() <= MAX_LIST_ITEMS
-                    && items.iter().all(|i| {
-                        i.as_str()
-                            .is_some_and(|s| s.chars().count() <= MAX_LIST_ITEM_LEN)
-                    })
-            }
-            Some(_) => false,
-        };
-        if !ok {
+        if !is_short_string_list(body.get(f)) {
             return Err(field_error(
                 &format!(
                     "{} must be a list of up to {MAX_LIST_ITEMS} short answers",

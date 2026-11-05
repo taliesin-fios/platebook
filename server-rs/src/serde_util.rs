@@ -67,9 +67,13 @@ pub mod json_array {
     use serde::{Serialize, Serializer};
     use serde_json::Value;
 
+    /// Always a JSON array, as the generated `string[]` types promise. A bare
+    /// string stored before list fields were validated (or migrated from an
+    /// old install) comes out as a one-item list; any other non-array as `[]`.
     pub fn serialize<S: Serializer>(value: &Option<Value>, s: S) -> Result<S::Ok, S::Error> {
         match value {
-            Some(v) if !v.is_null() => v.serialize(s),
+            Some(v @ Value::Array(_)) => v.serialize(s),
+            Some(Value::String(text)) => [text].serialize(s),
             _ => s
                 .serialize_seq(Some(0))
                 .and_then(serde::ser::SerializeSeq::end),
@@ -126,6 +130,28 @@ mod tests {
             json,
             r#"{"at":"2026-03-04 05:06:07","arr":[],"raw":"[\"Nuts\"]"}"#
         );
+    }
+
+    #[test]
+    fn json_array_columns_always_serialize_as_arrays() {
+        #[derive(Serialize)]
+        struct T {
+            #[serde(serialize_with = "super::json_array::serialize")]
+            v: Option<serde_json::Value>,
+        }
+        let out = |v| serde_json::to_string(&T { v }).unwrap();
+        assert_eq!(
+            out(Some(serde_json::json!(["Dairy"]))),
+            r#"{"v":["Dairy"]}"#
+        );
+        assert_eq!(
+            out(Some(serde_json::json!("Tree nuts"))),
+            r#"{"v":["Tree nuts"]}"#
+        );
+        assert_eq!(out(Some(serde_json::json!({"a": 1}))), r#"{"v":[]}"#);
+        assert_eq!(out(Some(serde_json::json!(7))), r#"{"v":[]}"#);
+        assert_eq!(out(Some(serde_json::Value::Null)), r#"{"v":[]}"#);
+        assert_eq!(out(None), r#"{"v":[]}"#);
     }
 
     #[test]
