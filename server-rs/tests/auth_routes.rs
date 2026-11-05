@@ -91,7 +91,7 @@ async fn signup_mode_first_allows_only_the_first_account(pool: PgPool) {
     );
     let status = get("/api/auth/signup").send(&app).await;
     assert_eq!(status.status, StatusCode::OK);
-    assert_eq!(status.body, json!({ "open": true }));
+    assert_eq!(status.body, json!({ "open": true, "demo": false }));
 
     let first = post("/api/auth/signup", signup_body("owner@example.com"))
         .send(&app)
@@ -100,7 +100,7 @@ async fn signup_mode_first_allows_only_the_first_account(pool: PgPool) {
 
     assert_eq!(
         get("/api/auth/signup").send(&app).await.body,
-        json!({ "open": false })
+        json!({ "open": false, "demo": false })
     );
     let second = post("/api/auth/signup", signup_body("second@example.com"))
         .send(&app)
@@ -128,7 +128,7 @@ async fn signup_mode_closed_refuses_every_signup(pool: PgPool) {
     );
     assert_eq!(
         get("/api/auth/signup").send(&app).await.body,
-        json!({ "open": false })
+        json!({ "open": false, "demo": false })
     );
     let res = post("/api/auth/signup", signup_body("new@example.com"))
         .send(&app)
@@ -141,7 +141,7 @@ async fn signup_mode_closed_refuses_every_signup(pool: PgPool) {
 async fn signup_status_is_open_by_default(pool: PgPool) {
     let res = get("/api/auth/signup").send(&app(pool)).await;
     assert_eq!(res.status, StatusCode::OK);
-    assert_eq!(res.body, json!({ "open": true }));
+    assert_eq!(res.body, json!({ "open": true, "demo": false }));
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

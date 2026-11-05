@@ -101,7 +101,10 @@ Every chef business is an `accounts` row (`email`, bcrypt `password_hash`, publi
 ```
 Sign up   POST /api/auth/signup {email, password, business_name} → account + settings row, session cookie
           SIGNUP_MODE=open (default) | first (only while no account exists) | closed → 403 SIGNUP_CLOSED;
-          GET /api/auth/signup → { open } so the client hides its sign-up links
+          GET /api/auth/signup → { open, demo } so the client hides its sign-up links
+Demo      DEMO_MODE=true: POST /api/auth/demo signs in to a shared account (demo@platebook.invalid, no
+          password) that server-rs/src/demo.rs wipes and reseeds on start and every DEMO_RESET_HOURS.
+          It sends no email, can't save AI keys and doesn't count for SIGNUP_MODE=first.
 Sign in   POST /api/auth/login  {email, password}                → session cookie
 Magic     POST /api/auth/request-link → emailed single-use link (15 min) → GET /api/auth/verify
 Reset     POST /api/auth/forgot-password → emailed single-use link (30 min) → POST /api/auth/reset-password
@@ -225,7 +228,8 @@ Public (no cookie required; `req.account` is still set when signed in):
 | Method | Path |
 |---|---|
 | POST | `/api/auth/signup`, `/login`, `/request-link`, `/forgot-password`, `/reset-password`, `/logout` |
-| GET | `/api/auth/verify`, `/api/auth/signup` (`{ open }`: may an account be created now, per `SIGNUP_MODE`) |
+| POST | `/api/auth/demo` (signs in to the shared demo account; 404 unless `DEMO_MODE=true`; rate-limited like login) |
+| GET | `/api/auth/verify`, `/api/auth/signup` (`{ open, demo }`: may an account be created now, per `SIGNUP_MODE`, and is there a demo) |
 | GET | `/api/public/:slug/settings` |
 | GET | `/api/settings/public` (legacy: account #1) |
 | POST | `/api/intake` |

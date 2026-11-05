@@ -7,4 +7,8 @@ export type SignupStatus = {
 /**
  * Whether `SIGNUP_MODE` lets a new account be created now.
  */
-open: boolean, };
+open: boolean, 
+/**
+ * Whether "Try the demo" (`POST /api/auth/demo`) is available.
+ */
+demo: boolean, };

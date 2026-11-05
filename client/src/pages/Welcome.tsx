@@ -3,7 +3,8 @@
 
 import { Link } from 'react-router';
 import { APP_AUTHOR, APP_NAME, APP_REPO_URL, APP_TAGLINE } from '../constants';
-import { useSignupOpen } from '../hooks/useSignupOpen';
+import { useSignupStatus } from '../hooks/useSignupOpen';
+import TryDemoButton from '../components/TryDemoButton';
 
 const FEATURES = [
   { icon: '👥', title: 'Client profiles', body: 'Households, allergies, dietary styles, kitchen equipment and parking notes, all in one place.' },
@@ -16,6 +17,9 @@ const FEATURES = [
   { icon: '📈', title: 'Profit tracking', body: 'Revenue, grocery costs and margin per session and per client, plus CSV export for tax time.' },
 ];
 
+// Hero buttons: a <button> (the demo) and links, sized the same.
+const CTA = 'inline-flex items-center justify-center px-7 py-3.5 rounded-xl text-base leading-6 font-semibold';
+
 const STEPS = [
   ['Create your account', 'Takes under a minute.'],
   ['Set up your business', 'Name, services, pricing and booking policy.'],
@@ -23,7 +27,7 @@ const STEPS = [
 ];
 
 export default function Welcome() {
-  const signupOpen = useSignupOpen();
+  const { open: signupOpen, demo } = useSignupStatus();
   return (
     <div className="min-h-dvh bg-ivory font-sans text-olive">
       {/* Top bar */}
@@ -43,15 +47,23 @@ export default function Welcome() {
           so you can spend your time cooking.
         </p>
         <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+          {demo && (
+            <TryDemoButton className={`${CTA} bg-herb text-white shadow-card hover:shadow-card-hover transition-shadow`} />
+          )}
           {signupOpen && (
-            <Link to="/signup" className="px-7 py-3.5 rounded-xl bg-herb text-white font-semibold shadow-card hover:shadow-card-hover transition-shadow">
+            <Link to="/signup" className={`${CTA} ${demo
+              ? 'bg-white text-green-dark border border-herb'
+              : 'bg-herb text-white shadow-card hover:shadow-card-hover transition-shadow'}`}>
               Create your account
             </Link>
           )}
-          <Link to="/login" className="px-7 py-3.5 rounded-xl bg-white text-green-dark font-semibold border border-gray-200">
+          <Link to="/login" className={`${CTA} bg-white text-green-dark border border-gray-200`}>
             I already have an account
           </Link>
         </div>
+        {demo && (
+          <p className="mt-3 text-xs text-gray-500">No sign-up needed: the demo is filled with sample clients, sessions and invoices.</p>
+        )}
       </section>
 
       {/* How it works */}

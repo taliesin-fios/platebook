@@ -15,7 +15,14 @@ describe('signup', () => {
   test('reports whether sign-up is open, without a session', async () => {
     const res = await request(app).get('/api/auth/signup');
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { open: true }); // SIGNUP_MODE defaults to open
+    assert.deepEqual(res.body, { open: true, demo: false }); // SIGNUP_MODE defaults to open, DEMO_MODE to off
+  });
+
+  test('has no demo to sign in to unless DEMO_MODE is on', async () => {
+    const res = await request(app).post('/api/auth/demo').send({});
+    assert.equal(res.status, 404);
+    assert.equal(res.body.code, 'DEMO_UNAVAILABLE');
+    assert.equal(cookieFrom(res), undefined);
   });
 
   test('creates an account, settings row and session cookie', async () => {
