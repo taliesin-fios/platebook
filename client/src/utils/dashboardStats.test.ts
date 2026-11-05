@@ -2,7 +2,7 @@
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
 import { describe, it, expect } from 'vitest';
-import { clientsTile, invoiceSummary, marginTile } from './dashboardStats';
+import { clientsTile, invoiceSummary, marginTile, parseStringList } from './dashboardStats';
 
 describe('marginTile', () => {
   it('shows a dash, not a red 0%, with no sessions this month', () => {
@@ -54,5 +54,27 @@ describe('invoiceSummary', () => {
 
   it('says there are no invoices on a new account', () => {
     expect(invoiceSummary(0, 0, fmt)).toBe('No invoices yet');
+  });
+});
+
+describe('parseStringList', () => {
+  it('reads a JSON list of strings', () => {
+    expect(parseStringList('["Tree nuts","Dairy"]')).toEqual(['Tree nuts', 'Dairy']);
+  });
+
+  it('treats a bare JSON string as a one-item list', () => {
+    expect(parseStringList('"Tree nuts"')).toEqual(['Tree nuts']);
+  });
+
+  it('returns an empty list for empty, invalid or non-list values', () => {
+    expect(parseStringList(null)).toEqual([]);
+    expect(parseStringList('')).toEqual([]);
+    expect(parseStringList('not json')).toEqual([]);
+    expect(parseStringList('{"a":1}')).toEqual([]);
+    expect(parseStringList('42')).toEqual([]);
+  });
+
+  it('drops items that are not non-empty strings', () => {
+    expect(parseStringList('["Dairy", 3, null, "", {"x":1}]')).toEqual(['Dairy']);
   });
 });

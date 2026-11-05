@@ -27,7 +27,7 @@ use crate::error::{AppError, DbResult};
 use crate::js;
 use crate::models::{Client, SUCCESS, SessionRow, Success};
 use crate::routes::settings::EMAIL_RE;
-use crate::routes::{JsonBody, json_or_empty, parse_id};
+use crate::routes::{JsonBody, MAX_LIST_ITEMS, is_short_string_list, json_or_empty, parse_id};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -96,6 +96,19 @@ fn invalid(v: Option<&Value>, re: &Regex) -> bool {
     }
 }
 
+/// Each list field present in `body` must be a list of short strings (or
+/// `null`): a bare string stored here used to crash the dashboard.
+fn validate_lists(body: &JsonBody) -> Result<(), AppError> {
+    for &f in JSON_FIELDS {
+        if !is_short_string_list(body.get(f)) {
+            return Err(AppError::validation(format!(
+                "{f} must be a list of up to {MAX_LIST_ITEMS} short text items"
+            )));
+        }
+    }
+    Ok(())
+}
+
 async fn list(mut t: Tenant) -> DbResult<Json<Vec<ClientListItem>>> {
     let rows = sqlx::query_as::<_, ClientListItem>(
         r#"SELECT c.*,
@@ -153,6 +166,7 @@ async fn create(mut t: Tenant, body: JsonBody) -> DbResult<(StatusCode, Json<Cli
     if invalid(body.get("phone"), &PHONE_RE) {
         return Err(AppError::validation("Invalid phone format").into());
     }
+    validate_lists(&body)?;
 
     let client = sqlx::query_as::<_, Client>(
         "INSERT INTO clients (
@@ -263,6 +277,7 @@ async fn update(
             return Err(AppError::validation(format!("{f} must be an integer")).into());
         }
     }
+    validate_lists(&body)?;
 
     let mut qb: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE clients SET ");
     let mut sets = qb.separated(", ");

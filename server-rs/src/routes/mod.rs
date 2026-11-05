@@ -167,6 +167,29 @@ pub fn id_list(v: Option<&Value>) -> Option<Vec<i64>> {
     }
 }
 
+/// Most items a client list field (allergens, dietary styles, …) may hold.
+pub const MAX_LIST_ITEMS: usize = 50;
+/// Longest item, in characters, in a client list field.
+pub const MAX_LIST_ITEM_LEN: usize = 100;
+
+/// A client list field from a request body: absent, `null`, or an array of
+/// up to [`MAX_LIST_ITEMS`] strings of up to [`MAX_LIST_ITEM_LEN`] characters.
+/// Anything else (a bare string, an object, numbers) is refused, because the
+/// client renders these columns with `.map()` and stored garbage breaks pages.
+pub fn is_short_string_list(v: Option<&Value>) -> bool {
+    match v {
+        None | Some(Value::Null) => true,
+        Some(Value::Array(items)) => {
+            items.len() <= MAX_LIST_ITEMS
+                && items.iter().all(|i| {
+                    i.as_str()
+                        .is_some_and(|s| s.chars().count() <= MAX_LIST_ITEM_LEN)
+                })
+        }
+        Some(_) => false,
+    }
+}
+
 /// A JSONB value for an array column: `JSON.stringify(v || [])`.
 pub fn json_or_empty(v: Option<&Value>) -> Value {
     match v {

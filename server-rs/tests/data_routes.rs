@@ -239,6 +239,71 @@ async fn clients_crud_and_validation(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
+async fn client_list_fields_must_be_lists_of_short_strings(pool: PgPool) {
+    let c = chef(&pool, "List Kitchen").await;
+    let long = "x".repeat(101);
+    let too_many: Vec<String> = (0..51).map(|i| format!("item {i}")).collect();
+    for (field, value) in [
+        ("allergens", json!("Tree nuts")),
+        ("dietary_styles", json!({ "vegan": true })),
+        ("liked_proteins", json!([1, 2])),
+        ("equipment", json!([long])),
+        ("allergens", json!(too_many)),
+    ] {
+        let mut body = json!({ "name": "Jo" });
+        body[field] = value.clone();
+        let r = c.post("/api/clients", body).await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST, "{field} = {value}");
+        assert_eq!(r.body["code"], "VALIDATION_ERROR");
+        assert_eq!(
+            r.body["error"],
+            format!("{field} must be a list of up to 50 short text items")
+        );
+    }
+
+    let created = c
+        .post(
+            "/api/clients",
+            json!({ "name": "Jo", "allergens": ["Dairy"], "dietary_styles": null }),
+        )
+        .await;
+    assert_eq!(created.status, StatusCode::CREATED, "{}", created.body);
+    let id = created.body["id"].as_i64().unwrap();
+    assert_eq!(created.body["dietary_styles"], json!([]));
+
+    let bad = c
+        .put(
+            &format!("/api/clients/{id}"),
+            json!({ "allergens": "Dairy" }),
+        )
+        .await;
+    assert_eq!(bad.status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        bad.body["error"],
+        "allergens must be a list of up to 50 short text items"
+    );
+    let unchanged = c.get(&format!("/api/clients/{id}")).await;
+    assert_eq!(unchanged.body["allergens"], json!(["Dairy"]));
+    let cleared = c
+        .put(&format!("/api/clients/{id}"), json!({ "equipment": null }))
+        .await;
+    assert_eq!(cleared.status, StatusCode::OK, "{}", cleared.body);
+    assert_eq!(cleared.body["equipment"], json!([]));
+
+    // A bare string stored before this check existed still reads as a list.
+    sqlx::query("UPDATE clients SET allergens = '\"Tree nuts\"'::jsonb, equipment = '{}'::jsonb WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let legacy = c.get(&format!("/api/clients/{id}")).await;
+    assert_eq!(legacy.body["allergens"], json!(["Tree nuts"]));
+    assert_eq!(legacy.body["equipment"], json!([]));
+    let listed = c.get("/api/clients").await;
+    assert_eq!(listed.body[0]["allergens"], json!(["Tree nuts"]));
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
 async fn recipes_crud_filters_and_in_use_guard(pool: PgPool) {
     let c = chef(&pool, "Recipe Kitchen").await;
     let (_, recipe, _) = basics(&c).await;

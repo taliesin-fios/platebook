@@ -14,6 +14,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 
+### Fixed
+- **A client saved through the API with allergens as plain text crashed the dashboard** ("allergens.map is not a function"). `POST` and `PUT /api/clients` now require `allergens`, `dietary_styles`, `liked_proteins` and `equipment` to be a list of up to 50 short text items, or `null` (`400 VALIDATION_ERROR` otherwise), the same rule the booking form already used. The app's own forms always sent lists, so they're unaffected. Clients already stored with a bare string (from the API, or migrated from an old install) now read back as a one-item list, any other non-list value as an empty list, and the dashboard's allergen line ignores values it can't read instead of failing. No migration.
+
 ## [0.3.0] — 2026-11-04
 
 **Upgrading from 0.2.0:** on start, the server applies two migrations: `0010_invoice_payments.sql` and `0011_account_ai_provider.sql`. They only add nullable columns (0010 also adds a foreign key, validated after it's added), so they're safe on a database with data, but take a backup first as usual. If you set `ANTHROPIC_API_KEY`, it keeps working as the shared key for accounts that haven't added their own AI. Don't change `JWT_SECRET` after chefs save AI keys: the keys are encrypted with a key derived from it.

@@ -41,3 +41,21 @@ export function invoiceSummary(invoicedTotal: number, outstandingTotal: number, 
   if (outstandingTotal > 0) return `${fmt(outstandingTotal)} outstanding`;
   return invoicedTotal > 0 ? 'All invoices paid' : 'No invoices yet';
 }
+
+/**
+ * A JSON list column sent as text (e.g. a session's `client_allergens`), as
+ * a list of strings. Older rows can hold a bare string or other junk; this
+ * never throws, so a bad value can't take the dashboard down.
+ */
+export function parseStringList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (typeof value === 'string') return value ? [value] : [];
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item !== '');
+}
