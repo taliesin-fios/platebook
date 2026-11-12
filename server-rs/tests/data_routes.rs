@@ -1390,3 +1390,196 @@ async fn pnl_months_and_years_follow_the_account_time_zone(pool: PgPool) {
     assert_eq!(r2023["months"][11]["revenue"], 100.0);
     assert_eq!(r2023["deposits_received"], 1000.0);
 }
+
+/// The seeded starter library's id for `name`, after seeding this account.
+async fn seeded_recipe(c: &Chef, name: &str) -> i64 {
+    let seed = c
+        .post("/api/onboarding/seed", json!({ "starter_library": true }))
+        .await;
+    assert_eq!(seed.status, StatusCode::OK, "{}", seed.body);
+    let recipes = c.get("/api/recipes").await.body;
+    recipes
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["name"] == name)
+        .and_then(|r| r["id"].as_i64())
+        .unwrap_or_else(|| panic!("{name} not seeded"))
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn session_save_rejects_unacknowledged_allergen_conflict(pool: PgPool) {
+    let c = chef(&pool, "Allergen Kitchen").await;
+    // Ricotta and mozzarella (Dairy), lasagna noodles (Gluten).
+    let lasagna = seeded_recipe(&c, "Roasted Vegetable Lasagna").await;
+    let dairy = c
+        .post(
+            "/api/clients",
+            json!({ "name": "Dana", "allergens": ["Dairy", "Sesame"] }),
+        )
+        .await
+        .body["id"]
+        .as_i64()
+        .unwrap();
+    let none = c.post("/api/clients", json!({ "name": "Nell" })).await.body["id"]
+        .as_i64()
+        .unwrap();
+    let conflict = |res: &common::TestResponse| {
+        assert_eq!(res.status, StatusCode::CONFLICT, "{}", res.body);
+        assert_eq!(res.body["code"], "ALLERGEN_CONFLICT");
+        assert_eq!(res.body["allergens"], json!(["Dairy"]));
+        assert_eq!(
+            res.body["recipes"],
+            json!([{ "id": lasagna, "name": "Roasted Vegetable Lasagna", "allergens": ["Dairy"] }])
+        );
+    };
+
+    // Create: refused, and nothing is saved.
+    let res = c
+        .post(
+            "/api/sessions",
+            json!({ "client_id": dairy, "recipe_ids": [lasagna] }),
+        )
+        .await;
+    conflict(&res);
+    let list = c
+        .get(&format!("/api/sessions?client_id={dairy}"))
+        .await
+        .body;
+    assert_eq!(list, json!([]));
+
+    // Acknowledged: saved.
+    let ok = c
+        .post(
+            "/api/sessions",
+            json!({ "client_id": dairy, "recipe_ids": [lasagna], "allergen_acknowledged": true }),
+        )
+        .await;
+    assert_eq!(ok.status, StatusCode::CREATED, "{}", ok.body);
+
+    // No conflict: a client without that allergy needs no acknowledgment.
+    let session = c
+        .post(
+            "/api/sessions",
+            json!({ "client_id": none, "recipe_ids": [lasagna] }),
+        )
+        .await;
+    assert_eq!(session.status, StatusCode::CREATED, "{}", session.body);
+    let session = session.body["id"].as_i64().unwrap();
+
+    // Update: moving the session to the Dairy client is re-checked…
+    let res = c
+        .put(
+            &format!("/api/sessions/{session}"),
+            json!({ "client_id": dairy }),
+        )
+        .await;
+    conflict(&res);
+    let d = c.get(&format!("/api/sessions/{session}")).await.body;
+    assert_eq!(d["client_id"], none, "a refused update changes nothing");
+    // …and so is a new dish list.
+    let empty = c
+        .post(
+            "/api/sessions",
+            json!({ "client_id": dairy, "recipe_ids": [] }),
+        )
+        .await
+        .body["id"]
+        .as_i64()
+        .unwrap();
+    let res = c
+        .put(
+            &format!("/api/sessions/{empty}"),
+            json!({ "recipe_ids": [lasagna] }),
+        )
+        .await;
+    conflict(&res);
+    // Other edits to an acknowledged session aren't blocked.
+    let acked = ok.body["id"].as_i64().unwrap();
+    let res = c
+        .put(
+            &format!("/api/sessions/{acked}"),
+            json!({ "status": "Confirmed" }),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+
+    // Replace dishes: re-checked too.
+    let res = c
+        .post(
+            &format!("/api/sessions/{empty}/dishes"),
+            json!({ "recipe_ids": [lasagna] }),
+        )
+        .await;
+    conflict(&res);
+    let d = c.get(&format!("/api/sessions/{empty}")).await.body;
+    assert_eq!(d["dishes"], json!([]));
+    let res = c
+        .post(
+            &format!("/api/sessions/{empty}/dishes"),
+            json!({ "recipe_ids": [lasagna], "allergen_acknowledged": true }),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn recipe_list_flags_allergens_and_save_refuses_the_lasagna(pool: PgPool) {
+    let c = chef(&pool, "Lasagna Kitchen").await;
+    let lasagna = seeded_recipe(&c, "Roasted Vegetable Lasagna").await;
+
+    // The list carries each recipe's detected allergens, from its ingredients
+    // (the list has no ingredients itself, so the client can't work them out).
+    let recipes = c.get("/api/recipes").await.body;
+    let flagged = |name: &str| -> serde_json::Value {
+        recipes
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["name"] == name)
+            .unwrap_or_else(|| panic!("{name} missing"))["allergens"]
+            .clone()
+    };
+    let lasagna_flags = flagged("Roasted Vegetable Lasagna");
+    assert!(
+        lasagna_flags
+            .as_array()
+            .is_some_and(|a| a.contains(&json!("Dairy")) && a.contains(&json!("Gluten"))),
+        "lasagna should be flagged Dairy and Gluten, got {lasagna_flags}"
+    );
+    assert!(
+        recipes
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["allergens"].is_array())
+    );
+
+    // A client allergic to dairy and gluten: refused without an override…
+    let client = c
+        .post(
+            "/api/clients",
+            json!({ "name": "Dana", "allergens": ["Dairy", "Gluten"] }),
+        )
+        .await
+        .body["id"]
+        .as_i64()
+        .unwrap();
+    let res = c
+        .post(
+            "/api/sessions",
+            json!({ "client_id": client, "recipe_ids": [lasagna] }),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::CONFLICT, "{}", res.body);
+    assert_eq!(res.body["code"], "ALLERGEN_CONFLICT");
+    assert_eq!(res.body["allergens"], json!(["Dairy", "Gluten"]));
+    // …and saved with one.
+    let ok = c
+        .post(
+            "/api/sessions",
+            json!({ "client_id": client, "recipe_ids": [lasagna], "allergen_acknowledged": true }),
+        )
+        .await;
+    assert_eq!(ok.status, StatusCode::CREATED, "{}", ok.body);
+}

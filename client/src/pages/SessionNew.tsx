@@ -8,7 +8,7 @@ import { parseLocalDate } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
-import { calcFeasibility, FEASIBILITY_COLORS, ALLERGEN_KEYWORDS, marginColor, REPEAT_OPTIONS, repeatLabel } from '../constants';
+import { calcFeasibility, FEASIBILITY_COLORS, marginColor, REPEAT_OPTIONS, repeatLabel } from '../constants';
 import { StarDisplay } from '../components/StarRating';
 import type {
   ClientListItem, FromTemplateResponse, Id, MenuSuggestion, Recipe, SessionDetail, SessionListItem, SessionStatus, Settings,
@@ -41,21 +41,14 @@ const CategoryBadge = ({ cat, small }: { cat: string | null; small?: boolean }) 
 );
 
 const checkAllergenConflict = (
-  recipe: { name?: string | null; ingredients?: Array<{ name?: string | null }> },
+  recipe: { allergens?: string[] },
   clientAllergens: string[] = [],
 ) => {
   if (!clientAllergens.length) return [];
-  const conflicts: string[] = [];
-  const ingredientNames = (recipe.ingredients || []).map(i => i.name?.toLowerCase() || '');
-  const nameStr = (ingredientNames.join(' ') + ' ' + (recipe.name || '').toLowerCase());
-
-  for (const allergen of clientAllergens) {
-    const keywords = ALLERGEN_KEYWORDS[allergen] || [];
-    if (keywords.some(kw => nameStr.includes(kw.toLowerCase()))) {
-      conflicts.push(allergen);
-    }
-  }
-  return conflicts;
+  // GET /api/recipes returns the allergens the server found in each recipe's
+  // name and ingredients; the server re-checks on save (server-rs/src/allergens.rs).
+  const wanted = clientAllergens.map(a => a.trim().toLowerCase());
+  return (recipe.allergens || []).filter(a => wanted.includes(a.toLowerCase()));
 };
 
 export default function SessionNew() {
@@ -221,12 +214,17 @@ export default function SessionNew() {
     setSaving(true);
     try {
       // C14: send client_id as a number, not a string from the <select>
-      const payload = { ...session, client_id: parseInt(session.client_id, 10) };
+      const payload = {
+        ...session,
+        client_id: parseInt(session.client_id, 10),
+        // The server re-checks allergens and refuses an unacknowledged conflict.
+        allergen_acknowledged: hasConflicts && allergenAcknowledged,
+      };
       const saved = await apiCall<SessionDetail>('/api/sessions', 'POST', payload);
       show('Session created', 'success');
       navigate(`/sessions/${saved.id}`);
-    } catch {
-      show('Could not save session', 'error');
+    } catch (err) {
+      show(errorMessage(err) || 'Could not save session', 'error');
     } finally {
       setSaving(false);
     }

@@ -154,11 +154,13 @@ async fn meal_plan_pdf(pool: PgPool) {
             "splash of water",
             "Use by Mar 19",
             "FREEZE",
-            "This menu was planned to avoid: Peanuts, Shellfish.",
+            "Allergies on file: Peanuts, Shellfish.",
+            "No ingredient in these dishes matched them.",
             "Prepared with care by your chef",
             "saffronthyme.example",
         ],
     );
+    assert!(!t.contains("planned to avoid"), "{t}");
     assert_eq!(
         disposition(&res),
         "attachment; filename=\"meal-plan-morgan-lee-2026-03-15.pdf\""
@@ -316,4 +318,56 @@ async fn pdfs_need_auth_and_are_rate_limited_per_account(pool: PgPool) {
         .await;
     assert_eq!(res.status, StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(res.body["code"], "RATE_LIMITED");
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn meal_plan_pdf_does_not_claim_unchecked_avoidance(pool: PgPool) {
+    let app = app(pool.clone());
+    let chef = Chef::new(&pool, &app, "Allergen PDF Kitchen").await;
+    let seed = chef
+        .post("/api/onboarding/seed", json!({ "starter_library": true }))
+        .await;
+    assert_eq!(seed.status, StatusCode::OK, "{}", seed.body);
+    let lasagna = chef
+        .get("/api/recipes")
+        .await
+        .body
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["name"] == "Roasted Vegetable Lasagna")
+        .and_then(|r| r["id"].as_i64())
+        .unwrap();
+    let client = chef
+        .post(
+            "/api/clients",
+            json!({ "name": "Dana", "allergens": ["Dairy", "Gluten"] }),
+        )
+        .await
+        .body["id"]
+        .as_i64()
+        .unwrap();
+    // The chef saw the warning and kept the dish anyway.
+    let session = chef
+        .post(
+            "/api/sessions",
+            json!({ "client_id": client, "session_date": "2026-03-15",
+                    "recipe_ids": [lasagna], "allergen_acknowledged": true }),
+        )
+        .await;
+    assert_eq!(session.status, StatusCode::CREATED, "{}", session.body);
+    let res = chef
+        .get(&format!("/api/sessions/{}/pdf", session.body["id"]))
+        .await;
+    let t = pdf_text(&res);
+    assert_has(
+        &t,
+        &[
+            "Allergies on file: Dairy, Gluten.",
+            "Contains Dairy: Roasted Vegetable Lasagna.",
+            "Contains Gluten: Roasted Vegetable Lasagna.",
+        ],
+    );
+    assert!(!t.contains("planned to avoid"), "{t}");
+    assert!(!t.contains("No ingredient in these dishes matched"), "{t}");
 }

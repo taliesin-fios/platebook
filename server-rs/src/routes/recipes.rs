@@ -23,6 +23,7 @@ use serde_json::Value;
 use sqlx::{PgConnection, Postgres, QueryBuilder};
 use ts_rs::TS;
 
+use crate::allergens;
 use crate::auth::Account;
 use crate::db::Tenant;
 use crate::error::{AppError, DbResult};
@@ -96,8 +97,35 @@ async fn list(
         .build_query_as::<RecipeRow>()
         .fetch_all(&mut *t.tx)
         .await?;
+    let ids: Vec<i64> = rows.iter().map(|r| r.id).collect();
+    let names: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT recipe_id, name FROM ingredients WHERE recipe_id = ANY($1) ORDER BY id",
+    )
+    .bind(&ids)
+    .fetch_all(&mut *t.tx)
+    .await?;
     t.tx.commit().await?;
-    Ok(Json(rows.into_iter().map(Recipe::from).collect()))
+    let mut by_recipe: HashMap<i64, Vec<String>> = HashMap::new();
+    for (recipe_id, name) in names {
+        by_recipe.entry(recipe_id).or_default().push(name);
+    }
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| {
+                let found = allergens::detect(
+                    std::iter::once(row.name.as_str()).chain(
+                        by_recipe
+                            .get(&row.id)
+                            .into_iter()
+                            .flatten()
+                            .map(String::as_str),
+                    ),
+                );
+                let found = found.into_iter().map(str::to_string).collect();
+                Recipe::new(row, found)
+            })
+            .collect(),
+    ))
 }
 
 async fn ingredients_of(conn: &mut PgConnection, id: i64) -> Result<Vec<Ingredient>, sqlx::Error> {

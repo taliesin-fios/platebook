@@ -243,7 +243,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 55
+          "total_time": 55,
+          "allergens": []
         },
         {
           "id": 2,
@@ -268,7 +269,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 80
+          "total_time": 80,
+          "allergens": []
         },
         {
           "id": 3,
@@ -293,7 +295,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 145
+          "total_time": 145,
+          "allergens": []
         },
         {
           "id": 4,
@@ -318,7 +321,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 55
+          "total_time": 55,
+          "allergens": ["Dairy"]
         },
         {
           "id": 5,
@@ -342,7 +346,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 25
+          "total_time": 25,
+          "allergens": ["Dairy","Fish"]
         },
         {
           "id": 6,
@@ -367,7 +372,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 195
+          "total_time": 195,
+          "allergens": []
         },
         {
           "id": 7,
@@ -392,7 +398,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 35
+          "total_time": 35,
+          "allergens": ["Gluten","Eggs","Shellfish","Soy","Sesame"]
         },
         {
           "id": 8,
@@ -417,7 +424,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 55
+          "total_time": 55,
+          "allergens": ["Dairy","Gluten","Eggs"]
         },
         {
           "id": 9,
@@ -442,7 +450,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 40
+          "total_time": 40,
+          "allergens": ["Dairy"]
         },
         {
           "id": 10,
@@ -467,7 +476,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 90
+          "total_time": 90,
+          "allergens": ["Dairy","Gluten"]
         },
         {
           "id": 11,
@@ -492,7 +502,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 55
+          "total_time": 55,
+          "allergens": ["Gluten"]
         },
         {
           "id": 12,
@@ -517,7 +528,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 55
+          "total_time": 55,
+          "allergens": []
         },
         {
           "id": 13,
@@ -542,7 +554,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 65
+          "total_time": 65,
+          "allergens": []
         },
         {
           "id": 14,
@@ -567,7 +580,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 205
+          "total_time": 205,
+          "allergens": []
         },
         {
           "id": 15,
@@ -592,7 +606,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 35
+          "total_time": 35,
+          "allergens": ["Gluten","Soy","Sesame"]
         },
         {
           "id": 16,
@@ -617,7 +632,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 35
+          "total_time": 35,
+          "allergens": ["Dairy"]
         },
         {
           "id": 17,
@@ -642,7 +658,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 80
+          "total_time": 80,
+          "allergens": ["Dairy"]
         },
         {
           "id": 18,
@@ -666,7 +683,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 40
+          "total_time": 40,
+          "allergens": ["Gluten"]
         },
         {
           "id": 19,
@@ -691,7 +709,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 65
+          "total_time": 65,
+          "allergens": []
         },
         {
           "id": 20,
@@ -716,7 +735,8 @@
           "import_source": "seeded",
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
-          "total_time": 65
+          "total_time": 65,
+          "allergens": ["Dairy","Gluten"]
         },
         {
           "id": 36,
@@ -737,7 +757,8 @@
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
           "account_id": 1,
-          "total_time": 60
+          "total_time": 60,
+          "allergens": []
         }
       ],
       "/api/recipes/36": {
@@ -3667,7 +3688,8 @@
           "is_active": 1,
           "created_at": "2026-10-16 19:09:37",
           "account_id": 2,
-          "total_time": 60
+          "total_time": 60,
+          "allergens": []
         }
       ],
       "/api/recipes/37": {
