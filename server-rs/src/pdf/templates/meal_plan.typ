@@ -105,7 +105,24 @@
     set text(fill: allergen-text)
     text(size: 8.5pt, weight: "bold")[Allergen Awareness]
     v(2.5mm)
-    text(size: 7.5pt)[This menu was planned to avoid: #d.allergens.join(", ").]
+    set text(size: 7.5pt)
+    // Only say what the server checked: matches are named, and "nothing
+    // matched" is said only when every allergen on file has keywords.
+    let contains = d.at("contains", default: ())
+    let unchecked = d.at("unchecked", default: d.allergens)
+    [Allergies on file: #d.allergens.join(", ").]
+    for c in contains {
+      linebreak()
+      strong[Contains #c.allergen: #c.dishes.join(", ").]
+    }
+    if contains.len() == 0 and unchecked.len() == 0 {
+      [ No ingredient in these dishes matched them.]
+    }
+    if unchecked.len() > 0 {
+      [ Not checked against the ingredients: #unchecked.join(", ").]
+    }
+    linebreak()
+    [Please confirm with your chef before eating.]
   })
 }
 

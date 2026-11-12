@@ -3,4 +3,9 @@
 /**
  * A recipe as the list route returns it (`total_time` added).
  */
-export type Recipe = { total_time: number, id: number, account_id: number, name: string, category: string | null, session_fit: string | null, prep_time_min: number | null, cook_time_min: number | null, servings_base: number | null, hold_quality: number | null, reheat_quality: number | null, key_overlap_ingredients: string[], chef_notes: string | null, raw_instructions: string | null, import_source: string | null, is_active: 0 | 1, created_at: string, };
+export type Recipe = { total_time: number, 
+/**
+ * Allergens found in the recipe's name and ingredient names
+ * (`allergens::detect`), so clients needn't fetch ingredients to check.
+ */
+allergens: Array<string>, id: number, account_id: number, name: string, category: string | null, session_fit: string | null, prep_time_min: number | null, cook_time_min: number | null, servings_base: number | null, hold_quality: number | null, reheat_quality: number | null, key_overlap_ingredients: string[], chef_notes: string | null, raw_instructions: string | null, import_source: string | null, is_active: 0 | 1, created_at: string, };

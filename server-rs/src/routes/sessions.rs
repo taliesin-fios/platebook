@@ -30,11 +30,12 @@ use chrono::{Duration, NaiveDate};
 use regex::Regex;
 use rust_decimal::Decimal;
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::{FromRow, PgConnection, Postgres, QueryBuilder};
 use ts_rs::TS;
 
 use crate::accounts;
+use crate::allergens;
 use crate::db::{Tenant, begin_tenant};
 use crate::email;
 use crate::error::{AppError, BareResult, DbResult};
@@ -228,6 +229,42 @@ async fn all_recipes_owned(
     Ok(found == unique.len() as i64)
 }
 
+/// Refuses the save (409 `ALLERGEN_CONFLICT`) when a dish now on the session
+/// contains one of its client's allergens, unless the body says the chef
+/// acknowledged it (`allergen_acknowledged: true`). Runs after the writes,
+/// inside the transaction, so a refusal rolls them back.
+async fn check_allergens(
+    conn: &mut PgConnection,
+    session_id: i64,
+    body: &JsonBody,
+) -> Result<(), AppError> {
+    if body.truthy("allergen_acknowledged") {
+        return Ok(());
+    }
+    let conflicts = allergens::session_conflicts(conn, session_id).await?;
+    if conflicts.is_empty() {
+        return Ok(());
+    }
+    let found: Vec<&str> = allergens::KEYWORDS
+        .iter()
+        .map(|(a, _)| *a)
+        .filter(|a| conflicts.iter().any(|c| c.allergens.contains(a)))
+        .collect();
+    let dishes: Vec<&str> = conflicts.iter().map(|c| c.name.as_str()).collect();
+    Err(AppError::new(
+        StatusCode::CONFLICT,
+        "ALLERGEN_CONFLICT",
+        format!(
+            "{} contain{} the client's allergens ({}). Acknowledge the conflict to save anyway.",
+            dishes.join(", "),
+            if dishes.len() == 1 { "s" } else { "" },
+            found.join(", ")
+        ),
+    )
+    .with("allergens", json!(found))
+    .with("recipes", json!(conflicts)))
+}
+
 async fn insert_dishes(
     conn: &mut PgConnection,
     session_id: i64,
@@ -415,6 +452,7 @@ async fn create(mut t: Tenant, body: JsonBody) -> DbResult<(StatusCode, Json<Ses
 
     let ids: Vec<i64> = recipe_values.iter().filter_map(js::integer).collect();
     insert_dishes(&mut t.tx, id, &ids).await?;
+    check_allergens(&mut t.tx, id, &body).await?;
     let res = details_or_404(&mut t.tx, id).await?;
     t.tx.commit().await?;
     Ok((StatusCode::CREATED, Json(res)))
@@ -527,6 +565,10 @@ async fn update(
             .await?;
         let ids: Vec<i64> = values.iter().filter_map(js::integer).collect();
         insert_dishes(&mut t.tx, id, &ids).await?;
+    }
+    // A new dish list or a new client is re-checked; other edits aren't.
+    if body.has("recipe_ids") || body.has("client_id") {
+        check_allergens(&mut t.tx, id, &body).await?;
     }
 
     let res = details_or_404(&mut t.tx, id).await?;
@@ -735,6 +777,7 @@ async fn replace_dishes(
         .await?;
     let ids: Vec<i64> = values.iter().filter_map(js::integer).collect();
     insert_dishes(&mut t.tx, id, &ids).await?;
+    check_allergens(&mut t.tx, id, &body).await?;
     let res = details_or_404(&mut t.tx, id).await?;
     t.tx.commit().await?;
     Ok(Json(res))
@@ -780,11 +823,12 @@ async fn meal_plan_pdf(
     pdf::check_limit(&state, t.account.id).await?;
     let id = guard(&mut t, &raw_id).await?;
     let session = details_or_404(&mut t.tx, id).await?;
+    let conflicts = allergens::session_conflicts(&mut t.tx, id).await?;
     let settings = accounts::get_settings(&mut t.tx, t.account.id).await?;
     t.tx.commit().await?;
     let bytes = pdf::render_blocking(
         Template::MealPlan,
-        docs::meal_plan(&session, &settings),
+        docs::meal_plan(&session, &settings, &conflicts),
         vec![],
     )
     .await?;
@@ -831,12 +875,13 @@ async fn email_pdf(
     // The attachment is always rendered here: emailing bytes from the request
     // would let any account mail arbitrary files to any address.
     let settings = accounts::get_settings(&mut t.tx, t.account.id).await?;
+    let conflicts = allergens::session_conflicts(&mut t.tx, id).await?;
     let account_id = t.account.id;
     // Don't hold the transaction across rendering and SMTP (which may retry).
     t.tx.commit().await?;
     let pdf = pdf::render_blocking(
         Template::MealPlan,
-        docs::meal_plan(&session, &settings),
+        docs::meal_plan(&session, &settings, &conflicts),
         vec![],
     )
     .await?;

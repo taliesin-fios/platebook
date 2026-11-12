@@ -118,13 +118,17 @@ pub struct Recipe {
     #[ts(flatten)]
     pub row: RecipeRow,
     pub total_time: i32,
+    /// Allergens found in the recipe's name and ingredient names
+    /// (`allergens::detect`), so clients needn't fetch ingredients to check.
+    pub allergens: Vec<String>,
 }
 
-impl From<RecipeRow> for Recipe {
-    fn from(row: RecipeRow) -> Self {
+impl Recipe {
+    pub fn new(row: RecipeRow, allergens: Vec<String>) -> Self {
         Recipe {
             total_time: row.total_time(),
             row,
+            allergens,
         }
     }
 }

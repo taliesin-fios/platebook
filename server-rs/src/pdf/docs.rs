@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 
 use super::{APP_NAME, Asset, logo_asset};
 use crate::accounts::Settings;
+use crate::allergens;
 use crate::models::{GroceryItemRow, InvoiceLineItem};
 use crate::money;
 use crate::routes::costs::js_num;
@@ -156,7 +157,14 @@ fn string_list(v: Option<&Value>) -> Vec<String> {
 
 // ── Meal plan (client PDF) ────────────────────────────────────────────────────
 
-pub fn meal_plan(session: &SessionDetail, settings: &Settings) -> Value {
+/// The meal plan's data. `conflicts` are the session's dishes that contain the
+/// client's allergens (`allergens::session_conflicts`): the PDF names them, and
+/// only says nothing matched when every allergen on file could be checked.
+pub fn meal_plan(
+    session: &SessionDetail,
+    settings: &Settings,
+    conflicts: &[allergens::DishConflict],
+) -> Value {
     let date = session.session.session_date;
     let serving = serves(session.session.serving_size);
     let use_by = date
@@ -175,6 +183,24 @@ pub fn meal_plan(session: &SessionDetail, settings: &Settings) -> Value {
             })
         })
         .collect();
+    let on_file = string_list(session.client_allergens.as_ref());
+    let unchecked: Vec<&String> = on_file
+        .iter()
+        .filter(|a| allergens::known(a).is_none())
+        .collect();
+    // One line per allergen found: the dishes that contain it.
+    let contains: Vec<Value> = allergens::KEYWORDS
+        .iter()
+        .map(|(a, _)| *a)
+        .filter_map(|a| {
+            let dishes: Vec<&str> = conflicts
+                .iter()
+                .filter(|c| c.allergens.contains(&a))
+                .map(|c| c.name.as_str())
+                .collect();
+            (!dishes.is_empty()).then(|| json!({ "allergen": a, "dishes": dishes }))
+        })
+        .collect();
     json!({
         "business": business_name(settings).to_uppercase(),
         "client": session.client_name.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| "Client".into()),
@@ -182,7 +208,9 @@ pub fn meal_plan(session: &SessionDetail, settings: &Settings) -> Value {
         "serves": serving,
         "use_by": use_by,
         "dishes": dishes,
-        "allergens": string_list(session.client_allergens.as_ref()),
+        "allergens": on_file,
+        "contains": contains,
+        "unchecked": unchecked,
         "website": website(settings),
     })
 }

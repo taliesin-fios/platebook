@@ -140,6 +140,17 @@ describe('account B cannot reference account A records in its own writes', () =>
     const res = await b.post('/api/sessions').send({ client_id: own.body.id, recipe_ids: [ids.recipe] });
     assert.equal(res.status, 400);
   });
+  test('allergen override does not get past ownership', async () => {
+    const own = await b.post('/api/clients').send({ name: 'Beta Allergic', allergens: ['Dairy'] });
+    const cheese = await a.post('/api/recipes').send({ name: 'Alpha Gratin', ingredients: [{ name: 'gruyere cheese' }] });
+    assert.deepEqual((await a.get('/api/recipes')).body.find(r => r.id === cheese.body.id).allergens, ['Dairy']);
+    const res = await b.post('/api/sessions').send({
+      client_id: own.body.id, recipe_ids: [cheese.body.id], allergen_acknowledged: true,
+    });
+    assert.equal(res.status, 400);
+    const res2 = await b.post('/api/sessions').send({ client_id: ids.client, allergen_acknowledged: true });
+    assert.equal(res2.status, 400);
+  });
   test('invoice for A client', async () => {
     assert.equal((await b.post(`/api/invoices/from-client/${ids.client}`)).status, 404);
   });

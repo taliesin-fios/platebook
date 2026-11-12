@@ -688,3 +688,57 @@ async fn ai_settings_and_keys_stay_with_their_account(pool: PgPool) {
     assert_eq!(stolen["configured"], false);
     assert_eq!(stolen["key_unreadable"], true);
 }
+
+/// The allergen check reads only the caller's recipes and clients: the list's
+/// detected allergens come from the account's own ingredients, and an
+/// `allergen_acknowledged` override doesn't get past the ownership checks.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn allergen_checks_stay_inside_the_account(pool: PgPool) {
+    let (a, b, i) = two_chefs(&pool).await;
+    let cheese = a
+        .post(
+            "/api/recipes",
+            json!({ "name": "Alpha Gratin", "ingredients": [{ "name": "gruyere cheese" }] }),
+        )
+        .await
+        .body["id"]
+        .as_i64()
+        .unwrap();
+    let a_list = a.get("/api/recipes").await.body;
+    let gratin = a_list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["id"] == cheese)
+        .unwrap();
+    assert_eq!(gratin["allergens"], json!(["Dairy"]));
+
+    // B's own recipe of the same name has its own ingredients, so no allergens.
+    b.post(
+        "/api/recipes",
+        json!({ "name": "Alpha Gratin", "ingredients": [{ "name": "potato" }] }),
+    )
+    .await;
+    let b_list = b.get("/api/recipes").await.body;
+    let b_list = b_list.as_array().unwrap();
+    assert_eq!(b_list.len(), 1);
+    assert_eq!(b_list[0]["allergens"], json!([]));
+
+    // An override can't be used to save A's client or recipes from B.
+    let own = b
+        .post(
+            "/api/clients",
+            json!({ "name": "Beta Client", "allergens": ["Dairy"] }),
+        )
+        .await
+        .body["id"]
+        .as_i64()
+        .unwrap();
+    for body in [
+        json!({ "client_id": i.client, "allergen_acknowledged": true }),
+        json!({ "client_id": own, "recipe_ids": [cheese], "allergen_acknowledged": true }),
+    ] {
+        let r = b.post("/api/sessions", body).await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST, "{}", r.body);
+    }
+}

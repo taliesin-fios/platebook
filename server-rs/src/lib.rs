@@ -6,6 +6,7 @@
 
 pub mod accounts;
 pub mod ai_keys;
+pub mod allergens;
 pub mod api_types;
 pub mod app;
 pub mod auth;
