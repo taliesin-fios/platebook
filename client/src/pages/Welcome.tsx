@@ -20,9 +20,12 @@ const FEATURES = [
 // Hero buttons: a <button> (the demo) and links, sized the same.
 const CTA = 'inline-flex items-center justify-center px-7 py-3.5 rounded-xl text-base leading-6 font-semibold';
 
+const SELF_HOSTING_URL = `${APP_REPO_URL}/blob/main/docs/SELF_HOSTING.md`;
+const FEEDBACK_URL = `${APP_REPO_URL}/discussions`;
+
 const STEPS = [
-  ['Create your account', 'Takes under a minute.'],
-  ['Set up your business', 'Name, services, pricing and booking policy.'],
+  ['Choose where to run Platebook', 'Use the demo if enabled, or follow the self-hosting guide to run your own server.'],
+  ['Set up your business', 'Name, services, pricing and booking policy on your own server.'],
   ['Share your booking link', 'Clients tell you everything you need up front.'],
 ];
 
@@ -54,15 +57,18 @@ export default function Welcome() {
             <Link to="/signup" className={`${CTA} ${demo
               ? 'bg-white text-green-dark border border-herb'
               : 'bg-herb text-white shadow-card hover:shadow-card-hover transition-shadow'}`}>
-              Create your account
+              Create an account on this server
             </Link>
           )}
+          <a href={SELF_HOSTING_URL} target="_blank" rel="noopener noreferrer" className={`${CTA} bg-white text-green-dark border border-gray-200`}>
+            Self-host Platebook
+          </a>
           <Link to="/login" className={`${CTA} bg-white text-green-dark border border-gray-200`}>
             I already have an account
           </Link>
         </div>
         {demo && (
-          <p className="mt-3 text-xs text-gray-500">No sign-up needed: the demo is filled with sample clients, sessions and invoices.</p>
+          <p className="mt-3 text-xs text-gray-500">No sign-up needed: the shared demo uses sample data, may be reset at any time, and is not for private information.</p>
         )}
       </section>
 
@@ -99,15 +105,28 @@ export default function Welcome() {
       <section className="bg-green-dark text-white">
         <div className="max-w-3xl mx-auto px-4 py-12 text-center">
           <h2 className="font-display text-2xl sm:text-3xl font-semibold">Run your chef business from one app</h2>
-          <p className="mt-3 text-sage/90 text-sm">Set up in minutes. Your clients and data stay private to your account.</p>
-          <Link to={signupOpen ? '/signup' : '/login'} className="inline-block mt-6 px-7 py-3.5 rounded-xl bg-white text-green-dark font-semibold">
-            {signupOpen ? 'Get started' : 'Sign in'}
-          </Link>
+          <p className="mt-3 text-sage/90 text-sm">Your account and data belong to this server. Run Platebook yourself with the self-hosting guide.</p>
+          <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+            {signupOpen && (
+              <Link to="/signup" className="inline-block px-7 py-3.5 rounded-xl bg-white text-green-dark font-semibold">
+                Create an account on this server
+              </Link>
+            )}
+            <Link to="/login" className="inline-block px-7 py-3.5 rounded-xl border border-white/40 text-white font-semibold">
+              Sign in
+            </Link>
+          </div>
         </div>
       </section>
 
-      <footer className="text-center text-xs text-gray-400 py-6">
-        {APP_NAME} by <a href={APP_REPO_URL} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">{APP_AUTHOR}</a>
+      <footer className="text-center text-xs text-gray-400 py-6 px-4">
+        <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-3">
+          <a href={APP_REPO_URL} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">Source code</a>
+          <a href={SELF_HOSTING_URL} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">Self-hosting guide</a>
+          <a href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">Give feedback</a>
+        </div>
+        <div>{APP_NAME} by <a href={APP_REPO_URL} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">{APP_AUTHOR}</a></div>
+        <div className="mt-2">Source-available under <a href={`${APP_REPO_URL}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">PolyForm Shield 1.0.0</a> (not an OSI-approved open-source license).</div>
       </footer>
     </div>
   );
