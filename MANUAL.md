@@ -8,6 +8,7 @@
 
 1. [What Is Platebook?](#1-what-is-platebook)
    - [Creating Your Account & Onboarding](#creating-your-account--onboarding)
+   - [The Tour and the In-App Guide](#the-tour-and-the-in-app-guide)
 2. [Getting Started (running it yourself)](#2-getting-started-running-it-yourself)
    - [Windows 11 and macOS](#windows-11-and-macos)
    - [iPhone / Mobile Access](#iphone--mobile-access)
@@ -77,6 +78,12 @@ Platebook is a **business management tool for home and personal chefs**: chefs w
    - **Head start**: optionally load the starter recipe library (20 recipes and 4 menu templates) and a sample client to practise with.
    - **Ready**: copy your booking link and jump to your first client, recipe or session.
 3. You can choose **Finish later** at any point. Everything in the wizard can be changed in **Settings**.
+
+### The Tour and the In-App Guide
+
+The first time you open the dashboard on a phone or computer, a short **tour** (five cards) explains what each main screen is for: Dashboard, Clients, Sessions and the grocery list, Recipes, and Invoices. Use **Next** and **Back** to move through it. **Skip tour**, the `Escape` key or **Done** closes it, and it won't come back by itself on that device. Because this is remembered in your browser, you'll see the tour once more if you sign in on another device or clear your browser's data.
+
+The **guide** ("How it works") is a short page inside the app with step-by-step help for the everyday jobs: adding a client, planning a session, shopping from the grocery list, sending an invoice and handling a booking request. Open it with **Guide** at the top of the dashboard, **Guide** in the sidebar on a computer, or **Settings → Help**. **Take the tour** at the top of the guide plays the tour again.
 
 **Signing in later:** use your email and password, or "Email me a sign-in link instead". If you forget your password, use **Forgot password?** on the sign-in page.
 
@@ -174,7 +181,7 @@ Platebook has **7 sections** accessed via the bottom navigation bar:
 [ Dashboard ]  [ Clients ]  [ Sessions ]  [ Recipes ]  [ Costs ]
 ```
 
-Settings are accessed via the gear icon on the Dashboard.
+Settings are accessed via the gear icon on the Dashboard. The in-app guide is the **Guide** button beside it.
 
 ### Navigation Map
 ```

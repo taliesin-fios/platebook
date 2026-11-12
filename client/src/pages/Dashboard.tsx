@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import { fmtSessionDate, localDateStrOffset, localTodayStr } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import { SkeletonStatGrid } from '../components/Skeleton';
+import { FirstRunTour } from '../components/Tour';
 import { STATUS_COLORS, FEASIBILITY_COLORS, calcFeasibility, APP_NAME, bookingUrl } from '../constants';
 import { SettingsContext } from '../App';
 import { parseNum } from '../utils/numbers';
@@ -137,11 +138,19 @@ export default function Dashboard() {
 
   return (
     <div className="page pb-24">
+      <FirstRunTour onOpenGuide={() => navigate('/guide')} />
       <div className="page-header">
         <div className="flex-1">
           <div className="font-display text-xl font-semibold">{appSettings.business_name || APP_NAME}</div>
           {appSettings.location && <div className="text-xs text-blue-200 mt-0.5">{appSettings.location}</div>}
         </div>
+        <button
+          onClick={() => navigate('/guide')}
+          className="text-white text-sm font-semibold rounded-lg bg-white/15 px-3 py-1.5 hover:bg-white/25"
+          style={{ minHeight: 'auto' }}
+        >
+          Guide
+        </button>
         <button
           onClick={() => navigate('/settings')}
           className="text-white opacity-80"

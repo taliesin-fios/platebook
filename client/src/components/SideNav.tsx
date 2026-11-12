@@ -68,6 +68,14 @@ const InvoiceIcon = ({ filled }: IconProps) => (
   </svg>
 );
 
+const GuideIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
 const TABS = [
   { path: '/',         label: 'Dashboard', Icon: HomeIcon     },
   { path: '/clients',  label: 'Clients',   Icon: ClientIcon   },
@@ -146,6 +154,13 @@ export default function SideNav() {
 
       {/* Settings + Logout at bottom */}
       <div className="side-nav-footer">
+        <button
+          className={`side-nav-item ${isActive('/guide') ? 'side-nav-item-active' : 'side-nav-item-inactive'}`}
+          onClick={() => navigate('/guide')}
+        >
+          <GuideIcon />
+          <span className="side-nav-label">Guide</span>
+        </button>
         <button
           className={`side-nav-item ${isActive('/settings') ? 'side-nav-item-active' : 'side-nav-item-inactive'}`}
           onClick={() => navigate('/settings')}
