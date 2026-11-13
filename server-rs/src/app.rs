@@ -137,14 +137,13 @@ async fn fallback(State(state): State<AppState>, req: Request) -> Response {
     match &state.config.client_dist {
         Some(dist) => {
             let index = std::path::Path::new(dist).join("index.html");
-            match ServeDir::new(dist)
+            // ServeDir cannot fail (its error type is `Infallible`): a missing
+            // file is a 404 response, not an `Err`.
+            let Ok(res) = ServeDir::new(dist)
                 .fallback(ServeFile::new(index))
                 .oneshot(req)
-                .await
-            {
-                Ok(res) => res.into_response(),
-                Err(err) => AppError::internal(err).into_response(),
-            }
+                .await;
+            res.into_response()
         }
         None => StatusCode::NOT_FOUND.into_response(),
     }
