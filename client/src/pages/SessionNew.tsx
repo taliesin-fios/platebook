@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { format } from 'date-fns';
-import { parseLocalDate } from '../utils/dateUtils';
+import { parseLocalDate, fmtSessionDate, fmtSessionTime } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
@@ -607,8 +607,8 @@ export default function SessionNew() {
               <div className="section-header">Session Summary</div>
               <div className="space-y-2">
                 <div className="flex justify-between"><span className="text-sm text-gray-500">Client</span><span className="text-sm font-medium">{selectedClient?.name || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-sm text-gray-500">Date</span><span className="text-sm font-medium">{session.session_date || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-sm text-gray-500">Time</span><span className="text-sm font-medium">{session.session_time || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-500">Date</span><span className="text-sm font-medium">{session.session_date ? fmtSessionDate(session.session_date, 'EEE, MMM d, yyyy') : '—'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-500">Time</span><span className="text-sm font-medium">{fmtSessionTime(session.session_time)}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-gray-500">Serving Size</span><span className="text-sm font-medium">{session.serving_size}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-gray-500">Status</span><span className="text-sm font-medium">{session.status}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-gray-500">Recurring</span><span className="text-sm font-medium">{repeatLabel(session.repeat_every_weeks)}</span></div>
