@@ -2,7 +2,7 @@
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, fmtSessionDate, fmtUtcTimestamp, fmtTimeUntilUtc, localTodayStr, localDateStrOffset } from './dateUtils';
+import { parseLocalDate, fmtSessionDate, fmtUtcTimestamp, fmtTimeUntilUtc, localTodayStr, localDateStrOffset, fmtSessionTime, clientSessionLabel } from './dateUtils';
 
 describe('parseLocalDate', () => {
   it('anchors a date-only string to local noon, not UTC midnight', () => {
@@ -102,5 +102,43 @@ describe('fmtTimeUntilUtc', () => {
     expect(fmtTimeUntilUtc(null, 'soon', now)).toBe('soon');
     expect(fmtTimeUntilUtc('2026-11-05 11:00:00', 'soon', now)).toBe('soon');
     expect(fmtTimeUntilUtc('not a date', 'soon', now)).toBe('soon');
+  });
+});
+
+describe('fmtSessionTime', () => {
+  it('shows a 24-hour time on a 12-hour clock', () => {
+    expect(fmtSessionTime('10:00')).toBe('10:00 AM');
+    expect(fmtSessionTime('14:30')).toBe('2:30 PM');
+    expect(fmtSessionTime('00:05')).toBe('12:05 AM');
+    expect(fmtSessionTime('12:00')).toBe('12:00 PM');
+    expect(fmtSessionTime('9:15:00')).toBe('9:15 AM');
+  });
+
+  it('leaves free-text and impossible times as typed', () => {
+    expect(fmtSessionTime('after lunch')).toBe('after lunch');
+    expect(fmtSessionTime('25:00')).toBe('25:00');
+    expect(fmtSessionTime('10:75')).toBe('10:75');
+  });
+
+  it('shows the fallback for a missing time', () => {
+    expect(fmtSessionTime(null)).toBe('—');
+    expect(fmtSessionTime('  ')).toBe('—');
+    expect(fmtSessionTime(undefined, '')).toBe('');
+  });
+});
+
+describe('clientSessionLabel', () => {
+  it('calls a past session "Last"', () => {
+    expect(clientSessionLabel('2026-11-13', '2026-11-20')).toBe('Last: Nov 13, 2026');
+  });
+
+  it('says how far ahead a client is booked when the session is today or later', () => {
+    expect(clientSessionLabel('2026-11-28', '2026-11-20')).toBe('Booked through Nov 28, 2026');
+    expect(clientSessionLabel('2026-11-20', '2026-11-20')).toBe('Booked through Nov 20, 2026');
+  });
+
+  it('shows nothing without a date', () => {
+    expect(clientSessionLabel(null, '2026-11-20')).toBe('');
+    expect(clientSessionLabel('', '2026-11-20')).toBe('');
   });
 });

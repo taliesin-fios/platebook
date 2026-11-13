@@ -8,6 +8,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { SkeletonList } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { apiCall } from '../hooks/useApi';
+import { clientSessionLabel } from '../utils/dateUtils';
 import type { ClientListItem } from '../types';
 
 const ALLERGEN_ICONS: Record<string, string> = {
@@ -151,7 +152,7 @@ export default function Clients() {
                     </span>
                     <span className="text-xs text-gray-400">Serves {c.serving_size || 4}</span>
                     {c.last_session_date && (
-                      <span className="text-xs text-gray-400">Last: {c.last_session_date}</span>
+                      <span className="text-xs text-gray-400">{clientSessionLabel(c.last_session_date)}</span>
                     )}
                   </div>
                 </div>

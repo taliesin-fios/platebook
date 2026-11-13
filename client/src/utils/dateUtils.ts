@@ -66,3 +66,30 @@ export function fmtTimeUntilUtc(ts: string | null | undefined, fallback: string,
   if (hours < 48) return `in about ${hours} hour${hours === 1 ? '' : 's'}`;
   return `in about ${Math.round(hours / 24)} days`;
 }
+
+/**
+ * A session time for display: "14:30" → "2:30 PM". Session times are free
+ * text on older rows, so anything that isn't HH:MM is returned as typed.
+ */
+export function fmtSessionTime(time: string | null | undefined, fallback = '—'): string {
+  const raw = (time ?? '').trim();
+  if (!raw) return fallback;
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(raw);
+  if (!m) return raw;
+  const hours = Number(m[1]);
+  const minutes = Number(m[2]);
+  if (hours > 23 || minutes > 59) return raw;
+  return `${hours % 12 === 0 ? 12 : hours % 12}:${m[2]} ${hours < 12 ? 'AM' : 'PM'}`;
+}
+
+/**
+ * The line under a client's name in the client list. `last_session_date` is
+ * the client's latest session, which may still be ahead (and need not be the
+ * next one): "Booked through Nov 28, 2026" from today on, "Last: Nov 13, 2026"
+ * once it has passed.
+ */
+export function clientSessionLabel(date: string | null | undefined, today: string = localTodayStr()): string {
+  if (!date) return '';
+  const day = String(date).slice(0, 10);
+  return `${day >= today ? 'Booked through' : 'Last:'} ${fmtSessionDate(day, 'MMM d, yyyy')}`;
+}
