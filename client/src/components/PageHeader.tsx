@@ -19,6 +19,7 @@ export default function PageHeader({ title, back, action, subtitle }: PageHeader
       {back && (
         <button
           onClick={() => typeof back === 'function' ? back() : navigate(back)}
+          aria-label="Back"
           className="text-white opacity-80 hover:opacity-100 flex items-center gap-1"
           style={{ minHeight: 'auto' }}
         >
