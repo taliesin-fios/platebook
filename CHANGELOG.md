@@ -13,6 +13,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Migration `0012_signup_invites.sql`:** a new `signup_invites` table (server-wide, no tenant data, no `chef_app` access). Additive.
 
 ### Changed
+- **Regenerate asks before it clears your ticks.** On a session's Grocery tab, **↺ Regenerate** unticked everything in one tap. With items ticked off, it now says how many would be unticked and waits for **Rebuild list**. With nothing ticked it rebuilds straight away, as before.
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 
 ### Fixed
