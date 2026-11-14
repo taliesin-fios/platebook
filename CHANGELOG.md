@@ -13,6 +13,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Migration `0012_signup_invites.sql`:** a new `signup_invites` table (server-wide, no tenant data, no `chef_app` access). Additive.
 
 ### Changed
+- **The session wizard suggests the date.** On the Schedule step the date is filled in with the next date on the client's preferred day (and their preferred time, when it is a clock time), with a note saying so; a date you pick is never replaced. The last button reads **Save Session** instead of "Confirm Session", since it also saves Pending sessions.
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 
 ### Fixed
