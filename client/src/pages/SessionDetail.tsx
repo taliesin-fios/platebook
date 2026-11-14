@@ -13,6 +13,7 @@ import { apiCall, errorMessage } from '../hooks/useApi';
 import { STATUS_COLORS, calcFeasibility, FEASIBILITY_COLORS, getReheatedInstructions, CATEGORY_BAR_COLORS, marginColor, REPEAT_OPTIONS } from '../constants';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
+import { sinkTicked } from '../utils/groceryOrder';
 import type {
   CompletedSession, EmailSentResponse, Flag, GroceryItem, GroceryListResponse, InvoiceListItem, SessionDetail as SessionDetailData, SessionDish,
 } from '../types';
@@ -720,7 +721,7 @@ export default function SessionDetail() {
                       Mark All
                     </button>
                   </div>
-                  {!collapsed && items.map((item, idx) => {
+                  {!collapsed && sinkTicked(items).map((item, idx) => {
                     const sourceList = Array.isArray(item.source_dishes) ? item.source_dishes : (() => { try { return JSON.parse(item.source_dishes || '[]'); } catch { return []; } })();
                     return (
                       <div
@@ -787,8 +788,9 @@ export default function SessionDetail() {
         )}
       </div>
 
-      {/* Fixed bottom actions */}
-      <div className="fixed fixed-action-bar left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-20 md:left-[220px]">
+      {/* Fixed bottom actions. On a phone the Grocery tab gives this space to the
+          list: it has its own PDF button, and the rest are a tab away. */}
+      <div className={`fixed fixed-action-bar left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-20 md:left-[220px] ${tab === 'grocery' ? 'hidden md:block' : ''}`}>
         <div className="max-w-3xl mx-auto flex gap-2">
           <button
             onClick={handleGeneratePDF}
