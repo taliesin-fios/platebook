@@ -8,6 +8,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { fmtUtcTimestamp } from '../utils/dateUtils';
+import { mailtoHref, telHref } from '../utils/contactLinks';
 import PageHeader from '../components/PageHeader';
 import EmailFailedBanner from '../components/EmailFailedBanner';
 import { useToast } from '../components/Toast';
@@ -110,6 +111,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [resending, setResending]   = useState(false);
   const [events, setEvents]         = useState<PaymentEventItem[] | null>(null);
+  const navigate = useNavigate();
   const [eventsVersion, setEventsVersion] = useState(0);
   const { show } = useToast();
   const isDeleted = !!intake.deleted_at;
@@ -266,7 +268,12 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
         <div className="flex items-start justify-between mb-4">
           <div>
             <h2 className="font-display font-bold text-green-dark text-lg">{intake.name}</h2>
-            <p className="text-xs text-gray-400">{intake.email} · #{intake.id}</p>
+            <p className="text-xs text-gray-400">
+              {mailtoHref(intake.email)
+                ? <a href={mailtoHref(intake.email) ?? undefined} className="underline text-navy">{intake.email}</a>
+                : intake.email}
+              {' '}· #{intake.id}
+            </p>
           </div>
           <button onClick={onClose} className="text-gray-400 text-xl leading-none" style={{ minHeight: 'auto' }}>×</button>
         </div>
@@ -293,11 +300,41 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
             </div>
           )}
 
+          {/* Next step: the one thing most inquiries need, before the details */}
+          {!isDeleted && (
+            <div className="card">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Next Step</p>
+              {intake.converted_client_id ? (
+                <button
+                  onClick={() => { onClose(); navigate(`/clients/${intake.converted_client_id}`); }}
+                  className="w-full py-2.5 bg-navy text-white rounded-xl text-sm font-semibold"
+                >
+                  Open client record
+                </button>
+              ) : (
+                <button
+                  onClick={handleConvert}
+                  disabled={saving}
+                  className="w-full py-2.5 bg-navy text-white rounded-xl text-sm font-semibold disabled:opacity-60"
+                >
+                  ✓ Convert to Client Record
+                </button>
+              )}
+              <p className="text-xs text-gray-500 mt-2">
+                {intake.converted_client_id
+                  ? 'Already a client. Plan their sessions from the client record.'
+                  : 'Creates the client from these answers and opens their record, where you can plan the first session.'}
+              </p>
+            </div>
+          )}
+
           {/* Contact */}
           {filled(intake.phone, intake.address) && (
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Contact</p>
-            <InfoRow label="Phone"   value={intake.phone} />
+            <InfoRow label="Phone"   value={telHref(intake.phone)
+              ? <a href={telHref(intake.phone) ?? undefined} className="underline">{intake.phone}</a>
+              : intake.phone} />
             <InfoRow label="Address" value={intake.address} />
           </div>
           )}
@@ -524,20 +561,6 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
             >
               {saving ? 'Saving…' : 'Save Status & Notes'}
             </button>
-            {!intake.converted_client_id && (
-              <button
-                onClick={handleConvert}
-                disabled={saving}
-                className="w-full py-2.5 border-2 border-green-mid text-green-dark rounded-xl text-sm font-semibold disabled:opacity-60"
-              >
-                ✓ Convert to Client Record
-              </button>
-            )}
-            {intake.converted_client_id && (
-              <p className="text-xs text-center text-green-dark font-medium">
-                ✓ Converted — Client #{intake.converted_client_id}
-              </p>
-            )}
             <button
               onClick={copyClientLink}
               className="mt-2 w-full py-2.5 border border-gray-200 text-navy rounded-xl text-sm font-medium"

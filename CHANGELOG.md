@@ -13,6 +13,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Migration `0012_signup_invites.sql`:** a new `signup_invites` table (server-wide, no tenant data, no `chef_app` access). Additive.
 
 ### Changed
+- **A booking inquiry opens with its next step.** **Convert to Client Record** moved from the bottom of the inquiry, below the payment and status controls, to a Next Step card at the top. An inquiry that is already a client shows **Open client record** there instead of "Converted — Client #7". The client's email and phone are now links that start an email or a call.
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 
 ### Fixed
