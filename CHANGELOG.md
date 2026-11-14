@@ -13,6 +13,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Migration `0012_signup_invites.sql`:** a new `signup_invites` table (server-wide, no tenant data, no `chef_app` access). Additive.
 
 ### Changed
+- **More room for the grocery list on a phone.** On a session's Grocery tab the PDF / Email / Repeat / Invoice bar no longer covers the bottom of the list on phones (it is still on Overview and Timeline, and the tab has its own PDF button). Items you tick off move to the bottom of their store section, so what is left to buy stays at the top.
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 
 ### Fixed
