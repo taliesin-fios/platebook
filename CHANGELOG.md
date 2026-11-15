@@ -13,6 +13,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Migration `0012_signup_invites.sql`:** a new `signup_invites` table (server-wide, no tenant data, no `chef_app` access). Additive.
 
 ### Changed
+- **Cards and list rows work from the keyboard.** Session, client, recipe, invoice and inquiry cards, calendar entries, the Costs table rows, grocery items and the recipe pickers in the session wizard and Menu Planner could only be clicked or tapped. They are now in the tab order, open or tick with Enter or Space, show a focus outline, and are announced as buttons or checkboxes (ticked or not) by screen readers.
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 
 ### Fixed

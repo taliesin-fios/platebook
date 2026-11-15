@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast';
 import { apiCall } from '../hooks/useApi';
 import { StarDisplay as SD } from '../components/StarRating';
 import type { Recipe } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 const CATEGORY_TABS = ['All', 'Couples', 'Families', 'Plant-Based', 'Other'];
 const SESSION_FIT_TABS = ['All', 'Session-Friendly', 'Long-Cook'];
@@ -159,6 +160,7 @@ export default function Recipes() {
             </div>
 
             <div
+              {...pressable}
               className="card cursor-pointer transition-transform duration-200"
               style={{ transform: swipedId === r.id ? 'translateX(-140px)' : 'translateX(0)' }}
               onClick={() => { if (swipedId === r.id) { setSwipedId(null); return; } navigate(`/recipes/${r.id}`); }}

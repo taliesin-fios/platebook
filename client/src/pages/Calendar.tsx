@@ -9,6 +9,7 @@ import PageHeader from '../components/PageHeader';
 import { STATUS_COLORS } from '../constants';
 import { findConflictDates } from '../utils/sessionConflicts';
 import type { SessionListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 type SessionsByDate = Record<string, SessionListItem[]>;
 
@@ -221,6 +222,7 @@ export default function Calendar() {
                   <div
                     key={s.id}
                     onClick={() => navigate(`/sessions/${s.id}`)}
+                    {...pressable}
                     className="card cursor-pointer hover:shadow-card-hover transition-shadow"
                   >
                     <div className="flex items-start justify-between">

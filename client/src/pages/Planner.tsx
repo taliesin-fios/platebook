@@ -9,6 +9,7 @@ import { localTodayStr } from '../utils/dateUtils';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { errorMessage } from '../hooks/useApi';
 import type { Id, PlannerResponse, Recipe } from '../types';
+import { toggleable } from '../utils/keyboardActivate';
 
 const CATEGORIES = ['All', 'Couples', 'Families', 'Plant-Based', 'Other'];
 const SECTION_ICONS: Record<string, string> = {
@@ -278,6 +279,7 @@ export default function Planner() {
                   <div
                     key={r.id}
                     onClick={() => toggleRecipe(r.id)}
+                    {...toggleable(isSel)}
                     className={`card mb-2 cursor-pointer transition-all ${isSel ? 'ring-2 ring-navy bg-blue-light' : ''}`}
                   >
                     <div className="flex items-start gap-3">

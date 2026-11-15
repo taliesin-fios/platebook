@@ -12,6 +12,7 @@ import { parseNum } from '../utils/numbers';
 import { mtdTrend } from '../utils/trend';
 import { clientsTile, invoiceSummary, marginTile, parseStringList } from '../utils/dashboardStats';
 import type { ClientListItem, CostSummary, SessionListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 function IntakeLinkCard() {
   const [copied, setCopied] = useState(false);
@@ -243,6 +244,7 @@ export default function Dashboard() {
 
           {/* First (next) session — full detail */}
           <div
+            {...pressable}
             className="card cursor-pointer hover:shadow-card-hover transition-shadow mb-2"
             onClick={() => navigate(`/sessions/${nextSession.id}`)}
           >
@@ -285,6 +287,7 @@ export default function Dashboard() {
           {upcoming.slice(1).map(s => (
             <div
               key={s.id}
+              {...pressable}
               className="card mb-2 cursor-pointer hover:shadow-card-hover transition-shadow"
               onClick={() => navigate(`/sessions/${s.id}`)}
             >
@@ -327,6 +330,7 @@ export default function Dashboard() {
         ) : recent.map(s => (
           <div
             key={s.id}
+            {...pressable}
             className="card mb-3 cursor-pointer hover:shadow-card-hover transition-shadow"
             onClick={() => navigate(`/sessions/${s.id}`)}
           >
