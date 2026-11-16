@@ -29,3 +29,28 @@ export function defaultTimeFor(preferredTime: string | null | undefined): string
   if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return '';
   return `${m[1]}:${m[2]}`;
 }
+
+export interface DayAndTime { date: string; time: string }
+
+/**
+ * The wizard's date and time after a client is picked. A field takes the new
+ * client's suggestion when it is blank or still holds the suggestion made
+ * for the client picked before (`previous`); anything else is the chef's own
+ * and is kept. `suggested` is what was filled in this time ('' = nothing),
+ * to pass back as `previous` on the next pick.
+ */
+export function applySuggestion(
+  current: DayAndTime, previous: DayAndTime, next: DayAndTime,
+): DayAndTime & { suggested: DayAndTime } {
+  const open = (now: string, was: string) => !now || (was !== '' && now === was);
+  const date = open(current.date, previous.date) ? next.date : current.date;
+  const time = open(current.time, previous.time) ? next.time : current.time;
+  return {
+    date,
+    time,
+    suggested: {
+      date: open(current.date, previous.date) ? next.date : '',
+      time: open(current.time, previous.time) ? next.time : '',
+    },
+  };
+}

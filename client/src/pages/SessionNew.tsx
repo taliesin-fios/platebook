@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { format } from 'date-fns';
 import { parseLocalDate } from '../utils/dateUtils';
-import { nextDateForWeekday, defaultTimeFor } from '../utils/sessionDefaults';
+import { nextDateForWeekday, defaultTimeFor, applySuggestion } from '../utils/sessionDefaults';
+import type { DayAndTime } from '../utils/sessionDefaults';
 import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
@@ -135,24 +136,25 @@ export default function SessionNew() {
 
   const selectedClient = clients.find(c => c.id === parseInt(session.client_id));
 
-  // Suggest the client's usual day and time, once per client. Only fills
-  // blanks: a date from the link (?date=) or one the chef has typed is never
-  // replaced, and clearing a suggestion doesn't bring it back.
+  // Suggest the client's usual day and time, once per client. A date from the
+  // link (?date=) or one the chef has typed is never replaced; a suggestion
+  // made for a client picked earlier is, so it can't stay on the wrong client.
   const prefilledFor = useRef<number | null>(null);
+  const suggested = useRef<DayAndTime>({ date: '', time: '' });
   useEffect(() => {
     if (!selectedClient || prefilledFor.current === selectedClient.id) return;
     prefilledFor.current = selectedClient.id;
-    const date = nextDateForWeekday(selectedClient.preferred_day);
-    const time = defaultTimeFor(selectedClient.preferred_time);
-    if (!session.session_date && date) {
-      setPrefillNote(`Suggested from ${selectedClient.name}'s preferred day (${selectedClient.preferred_day}). Change it if you need to.`);
-    }
-    if ((!session.session_date && date) || (!session.session_time && time)) {
-      setSession(prev => ({
-        ...prev,
-        session_date: prev.session_date || date,
-        session_time: prev.session_time || time,
-      }));
+    const now = { date: session.session_date, time: session.session_time };
+    const next = applySuggestion(now, suggested.current, {
+      date: nextDateForWeekday(selectedClient.preferred_day),
+      time: defaultTimeFor(selectedClient.preferred_time),
+    });
+    suggested.current = next.suggested;
+    setPrefillNote(next.suggested.date
+      ? `Suggested from ${selectedClient.name}'s preferred day (${selectedClient.preferred_day})${next.suggested.time ? ' and time' : ''}. Change it if you need to.`
+      : '');
+    if (next.date !== now.date || next.time !== now.time) {
+      setSession(prev => ({ ...prev, session_date: next.date, session_time: next.time }));
     }
   }, [selectedClient, session.session_date, session.session_time]);
   const clientAllergens = selectedClient?.allergens || [];
