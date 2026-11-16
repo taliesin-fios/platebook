@@ -85,11 +85,12 @@ export function fmtSessionTime(time: string | null | undefined, fallback = '—'
 /**
  * The line under a client's name in the client list. `last_session_date` is
  * the client's latest session, which may still be ahead (and need not be the
- * next one): "Booked through Nov 28, 2026" from today on, "Last: Nov 13, 2026"
- * once it has passed.
+ * next one) and may be pending or cancelled, so the wording claims no more
+ * than that: "Sessions through Nov 28, 2026" from today on, "Last: Nov 13,
+ * 2026" once it has passed.
  */
 export function clientSessionLabel(date: string | null | undefined, today: string = localTodayStr()): string {
   if (!date) return '';
   const day = String(date).slice(0, 10);
-  return `${day >= today ? 'Booked through' : 'Last:'} ${fmtSessionDate(day, 'MMM d, yyyy')}`;
+  return `${day >= today ? 'Sessions through' : 'Last:'} ${fmtSessionDate(day, 'MMM d, yyyy')}`;
 }

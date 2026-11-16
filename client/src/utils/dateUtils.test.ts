@@ -133,8 +133,8 @@ describe('clientSessionLabel', () => {
   });
 
   it('says how far ahead a client is booked when the session is today or later', () => {
-    expect(clientSessionLabel('2026-11-28', '2026-11-20')).toBe('Booked through Nov 28, 2026');
-    expect(clientSessionLabel('2026-11-20', '2026-11-20')).toBe('Booked through Nov 20, 2026');
+    expect(clientSessionLabel('2026-11-28', '2026-11-20')).toBe('Sessions through Nov 28, 2026');
+    expect(clientSessionLabel('2026-11-20', '2026-11-20')).toBe('Sessions through Nov 20, 2026');
   });
 
   it('shows nothing without a date', () => {
