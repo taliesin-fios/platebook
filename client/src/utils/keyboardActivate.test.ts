@@ -5,10 +5,10 @@ import { describe, it, expect } from 'vitest';
 import { activateOnKey, pressable, pressableRow, toggleable } from './keyboardActivate';
 
 /** A key event on `el`, or on something inside it when `inner` is given. */
-function press(key: string, inner?: object) {
+function press(key: string, inner?: object, repeat = false) {
   const calls = { click: 0, prevented: 0 };
   const el = { click: () => { calls.click += 1; } };
-  activateOnKey({ key, target: inner ?? el, currentTarget: el, preventDefault: () => { calls.prevented += 1; } });
+  activateOnKey({ key, repeat, target: inner ?? el, currentTarget: el, preventDefault: () => { calls.prevented += 1; } });
   return calls;
 }
 
@@ -16,6 +16,11 @@ describe('activateOnKey', () => {
   it('clicks the element on Enter and on Space, and stops Space from scrolling', () => {
     expect(press('Enter')).toEqual({ click: 1, prevented: 1 });
     expect(press(' ')).toEqual({ click: 1, prevented: 1 });
+  });
+
+  it('acts once while a key is held, still without scrolling', () => {
+    expect(press(' ', undefined, true)).toEqual({ click: 0, prevented: 1 });
+    expect(press('Enter', undefined, true)).toEqual({ click: 0, prevented: 1 });
   });
 
   it('ignores other keys', () => {

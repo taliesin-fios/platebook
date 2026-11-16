@@ -11,6 +11,8 @@
 /** The part of a key event this needs (a React or DOM keyboard event fits). */
 interface ActivationKeyEvent {
   key: string;
+  /** True while the key is held down and auto-repeating. */
+  repeat?: boolean;
   target: unknown;
   currentTarget: { click: () => void };
   preventDefault: () => void;
@@ -18,12 +20,14 @@ interface ActivationKeyEvent {
 
 /**
  * Enter or Space on the element itself clicks it. Keys pressed on something
- * inside it (a nested button, a field) are left to that control.
+ * inside it (a nested button, a field) are left to that control. A held key
+ * acts once.
  */
 export function activateOnKey(e: ActivationKeyEvent): void {
   if (e.target !== e.currentTarget) return;
   if (e.key !== 'Enter' && e.key !== ' ') return;
   e.preventDefault(); // Space would otherwise scroll the page
+  if (e.repeat) return; // a held key acts once, like a real button
   e.currentTarget.click();
 }
 
