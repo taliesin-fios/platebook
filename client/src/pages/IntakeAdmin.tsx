@@ -236,6 +236,20 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
     }
   };
 
+  // The converted client may have been deleted since: say so here instead of
+  // opening a "Client not found" page.
+  const openClient = async () => {
+    const path = `/clients/${intake.converted_client_id}`;
+    try {
+      await apiCall(`/api${path}`);
+    } catch {
+      show('That client record has been deleted.', 'error');
+      return;
+    }
+    onClose();
+    navigate(path);
+  };
+
   const handleConvert = async () => {
     if (!confirm(`Convert ${intake.name}'s intake to a client record?`)) return;
     setSaving(true);
@@ -306,7 +320,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Next Step</p>
               {intake.converted_client_id ? (
                 <button
-                  onClick={() => { onClose(); navigate(`/clients/${intake.converted_client_id}`); }}
+                  onClick={openClient}
                   className="w-full py-2.5 bg-navy text-white rounded-xl text-sm font-semibold"
                 >
                   Open client record
