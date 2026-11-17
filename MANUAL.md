@@ -390,7 +390,7 @@ Configure Platebook to match your business.
 
 **Business Info** — your business name, chef name, phone, business email, website and city. These appear on your booking page, PDFs and invoices. Your business email is where new-booking alerts go and what clients reply to.
 
-**Booking & Payments** — your booking link (with a Copy button), deposit, cancellation notice, accepted payment methods, the response time clients are told to expect, and your booking terms.
+**Booking & Payments** — your booking link (with a Copy button), deposit, cancellation notice, accepted payment methods (shown to clients on your booking page and on an unpaid invoice's page), the response time clients are told to expect, and your booking terms.
 
 **Services You Offer** — the kinds of work you do (in-home cooking, meal prep, events, classes, special diets).
 

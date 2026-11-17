@@ -1049,7 +1049,8 @@ async fn client_link(
 
 /// GET /api/invoices/:id/public: what a client sees from their invoice link.
 /// No internal notes, client contact details or chef fields beyond the
-/// business name.
+/// business name and how the chef takes payment (already on their booking
+/// page).
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
 pub struct ClientInvoiceView {
@@ -1077,6 +1078,9 @@ pub struct ClientInvoiceView {
     pub line_items: Vec<ClientInvoiceLine>,
     /// Online payments are on: the page can offer to pay.
     pub can_pay_online: bool,
+    /// The chef's "payment methods" setting (free text), so the page can say
+    /// how to pay when there's no online payment. `null` when not set.
+    pub payment_methods: Option<String>,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -1131,6 +1135,7 @@ async fn public_view(
     let (owner, id) = owner_by_token(&state, &raw_id, &q).await?;
     let mut tx = begin_tenant(&state.pool, owner).await?;
     let inv = invoice_or_404(&mut tx, id).await?;
+    let settings = accounts::get_settings(&mut tx, owner).await?;
     tx.commit().await?;
     let i = inv.invoice;
     Ok(Json(ClientInvoiceView {
@@ -1157,6 +1162,10 @@ async fn public_view(
             })
             .collect(),
         can_pay_online: state.config.payments_mode == crate::config::PaymentsMode::Stripe,
+        payment_methods: settings
+            .payment_methods
+            .map(|m| m.trim().to_string())
+            .filter(|m| !m.is_empty()),
     }))
 }
 
