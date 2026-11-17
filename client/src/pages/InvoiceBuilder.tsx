@@ -614,7 +614,7 @@ export default function InvoiceBuilder() {
                 <div className="input-field text-sm text-right px-2 flex items-center justify-end text-navy font-medium bg-warm-white">
                   {fmt$(li.amount)}
                 </div>
-                <button
+                <button aria-label="Remove line"
                   onClick={() => removeLine(li._key)}
                   className="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none mt-2"
                   title="Remove line"
@@ -767,7 +767,7 @@ export default function InvoiceBuilder() {
               🔗
             </button>
           )}
-          <button
+          <button aria-label="Download as PDF"
             onClick={handlePrint}
             disabled={saving || emailing}
             title="Download as PDF"

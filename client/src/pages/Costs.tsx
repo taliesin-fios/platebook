@@ -280,7 +280,7 @@ export default function Costs() {
                       </td>
                       <td className="py-2.5 text-center">
                         {pill ? (
-                          <button
+                          <button aria-label={overdue ? 'Invoice overdue' : undefined}
                             onClick={e => { e.stopPropagation(); navigate(`/invoices/${s.invoice_id}`); }}
                             className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${pill.cls} ${overdue ? 'ring-1 ring-danger' : ''}`}
                             style={{ minHeight: 'auto' }}
@@ -289,7 +289,7 @@ export default function Costs() {
                             {overdue ? '!' : pill.label}
                           </button>
                         ) : (
-                          <button
+                          <button aria-label="Create invoice"
                             onClick={e => { e.stopPropagation(); navigate(`/invoices/new?session_id=${s.id}`); }}
                             className="text-[10px] text-gray-300 hover:text-navy transition-colors font-medium"
                             style={{ minHeight: 'auto' }}

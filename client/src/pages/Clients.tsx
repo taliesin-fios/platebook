@@ -82,7 +82,7 @@ export default function Clients() {
       <PageHeader
         title="Clients"
         action={
-          <button onClick={() => navigate('/clients/new')} className="text-white font-bold text-xl" style={{ minHeight: 'auto' }}>+</button>
+          <button aria-label="Add client" onClick={() => navigate('/clients/new')} className="text-white font-bold text-xl" style={{ minHeight: 'auto' }}>+</button>
         }
       />
 
@@ -169,7 +169,7 @@ export default function Clients() {
         ))}
       </div>
 
-      <button className="fab" onClick={() => navigate('/clients/new')}>+</button>
+      <button aria-label="Add client" className="fab" onClick={() => navigate('/clients/new')}>+</button>
 
       <ConfirmModal
         open={!!deleteTarget}
