@@ -14,6 +14,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - **Dates and times read like dates.** The session page, the wizard's review step and the "Session cloned" message showed `2026-11-19` and `10:00`; they now show `Thu, Nov 19, 2026` and `10:00 AM`. The client list said "Last: 2026-11-28" for a session still ahead; it now says "Sessions through Nov 28, 2026", or "Last: …" once the date has passed. The dashboard, the Sessions list and the calendar show session times the same way (`1:00 PM`, not `13:00`).
+- **Saving a client opens that client's page** (new or edited), where **+ Session** is one tap away. It used to return to the client list, where the client had to be found again.
+- **The client form opens with Dietary Profile showing.** Allergens used to sit in a closed section, so a client could be saved without the question being seen. Kitchen Info and Service Preferences still start closed.
 - The in-app credits (booking pages, the welcome page, Settings → About) and the README name the creator as **Taliesin Fios**, linked to the `taliesin-fios` GitHub account. NOTICE states that both names are the same author. The license's `Required Notice:` lines and the file headers are unchanged.
 
 ### Fixed
