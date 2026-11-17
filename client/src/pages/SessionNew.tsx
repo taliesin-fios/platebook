@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { format } from 'date-fns';
 import { parseLocalDate, fmtSessionDate, fmtSessionTime } from '../utils/dateUtils';
+import { nextDateForWeekday, defaultTimeFor, applySuggestion } from '../utils/sessionDefaults';
+import type { DayAndTime } from '../utils/sessionDefaults';
 import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
@@ -56,6 +58,7 @@ export default function SessionNew() {
   const { show } = useToast();
   const [params] = useSearchParams();
   const [step, setStep] = useState(0);
+  const [prefillNote, setPrefillNote] = useState('');
   const [clients, setClients] = useState<ClientListItem[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [settings, setSettings] = useState<Partial<Settings>>({});
@@ -132,6 +135,28 @@ export default function SessionNew() {
   }, [session.client_id]);
 
   const selectedClient = clients.find(c => c.id === parseInt(session.client_id));
+
+  // Suggest the client's usual day and time, once per client. A date from the
+  // link (?date=) or one the chef has typed is never replaced; a suggestion
+  // made for a client picked earlier is, so it can't stay on the wrong client.
+  const prefilledFor = useRef<number | null>(null);
+  const suggested = useRef<DayAndTime>({ date: '', time: '' });
+  useEffect(() => {
+    if (!selectedClient || prefilledFor.current === selectedClient.id) return;
+    prefilledFor.current = selectedClient.id;
+    const now = { date: session.session_date, time: session.session_time };
+    const next = applySuggestion(now, suggested.current, {
+      date: nextDateForWeekday(selectedClient.preferred_day),
+      time: defaultTimeFor(selectedClient.preferred_time),
+    });
+    suggested.current = next.suggested;
+    setPrefillNote(next.suggested.date
+      ? `Suggested from ${selectedClient.name}'s preferred day (${selectedClient.preferred_day})${next.suggested.time ? ' and time' : ''}. Change it if you need to.`
+      : '');
+    if (next.date !== now.date || next.time !== now.time) {
+      setSession(prev => ({ ...prev, session_date: next.date, session_time: next.time }));
+    }
+  }, [selectedClient, session.session_date, session.session_time]);
   const clientAllergens = selectedClient?.allergens || [];
 
   const selectedRecipes = recipes.filter(r => session.recipe_ids.includes(r.id));
@@ -346,7 +371,8 @@ export default function SessionNew() {
             <div className="card space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Date *</label>
-                <input type="date" value={session.session_date} onChange={e => setSession(prev => ({ ...prev, session_date: e.target.value }))} />
+                <input type="date" value={session.session_date} onChange={e => { setPrefillNote(''); setSession(prev => ({ ...prev, session_date: e.target.value })); }} />
+                {prefillNote && <p className="text-xs text-gray-500 mt-1.5">{prefillNote}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Time</label>
@@ -695,7 +721,7 @@ export default function SessionNew() {
               disabled={saving || session.recipe_ids.length === 0 || (hasAllergenConflicts && !allergenAcknowledged)}
               className="flex-1 py-3 bg-navy text-white rounded-xl text-sm font-semibold disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Confirm Session'}
+              {saving ? 'Saving...' : 'Save Session'}
             </button>
           )}
         </div>
