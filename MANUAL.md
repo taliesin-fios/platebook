@@ -502,7 +502,8 @@ Each reminder goes out once. If you change a session's date or time after its re
 1. Open a session → tap the **Grocery tab**
 2. The list is automatically generated from all dishes in the session, with:
    - Quantities scaled to your serving size (4 or 6)
-   - Duplicate ingredients combined (e.g., garlic from three recipes totaled together)
+   - Duplicate ingredients combined (e.g., garlic from three recipes totaled together), also when recipes spell the unit differently ("1 cup" and "2 cups", "tbsp" and "Tablespoons")
+   - Every amount written the same way: fractions to the nearest 1/8 ("1 1/2 cups", not "1.5 cups"), one spelling per unit. The Planner's list uses the same form.
    - Items grouped by store section
 3. As you shop, **tap each item** to check it off (gray strikethrough)
 4. Use "Mark All" on a section header to check off an entire section at once

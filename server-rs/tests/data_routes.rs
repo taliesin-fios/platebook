@@ -708,7 +708,10 @@ async fn grocery_generates_merges_and_toggles(pool: PgPool) {
     let other = c
         .post(
             "/api/recipes",
-            json!({ "name": "Soup", "ingredients": [{ "name": "Onion ", "qty_4_serving": "1/2 cups" }] }),
+            json!({ "name": "Soup", "ingredients": [
+                { "name": "Onion ", "qty_4_serving": "1/2 cups" },
+                { "name": "Stock", "qty_4_serving": "1 Cup" },
+                { "name": "Butter", "qty_4_serving": "1.5 Tablespoons" }] }),
         )
         .await;
     c.put(
@@ -735,6 +738,26 @@ async fn grocery_generates_merges_and_toggles(pool: PgPool) {
         onion["source_dishes"],
         json!(["Stew: 1 1/2 cups", "Soup: 1/2 cups"])
     );
+    let find = |name: &str| {
+        generated["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|i| {
+                i["ingredient_name"]
+                    .as_str()
+                    .unwrap()
+                    .eq_ignore_ascii_case(name)
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    // "2 cups" + "1 Cup" is one line, not two.
+    let stock = find("stock");
+    assert_eq!(stock.len(), 1, "{stock:?}");
+    assert_eq!(stock[0]["total_quantity"], "3 cups");
+    // A one-dish amount is printed like a summed one: "1.5 Tablespoons" → "1 1/2 tbsp".
+    assert_eq!(find("butter")[0]["total_quantity"], "1 1/2 tbsp");
     // Sorted by store section: Produce ("Other" for missing) ... Canned before Other
     assert_eq!(generated["items"][0]["store_section"], "Canned & Jarred");
 
