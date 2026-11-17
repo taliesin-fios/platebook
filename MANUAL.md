@@ -317,11 +317,13 @@ Each session card shows: client name, date, time, status badge, dish count, serv
 **Tap a session** to open the full detail view with 5 tabs:
 
 #### Tab 1: Overview
+- **✓ Mark as Completed** at the top (filled in once the session's day has come)
 - Session summary (date, time, client, serving size, status)
 - Session feasibility indicator (GREEN / AMBER / RED)
+- The session's invoice, or **Create Invoice →** when it has none
 - Full dish list with hold and reheat quality stars
 - Chef notes
-- Action buttons: Mark Complete, Generate PDFs, Edit, Delete
+- **Delete Session** at the very bottom, apart from everything else
 
 #### Tab 2: Grocery
 - All ingredients aggregated from all dishes, scaled to your serving size
@@ -537,6 +539,8 @@ Both PDFs automatically use your business name from Settings.
 The same goes for the two emails sent when a client books through your booking page: their confirmation (with the link to review their request) and your new-booking alert. If either fails after the automatic retry, the Inquiries page shows a red note at the top, and the inquiry shows "⚠ Confirmation email failed" or "⚠ Alert email failed". Open the inquiry to see when it happened. For the confirmation, **Try again** sends it to the client again. A failed alert to you can't be resent (you're already looking at the inquiry), but it usually means your business email in Settings needs fixing.
 
 **Getting paid online:** with online payments on (Stripe, set up by whoever runs your Platebook server), the invoice email has a **Pay online** button. It opens a page with the invoice where your client pays by card. The invoice turns **Paid** on its own once Stripe confirms the payment. To send the link again, tap **🔗** in the invoice's action bar to copy it. The link works for 180 days, and only for that invoice. A paid or void invoice can't be paid again. If you void an invoice whose link is still open, check for a payment before you do; a refund is made in Stripe.
+
+**Paid and void are final.** Marking an invoice paid (the **✅ Paid** button, or choosing **Paid** or **Void** under Invoice Status and saving) asks first, because after that its lines, amounts and status can't be changed; only the internal notes stay editable. **📧 Email** and **⬇️** work on a new invoice too: they save it first, then send or download it.
 
 ---
 
