@@ -147,7 +147,8 @@ export default function ClientForm() {
   const { show } = useToast();
   const isEdit = !!id;
 
-  const [sections, setSections]             = useState<Record<SectionKey, boolean>>({ A: true, B: false, C: false, D: false });
+  // Dietary Profile (B) starts open: allergens must be seen before a client is saved.
+  const [sections, setSections]             = useState<Record<SectionKey, boolean>>({ A: true, B: true, C: false, D: false });
   const [saving, setSaving]                 = useState(false);
   const [errors, setErrors]                 = useState<FieldErrors>({});
   const [showContainerNotice, setShowContainerNotice] = useState(false);
