@@ -824,7 +824,7 @@ export default function SessionDetail() {
           >
             🔁 Repeat
           </button>
-          <button
+          <button aria-label={invoice ? `View invoice ${invoice.invoice_number}` : 'Create invoice for this session'}
             onClick={() => invoice
               ? navigate(`/invoices/${invoice.id}`)
               : navigate(`/invoices/new?session_id=${id}`)

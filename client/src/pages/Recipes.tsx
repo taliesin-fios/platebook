@@ -209,7 +209,7 @@ export default function Recipes() {
           </div>
         </div>
       )}
-      <button className="fab" onClick={() => setFabOpen(prev => !prev)}>
+      <button aria-label="Add recipe" aria-expanded={fabOpen} className="fab" onClick={() => setFabOpen(prev => !prev)}>
         <span style={{ fontSize: '24px', transition: 'transform 0.2s', transform: fabOpen ? 'rotate(45deg)' : 'none' }}>+</span>
       </button>
 

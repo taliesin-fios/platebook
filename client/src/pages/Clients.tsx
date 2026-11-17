@@ -170,7 +170,7 @@ export default function Clients() {
         ))}
       </div>
 
-      <button className="fab" onClick={() => navigate('/clients/new')}>+</button>
+      <button aria-label="Add client" className="fab" onClick={() => navigate('/clients/new')}>+</button>
 
       <ConfirmModal
         open={!!deleteTarget}
