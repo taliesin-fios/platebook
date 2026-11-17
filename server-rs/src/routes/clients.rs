@@ -8,12 +8,13 @@
 //! POST   /api/clients      — create
 //! PUT    /api/clients/:id  — partial update
 //! DELETE /api/clients/:id  — soft delete (is_active = false)
+//! POST   /api/clients/:id/restore — undo a soft delete (is_active = true)
 
 use std::sync::LazyLock;
 
 use axum::extract::Path;
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::NaiveDate;
 use regex::Regex;
@@ -34,6 +35,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/{id}", get(detail).put(update).delete(remove))
+        .route("/{id}/restore", post(restore))
 }
 
 static PHONE_RE: LazyLock<Regex> =
@@ -322,6 +324,27 @@ async fn remove(mut t: Tenant, Path(raw_id): Path<String>) -> DbResult<Json<Succ
     };
     let res = sqlx::query(
         "UPDATE clients SET is_active = false, updated_at = now() WHERE id = $1 AND account_id = $2",
+    )
+    .bind(id)
+    .bind(t.account.id)
+    .execute(&mut *t.tx)
+    .await?;
+    if res.rows_affected() == 0 {
+        return Err(not_found().into());
+    }
+    t.tx.commit().await?;
+    Ok(Json(SUCCESS))
+}
+
+/// Brings back a client removed with `DELETE` (the Undo on the "Client deleted" toast).
+/// Only a removed client of this account matches; anything else is a 404.
+async fn restore(mut t: Tenant, Path(raw_id): Path<String>) -> DbResult<Json<Success>> {
+    let Some(id) = parse_id(&raw_id) else {
+        return Err(not_found().into());
+    };
+    let res = sqlx::query(
+        "UPDATE clients SET is_active = true, updated_at = now() \
+         WHERE id = $1 AND account_id = $2 AND NOT is_active",
     )
     .bind(id)
     .bind(t.account.id)
