@@ -15,6 +15,7 @@ import { StarDisplay } from '../components/StarRating';
 import type {
   ClientListItem, FromTemplateResponse, Id, MenuSuggestion, Recipe, SessionDetail, SessionListItem, SessionStatus, Settings,
 } from '../types';
+import { toggleable } from '../utils/keyboardActivate';
 
 /** The new session being built across the wizard steps. */
 interface SessionDraft {
@@ -523,6 +524,7 @@ export default function SessionNew() {
                   <div
                     key={r.id}
                     onClick={() => toggleRecipe(r.id)}
+                    {...toggleable(selected)}
                     className={`card cursor-pointer transition-all ${
                       selected ? 'border-2 border-green-mid bg-green-light' :
                       conflicts.length > 0 ? 'border border-danger bg-red-50' :

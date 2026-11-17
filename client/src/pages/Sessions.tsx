@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast';
 import { STATUS_COLORS, marginColor, repeatLabel } from '../constants';
 import { errorMessage } from '../hooks/useApi';
 import type { EmailSentResponse, SessionListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 const InvoiceIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -109,6 +110,7 @@ export default function Sessions() {
 
     return (
       <div
+        {...pressable}
         className="card mb-3 cursor-pointer hover:shadow-card-hover transition-shadow"
         onClick={() => navigate(`/sessions/${s.id}`)}
       >

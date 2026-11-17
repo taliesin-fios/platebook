@@ -16,6 +16,7 @@ import { apiCall, errorMessage } from '../hooks/useApi';
 import { useAppSettings } from '../App';
 import { bookingUrl } from '../constants';
 import type { ClientLink, EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus, PaymentEventItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 /** After a payment action the server returns the raw row, with JSON columns as strings. */
 type IntakeState = Intake | IntakeRow;
@@ -53,6 +54,7 @@ function IntakeCard({ intake, onSelect }: { intake: Intake; onSelect: (intake: I
 
   return (
     <div
+      {...pressable}
       className="card mb-3 cursor-pointer hover:shadow-card-hover transition-shadow"
       onClick={() => onSelect(intake)}
     >

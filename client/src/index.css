@@ -257,6 +257,15 @@
     border-color: var(--navy-mid);
     box-shadow: 0 0 0 3px rgba(27, 79, 138, 0.1);
   }
+
+  /* Cards and rows that act as buttons or checkboxes (utils/keyboardActivate.ts):
+     show where the keyboard is. Mouse and touch don't trigger :focus-visible.
+     Drawn inside the edge: some cards sit in an overflow-hidden swipe wrapper
+     that would clip an outline drawn outside. */
+  [role="button"]:focus-visible, [role="checkbox"]:focus-visible, tr[tabindex]:focus-visible {
+    outline: 2px solid var(--navy-mid);
+    outline-offset: -2px;
+  }
 }
 
 /* FAB */

@@ -18,6 +18,7 @@ import { sinkTicked } from '../utils/groceryOrder';
 import type {
   CompletedSession, EmailSentResponse, Flag, GroceryItem, GroceryListResponse, InvoiceListItem, SessionDetail as SessionDetailData, SessionDish,
 } from '../types';
+import { toggleable } from '../utils/keyboardActivate';
 
 /** uncheckAll passes a boolean is_checked; toggling only reads its truthiness. */
 type GroceryToggle = Omit<GroceryItem, 'is_checked'> & { is_checked?: Flag | boolean };
@@ -729,6 +730,7 @@ export default function SessionDetail() {
                     return (
                       <div
                         key={item.id || idx}
+                        {...toggleable(item.is_checked)}
                         className={`flex items-start gap-3 py-2.5 px-3 mb-1.5 rounded-xl cursor-pointer transition-colors ${item.is_checked ? 'bg-gray-50' : 'bg-white border border-gray-100'}`}
                         onClick={() => item.id && toggleGroceryItem(item)}
                       >
