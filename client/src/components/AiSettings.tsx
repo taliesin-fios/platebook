@@ -167,7 +167,7 @@ export default function AiSettings() {
           <button onClick={save} disabled={saving}
             className="px-4 py-2 bg-navy text-white rounded-xl text-sm font-medium disabled:opacity-60"
             style={{ minHeight: '40px' }}>
-            {saving ? 'Saving...' : 'Save AI Settings'}
+            {saving ? 'Saving…' : 'Save AI Settings'}
           </button>
         )}
         {status.provider && (

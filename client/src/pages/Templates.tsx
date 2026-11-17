@@ -194,7 +194,7 @@ function TemplateEditModal({ template, onSave, onClose }: TemplateEditModalProps
             className="flex-1 py-3 bg-navy text-white rounded-xl text-sm font-semibold disabled:opacity-60"
             style={{ minHeight: '44px' }}
           >
-            {saving ? 'Saving…' : 'Save Template'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
@@ -280,7 +280,7 @@ export default function Templates() {
                     onClick={() => setDeleteTarget(t)}
                     className="p-2 text-gray-400 hover:text-danger rounded-lg hover:bg-red-50 transition-colors"
                     style={{ minHeight: 'auto' }}
-                    title="Delete template"
+                    title="Delete Template"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polyline points="3 6 5 6 21 6" />
@@ -337,7 +337,7 @@ export default function Templates() {
       <ConfirmModal
         open={!!deleteTarget}
         title="Delete Template"
-        message={`Remove "${deleteTarget?.name}"?`}
+        message={`Delete "${deleteTarget?.name}"?`}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />

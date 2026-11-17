@@ -478,7 +478,7 @@ export default function ClientForm() {
           disabled={saving}
           className="w-full py-3.5 bg-navy text-white rounded-xl font-semibold text-base disabled:opacity-60"
         >
-          {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Client'}
+          {saving ? 'Saving…' : isEdit ? 'Save' : 'Create Client'}
         </button>
       </div>
     </div>
