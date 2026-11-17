@@ -540,6 +540,8 @@ The same goes for the two emails sent when a client books through your booking p
 
 **Getting paid online:** with online payments on (Stripe, set up by whoever runs your Platebook server), the invoice email has a **Pay online** button. It opens a page with the invoice where your client pays by card. The invoice turns **Paid** on its own once Stripe confirms the payment. To send the link again, tap **🔗** in the invoice's action bar to copy it. The link works for 180 days, and only for that invoice. A paid or void invoice can't be paid again. If you void an invoice whose link is still open, check for a payment before you do; a refund is made in Stripe.
 
+**Paid and void are final.** Marking an invoice paid (the **✅ Paid** button, or choosing **Paid** or **Void** under Invoice Status and saving) asks first, because after that its lines, amounts and status can't be changed; only the internal notes stay editable. **📧 Email** and **⬇️** work on a new invoice too: they save it first, then send or download it.
+
 ---
 
 ### Booking Inquiries
