@@ -25,6 +25,7 @@ use crate::db::Tenant;
 use crate::error::{AppError, DbResult};
 use crate::js;
 use crate::pdf::{self, Template, docs};
+use crate::quantity::{display_unit, format_qty, normalize_name, normalize_unit};
 use crate::routes::grocery::STORE_SECTION_ORDER;
 use crate::routes::{JsonBody, id_list};
 use crate::state::AppState;
@@ -33,89 +34,6 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/ingredients", post(ingredients))
         .route("/pdf", get(planner_pdf))
-}
-
-static UNIT_MAP: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
-    [
-        ("tsp", "tsp"),
-        ("teaspoon", "tsp"),
-        ("teaspoons", "tsp"),
-        ("ts", "tsp"),
-        ("tbsp", "tbsp"),
-        ("tablespoon", "tbsp"),
-        ("tablespoons", "tbsp"),
-        ("tbs", "tbsp"),
-        ("tb", "tbsp"),
-        ("cup", "cup"),
-        ("cups", "cup"),
-        ("oz", "oz"),
-        ("ounce", "oz"),
-        ("ounces", "oz"),
-        ("fl oz", "oz"),
-        ("lb", "lb"),
-        ("lbs", "lb"),
-        ("pound", "lb"),
-        ("pounds", "lb"),
-        ("g", "g"),
-        ("gram", "g"),
-        ("grams", "g"),
-        ("gr", "g"),
-        ("kg", "kg"),
-        ("kilogram", "kg"),
-        ("kilograms", "kg"),
-        ("ml", "ml"),
-        ("milliliter", "ml"),
-        ("milliliters", "ml"),
-        ("l", "l"),
-        ("liter", "l"),
-        ("liters", "l"),
-        ("litre", "l"),
-        ("litres", "l"),
-        ("clove", "cloves"),
-        ("cloves", "cloves"),
-        ("can", "can"),
-        ("cans", "can"),
-        ("bunch", "bunch"),
-        ("bunches", "bunch"),
-        ("sprig", "sprig"),
-        ("sprigs", "sprig"),
-        ("slice", "slice"),
-        ("slices", "slice"),
-        ("piece", "piece"),
-        ("pieces", "piece"),
-        ("stalk", "stalk"),
-        ("stalks", "stalk"),
-        ("head", "head"),
-        ("heads", "head"),
-        ("pinch", "pinch"),
-        ("pinches", "pinch"),
-        ("dash", "dash"),
-        ("dashes", "dash"),
-        ("quart", "qt"),
-        ("quarts", "qt"),
-        ("qt", "qt"),
-        ("pint", "pt"),
-        ("pints", "pt"),
-        ("pt", "pt"),
-        ("sheet", "sheet"),
-        ("sheets", "sheet"),
-        ("strip", "strip"),
-        ("strips", "strip"),
-        ("knob", "knob"),
-        ("knobs", "knob"),
-        ("link", "link"),
-        ("links", "link"),
-    ]
-    .into_iter()
-    .collect()
-});
-
-fn normalize_unit(raw: &str) -> String {
-    let lower = raw.to_lowercase().trim().to_string();
-    UNIT_MAP
-        .get(lower.as_str())
-        .map(|u| u.to_string())
-        .unwrap_or(lower)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -134,7 +52,6 @@ static MIXED: LazyLock<Regex> =
 static FRAC: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(\d+)/(\d+)\s*(.*)$").expect("regex"));
 static NUM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d+\.?\d*)\s*(.*)$").expect("regex"));
-static TRAILING_ZEROS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\.?0+$").expect("regex"));
 
 fn parse_qty_string(s: &str) -> Parsed {
     let num_unit = |value: f64, raw: &str| {
@@ -175,66 +92,6 @@ fn parse_qty_string(s: &str) -> Parsed {
         norm_unit: s.to_lowercase(),
         unparseable: true,
     }
-}
-
-fn js_round(x: f64) -> f64 {
-    (x + 0.5).floor()
-}
-
-/// Numeric value + unit back to "1 1/2 cups" (nearest 1/8).
-fn format_qty(value: f64, raw_unit: &str) -> String {
-    if raw_unit.is_empty() && value == 0.0 {
-        return String::new();
-    }
-    if raw_unit == "to taste" || raw_unit == "as needed" {
-        return raw_unit.to_string();
-    }
-    let rounded = js_round(value * 8.0) / 8.0;
-    if rounded == 0.0 {
-        return raw_unit.to_string();
-    }
-    let whole = rounded.floor();
-    let frac = js_round((rounded - whole) * 8.0) / 8.0;
-    const FRAC_MAP: &[(f64, &str)] = &[
-        (0.875, "7/8"),
-        (0.75, "3/4"),
-        (0.625, "5/8"),
-        (0.5, "1/2"),
-        (0.375, "3/8"),
-        (0.25, "1/4"),
-        (0.125, "1/8"),
-    ];
-    let frac_str = FRAC_MAP
-        .iter()
-        .find(|(v, _)| (frac - v).abs() < 0.01)
-        .map(|(_, s)| *s)
-        .unwrap_or("");
-    if (frac - 1.0).abs() < 0.01 {
-        return format_qty(whole + 1.0, raw_unit);
-    }
-    let whole_str = format!("{}", whole as i64);
-    let num = if whole > 0.0 && !frac_str.is_empty() {
-        format!("{whole_str} {frac_str}")
-    } else if whole > 0.0 {
-        whole_str
-    } else if !frac_str.is_empty() {
-        frac_str.to_string()
-    } else {
-        TRAILING_ZEROS
-            .replace(&format!("{rounded:.2}"), "")
-            .into_owned()
-    };
-    if raw_unit.is_empty() {
-        num
-    } else {
-        format!("{num} {raw_unit}")
-    }
-}
-
-fn normalize_name(name: &str) -> String {
-    let lower = name.to_lowercase();
-    let collapsed = lower.split_whitespace().collect::<Vec<_>>().join(" ");
-    collapsed.replace(['(', ')'], "").trim().to_string()
 }
 
 /// One consolidated ingredient.
@@ -283,6 +140,7 @@ struct Entry {
     display_name: String,
     value: f64,
     raw_unit: String,
+    norm_unit: String,
     unparseable: bool,
     store_section: String,
     source_dishes: Vec<String>,
@@ -370,6 +228,7 @@ pub async fn plan(
                         display_name: row.name.trim().to_string(),
                         value: parsed.value,
                         raw_unit: parsed.raw_unit,
+                        norm_unit: parsed.norm_unit,
                         unparseable: parsed.unparseable,
                         store_section: row
                             .store_section
@@ -393,18 +252,25 @@ pub async fn plan(
     let all: Vec<PlannerItem> = order
         .into_iter()
         .filter_map(|k| merged.remove(&k))
-        .map(|e| PlannerItem {
-            quantity: if e.unparseable {
+        .map(|e| {
+            let unit = if e.unparseable {
                 e.raw_unit.clone()
             } else {
-                format_qty(e.value, &e.raw_unit)
-            },
-            amount: (!e.unparseable).then_some(e.value),
-            unit: e.raw_unit,
-            multi_source: e.source_dishes.len() > 1,
-            name: e.display_name,
-            store_section: e.store_section,
-            source_dishes: e.source_dishes,
+                display_unit(&e.norm_unit, &e.raw_unit, e.value)
+            };
+            PlannerItem {
+                quantity: if e.unparseable {
+                    unit.clone()
+                } else {
+                    format_qty(e.value, &unit)
+                },
+                amount: (!e.unparseable).then_some(e.value),
+                unit,
+                multi_source: e.source_dishes.len() > 1,
+                name: e.display_name,
+                store_section: e.store_section,
+                source_dishes: e.source_dishes,
+            }
         })
         .collect();
     let total_items = all.len();
@@ -493,19 +359,5 @@ mod tests {
         let odd = parse_qty_string("a splash");
         assert!(odd.unparseable);
         assert_eq!(odd.value, 1.0);
-    }
-
-    #[test]
-    fn formats_like_node() {
-        assert_eq!(format_qty(1.5, "cups"), "1 1/2 cups");
-        assert_eq!(format_qty(0.0, ""), "");
-        assert_eq!(format_qty(0.01, "g"), "g");
-        assert_eq!(format_qty(2.0, ""), "2");
-        assert_eq!(format_qty(0.333, "cup"), "3/8 cup");
-    }
-
-    #[test]
-    fn names_normalize() {
-        assert_eq!(normalize_name("  Olive  Oil (extra) "), "olive oil extra");
     }
 }
