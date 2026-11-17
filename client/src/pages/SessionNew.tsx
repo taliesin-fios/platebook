@@ -324,7 +324,7 @@ export default function SessionNew() {
               <div className="card border border-green-mid">
                 <div className="flex items-start justify-between mb-1">
                   <div className="text-sm font-semibold text-green-dark">📋 Repeat last menu?</div>
-                  <button
+                  <button aria-label="Dismiss"
                     onClick={() => setPrevSession(null)}
                     className="text-gray-400 text-lg leading-none"
                     style={{ minHeight: 'auto' }}
@@ -472,7 +472,7 @@ export default function SessionNew() {
             {/* Allergen filter toggle */}
             {clientAllergens.length > 0 && (
               <div className="flex items-center gap-2 mb-3 p-2 bg-gray-50 rounded-xl">
-                <button
+                <button role="switch" aria-checked={filters.hideConflicts} aria-label="Hide allergen conflicts"
                   onClick={() => setFilters(prev => ({ ...prev, hideConflicts: !prev.hideConflicts }))}
                   className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${filters.hideConflicts ? 'bg-green-mid' : 'bg-gray-300'}`}
                   style={{ minHeight: 'auto', padding: 0 }}

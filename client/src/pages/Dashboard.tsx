@@ -143,7 +143,7 @@ export default function Dashboard() {
           <div className="font-display text-xl font-semibold">{appSettings.business_name || APP_NAME}</div>
           {appSettings.location && <div className="text-xs text-blue-200 mt-0.5">{appSettings.location}</div>}
         </div>
-        <button
+        <button aria-label="Settings"
           onClick={() => navigate('/settings')}
           className="text-white opacity-80"
           style={{ minHeight: 'auto' }}

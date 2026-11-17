@@ -128,7 +128,7 @@ export default function Sessions() {
             </span>
             {/* Re-send PDF — only on completed sessions with a client email */}
             {canResend && (
-              <button
+              <button aria-label={s.pdf_emailed_at ? 'Re-send meal plan' : 'Send meal plan to client'}
                 onClick={e => handleResend(s, e)}
                 disabled={isSending}
                 className="p-1.5 rounded-lg text-gray-400 hover:text-green-dark hover:bg-green-light transition-colors disabled:opacity-40"
@@ -142,7 +142,7 @@ export default function Sessions() {
               </button>
             )}
             {/* Invoice quick-action */}
-            <button
+            <button aria-label="Generate invoice for this session"
               onClick={e => { e.stopPropagation(); navigate(`/invoices/new?session_id=${s.id}`); }}
               className="p-1.5 rounded-lg text-gray-400 hover:text-navy hover:bg-blue-light transition-colors"
               title="Generate invoice for this session"
@@ -221,7 +221,7 @@ export default function Sessions() {
             style={{ minHeight: '44px' }}
           />
           {search && (
-            <button
+            <button aria-label="Clear search"
               onClick={() => setSearch('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               style={{ minHeight: 'auto' }}
@@ -309,7 +309,7 @@ export default function Sessions() {
         )}
       </div>
 
-      <button className="fab" onClick={() => navigate('/sessions/new')}>+</button>
+      <button aria-label="New session" className="fab" onClick={() => navigate('/sessions/new')}>+</button>
     </div>
   );
 }

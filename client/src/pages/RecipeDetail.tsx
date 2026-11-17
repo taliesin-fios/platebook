@@ -326,7 +326,7 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
                 {form.key_overlap_ingredients.map((tag, i) => (
                   <span key={i} className="flex items-center gap-1 px-2.5 py-1 bg-green-light text-green-dark rounded-full text-xs font-medium">
                     {tag}
-                    <button
+                    <button aria-label={`Remove ${tag}`}
                       onClick={() => set('key_overlap_ingredients', form.key_overlap_ingredients.filter((_, j) => j !== i))}
                       style={{ minHeight: 'auto' }}
                     >×</button>
@@ -368,7 +368,7 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
               /* Serving size adjuster — only visible in view mode */
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-gray-500 mr-0.5">Serves</span>
-                <button
+                <button aria-label="Fewer servings"
                   onClick={() => adjustViewServings(-1)}
                   className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-sm font-bold flex items-center justify-center"
                   style={{ minHeight: 'auto' }}
@@ -382,7 +382,7 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
                   className="text-center font-semibold text-navy text-sm"
                   style={{ width: '40px', padding: '2px 4px', minHeight: 'auto' }}
                 />
-                <button
+                <button aria-label="More servings"
                   onClick={() => adjustViewServings(1)}
                   className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-sm font-bold flex items-center justify-center"
                   style={{ minHeight: 'auto' }}
@@ -512,7 +512,7 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
                           </select>
                         </td>
                         <td className="py-1.5 text-center">
-                          <button
+                          <button aria-label={`Remove ${ing.name || 'ingredient'}`}
                             onClick={() => removeIngredient(i)}
                             className="text-danger text-base leading-none"
                             style={{ minHeight: 'auto' }}

@@ -71,7 +71,7 @@ export default function Calendar() {
 
       {/* Month navigator */}
       <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-        <button
+        <button aria-label="Previous month"
           onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}
           className="p-2 rounded-xl hover:bg-green-light text-navy"
           style={{ minHeight: 'auto' }}
@@ -81,7 +81,7 @@ export default function Calendar() {
         <span className="font-display font-semibold text-navy">
           {format(currentMonth, 'MMMM yyyy')}
         </span>
-        <button
+        <button aria-label="Next month"
           onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}
           className="p-2 rounded-xl hover:bg-green-light text-navy"
           style={{ minHeight: 'auto' }}

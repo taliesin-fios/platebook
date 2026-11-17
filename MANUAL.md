@@ -237,8 +237,8 @@ A searchable list of all your client households.
 
 **Actions:**
 - **Tap a card** → view full client profile
-- **Swipe left** on a card → reveal Edit and Delete buttons
-- **+ FAB button** (bottom right) → add a new client
+- **Swipe left** on a card → reveal Edit and Delete buttons. Delete takes the client off your list; their past sessions and invoices are kept. Tap **Undo** on the message that follows to bring them back.
+- **+ button** (bottom right) → add a new client
 
 #### Client Form (4 Sections)
 

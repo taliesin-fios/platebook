@@ -291,7 +291,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
               {' '}· #{intake.id}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 text-xl leading-none" style={{ minHeight: 'auto' }}>×</button>
+          <button aria-label="Close" onClick={onClose} className="text-gray-400 text-xl leading-none" style={{ minHeight: 'auto' }}>×</button>
         </div>
 
         <div className="space-y-4 overflow-y-auto" style={{ maxHeight: '65vh' }}>

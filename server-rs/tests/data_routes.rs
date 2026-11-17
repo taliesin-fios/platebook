@@ -236,6 +236,29 @@ async fn clients_crud_and_validation(pool: PgPool) {
         c.get("/api/clients/abc").await.status,
         StatusCode::NOT_FOUND
     );
+
+    // Undo: restore brings the removed client back, with its data.
+    let restored = c
+        .post(&format!("/api/clients/{id}/restore"), json!({}))
+        .await;
+    assert_eq!(restored.status, StatusCode::OK, "{}", restored.body);
+    assert_eq!(restored.body, json!({ "success": true }));
+    let back = c.get(&format!("/api/clients/{id}")).await;
+    assert_eq!(back.status, StatusCode::OK);
+    assert_eq!(back.body["adults"], 3);
+    assert_eq!(c.get("/api/clients").await.body[0]["id"], id);
+    // Restoring a client that isn't removed, or doesn't exist, is a 404.
+    for uri in [
+        format!("/api/clients/{id}/restore"),
+        "/api/clients/999999/restore".to_string(),
+        "/api/clients/abc/restore".to_string(),
+    ] {
+        assert_eq!(
+            c.post(&uri, json!({})).await.status,
+            StatusCode::NOT_FOUND,
+            "{uri}"
+        );
+    }
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
