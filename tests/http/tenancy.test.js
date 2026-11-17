@@ -80,6 +80,12 @@ describe('account B cannot modify account A records', () => {
   test('delete client', async () => {
     assert.equal((await b.delete(`/api/clients/${ids.client}`)).status, 404);
   });
+  test('restore a removed client', async () => {
+    const removed = await a.post('/api/clients').send({ name: 'Alpha Removed' });
+    assert.equal((await a.delete(`/api/clients/${removed.body.id}`)).status, 200);
+    assert.equal((await b.post(`/api/clients/${removed.body.id}/restore`)).status, 404);
+    assert.equal((await a.get(`/api/clients/${removed.body.id}`)).status, 404, 'still removed for A');
+  });
   test('update recipe', async () => {
     assert.equal((await b.put(`/api/recipes/${ids.recipe}`).send({ name: 'Hacked' })).status, 404);
   });

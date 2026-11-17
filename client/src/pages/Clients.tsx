@@ -44,11 +44,17 @@ export default function Clients() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    const removed = deleteTarget;
     try {
-      await apiCall(`/api/clients/${deleteTarget.id}`, 'DELETE');
-      setClients(prev => prev.filter(c => c.id !== deleteTarget.id));
-      show('Client deleted', 'info', 5000, () => {
-        // undo would need restore endpoint; just inform
+      await apiCall(`/api/clients/${removed.id}`, 'DELETE');
+      setClients(prev => prev.filter(c => c.id !== removed.id));
+      show(`${removed.name} deleted`, 'info', 6000, async () => {
+        try {
+          await apiCall(`/api/clients/${removed.id}/restore`, 'POST');
+          show(`${removed.name} restored`, 'success');
+        } catch {
+          show('Could not restore client', 'error');
+        }
         load();
       });
     } catch {
@@ -79,12 +85,7 @@ export default function Clients() {
 
   return (
     <div className="page">
-      <PageHeader
-        title="Clients"
-        action={
-          <button aria-label="Add client" onClick={() => navigate('/clients/new')} className="text-white font-bold text-xl" style={{ minHeight: 'auto' }}>+</button>
-        }
-      />
+      <PageHeader title="Clients" />
 
       <div className="px-4 pt-3 pb-2 sticky top-[57px] z-10 bg-warm-white">
         <input
@@ -174,7 +175,7 @@ export default function Clients() {
       <ConfirmModal
         open={!!deleteTarget}
         title="Delete Client"
-        message={`Remove ${deleteTarget?.name}? This cannot be undone.`}
+        message={`Remove ${deleteTarget?.name} from your client list? Their past sessions and invoices are kept.`}
         confirmLabel="Delete"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
