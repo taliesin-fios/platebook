@@ -13,6 +13,7 @@ import { apiCall, errorMessage } from '../hooks/useApi';
 import { STATUS_COLORS, calcFeasibility, FEASIBILITY_COLORS, getReheatedInstructions, CATEGORY_BAR_COLORS, marginColor, REPEAT_OPTIONS } from '../constants';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
+import { regenerateWarning } from '../utils/groceryList';
 import type {
   CompletedSession, EmailSentResponse, Flag, GroceryItem, GroceryListResponse, InvoiceListItem, SessionDetail as SessionDetailData, SessionDish,
 } from '../types';
@@ -41,6 +42,7 @@ export default function SessionDetail() {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [tab, setTab] = useState('overview');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [emailing, setEmailing] = useState(false);
   const [repeatOpen, setRepeatOpen] = useState(false);
@@ -285,6 +287,7 @@ export default function SessionDetail() {
   };
 
   const regenerateGrocery = async () => {
+    setRegenerateOpen(false);
     setGroceryLoading(true);
     try {
       const data = await apiCall<GroceryListResponse>(`/api/sessions/${id}/grocery/generate`, 'POST');
@@ -678,7 +681,7 @@ export default function SessionDetail() {
         {tab === 'grocery' && (
           <div>
             <div className="flex gap-2 mb-4">
-              <button onClick={regenerateGrocery} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-medium">
+              <button onClick={() => (regenerateWarning(groceryItems) ? setRegenerateOpen(true) : regenerateGrocery())} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-medium">
                 ↺ Regenerate
               </button>
               <button onClick={uncheckAll} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-medium">
@@ -845,6 +848,16 @@ export default function SessionDetail() {
         message="This will permanently delete this session and all associated data."
         onConfirm={handleDelete}
         onCancel={() => setDeleteOpen(false)}
+      />
+
+      <ConfirmModal
+        open={regenerateOpen}
+        title="Rebuild the grocery list?"
+        message={`${regenerateWarning(groceryItems) ?? ''} Rebuild only if the menu has changed.`}
+        confirmLabel="Rebuild list"
+        confirmClass="bg-navy"
+        onConfirm={regenerateGrocery}
+        onCancel={() => setRegenerateOpen(false)}
       />
 
       {/* Email prompt — shown after marking complete when client has an email */}
