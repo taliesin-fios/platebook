@@ -417,7 +417,7 @@ The session wizard has 5 steps:
 Pick a client from the dropdown. Their allergens, dietary style, and serving size are shown below. If the client doesn't exist yet, tap "Add New Client" to create one first.
 
 **Step 2 — Schedule**
-- Date (required)
+- Date (required). If the client has a preferred day, the next such date is filled in for you, and their preferred time with it; change either freely.
 - Time (optional but useful for the timeline)
 - Serving size (4 or 6)
 - Session window in hours (default 3.0)
@@ -443,7 +443,7 @@ This is the most important step.
 **Step 5 — Review**
 - See the full session summary before confirming
 - If any dishes conflict with client allergens, you must check the acknowledgment box
-- Tap "Confirm Session" to save
+- Tap "Save Session" to save
 
 ### Recurring Sessions
 

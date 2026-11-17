@@ -7,6 +7,7 @@ import { format, isAfter } from 'date-fns';
 import { parseLocalDate } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import type { InvoiceListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
   draft: { label: 'Draft', bg: 'bg-gray-100',  text: 'text-gray-600' },
@@ -102,6 +103,7 @@ export default function Invoices() {
             return (
               <div
                 key={inv.id}
+                {...pressable}
                 className="card cursor-pointer hover:shadow-card-hover transition-shadow"
                 onClick={() => navigate(`/invoices/${inv.id}`)}
               >

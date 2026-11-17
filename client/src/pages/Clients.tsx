@@ -8,7 +8,9 @@ import ConfirmModal from '../components/ConfirmModal';
 import { SkeletonList } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { apiCall } from '../hooks/useApi';
+import { clientSessionLabel } from '../utils/dateUtils';
 import type { ClientListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 const ALLERGEN_ICONS: Record<string, string> = {
   Gluten: '🌾', Dairy: '🥛', Eggs: '🥚', 'Tree Nuts': '🌰',
@@ -133,6 +135,7 @@ export default function Clients() {
             </div>
 
             <div
+              {...pressable}
               className="card cursor-pointer transition-transform duration-200"
               style={{ transform: swipedId === c.id ? 'translateX(-140px)' : 'translateX(0)' }}
               onClick={() => { if (swipedId === c.id) { setSwipedId(null); return; } navigate(`/clients/${c.id}`); }}
@@ -151,7 +154,7 @@ export default function Clients() {
                     </span>
                     <span className="text-xs text-gray-400">Serves {c.serving_size || 4}</span>
                     {c.last_session_date && (
-                      <span className="text-xs text-gray-400">Last: {c.last_session_date}</span>
+                      <span className="text-xs text-gray-400">{clientSessionLabel(c.last_session_date)}</span>
                     )}
                   </div>
                 </div>

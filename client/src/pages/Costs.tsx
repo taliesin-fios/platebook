@@ -12,6 +12,7 @@ import { SkeletonStatGrid } from '../components/Skeleton';
 import { marginColor } from '../constants';
 import { parseNum, type NumInput } from '../utils/numbers';
 import type { CostByClient, CostSession, CostSummary, Id } from '../types';
+import { pressableRow } from '../utils/keyboardActivate';
 
 type ChartPoint = { date: string | null; revenue: number; cost: number };
 type CostEdit = { service_fee?: NumInput; ingredient_cost?: NumInput };
@@ -234,7 +235,7 @@ export default function Costs() {
                     const pill = s.invoice_status ? (INV_PILL[s.invoice_status] || INV_PILL.draft) : null;
 
                     return (
-                    <tr key={s.id} className="border-b border-gray-100 last:border-0 cursor-pointer hover:bg-warm-white"
+                    <tr key={s.id} {...pressableRow} className="border-b border-gray-100 last:border-0 cursor-pointer hover:bg-warm-white"
                       onClick={() => navigate(`/sessions/${s.id}`)}>
                       <td className="py-2.5 pr-2">
                         {(() => { try { return format(parseLocalDate(s.session_date), 'M/d/yy'); } catch { return s.session_date; } })()}

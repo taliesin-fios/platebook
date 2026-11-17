@@ -8,7 +8,9 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval,
 import PageHeader from '../components/PageHeader';
 import { STATUS_COLORS } from '../constants';
 import { findConflictDates } from '../utils/sessionConflicts';
+import { fmtSessionTime } from '../utils/dateUtils';
 import type { SessionListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 type SessionsByDate = Record<string, SessionListItem[]>;
 
@@ -221,13 +223,14 @@ export default function Calendar() {
                   <div
                     key={s.id}
                     onClick={() => navigate(`/sessions/${s.id}`)}
+                    {...pressable}
                     className="card cursor-pointer hover:shadow-card-hover transition-shadow"
                   >
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="font-semibold text-navy text-sm">{s.client_name || 'Unknown Client'}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {s.session_time || 'Time TBD'} · {s.dish_count || 0} dishes · {s.serving_size} servings
+                          {fmtSessionTime(s.session_time, 'Time TBD')} · {s.dish_count || 0} dishes · {s.serving_size} servings
                         </p>
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[s.status] || 'bg-gray-100'}`}>
