@@ -317,11 +317,13 @@ Each session card shows: client name, date, time, status badge, dish count, serv
 **Tap a session** to open the full detail view with 5 tabs:
 
 #### Tab 1: Overview
+- **✓ Mark as Completed** at the top (filled in once the session's day has come)
 - Session summary (date, time, client, serving size, status)
 - Session feasibility indicator (GREEN / AMBER / RED)
+- The session's invoice, or **Create Invoice →** when it has none
 - Full dish list with hold and reheat quality stars
 - Chef notes
-- Action buttons: Mark Complete, Generate PDFs, Edit, Delete
+- **Delete Session** at the very bottom, apart from everything else
 
 #### Tab 2: Grocery
 - All ingredients aggregated from all dishes, scaled to your serving size

@@ -440,6 +440,21 @@ export default function SessionDetail() {
         {/* OVERVIEW TAB */}
         {tab === 'overview' && (
           <div className="space-y-4">
+            {session.status !== 'Completed' && session.status !== 'Cancelled' && (() => {
+              // Once the session's day has come, completing it is the next step.
+              const due = !session.session_date || session.session_date <= localTodayStr();
+              return (
+                <button
+                  onClick={handleMarkComplete}
+                  className={`w-full py-3 rounded-xl font-semibold text-sm ${due
+                    ? 'bg-green-dark text-white'
+                    : 'border-2 border-green-mid text-green-dark'}`}
+                >
+                  ✓ Mark as Completed
+                </button>
+              );
+            })()}
+
             <div className="card">
               <div className="flex items-center justify-between mb-2">
                 <div className="section-header mb-0">Session Info</div>
@@ -589,7 +604,16 @@ export default function SessionDetail() {
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-400 mt-1">No invoice created for this session yet.</p>
+                    <div className="mt-1">
+                      <p className="text-xs text-gray-400">No invoice created for this session yet.</p>
+                      <button
+                        onClick={() => navigate(`/invoices/new?session_id=${id}`)}
+                        className="w-full mt-2 py-2 text-xs font-semibold text-navy border border-gray-200 rounded-xl hover:bg-blue-light transition-colors"
+                        style={{ minHeight: 'auto' }}
+                      >
+                        Create Invoice →
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -667,15 +691,12 @@ export default function SessionDetail() {
               )}
             </div>
 
-            {session.status !== 'Completed' && session.status !== 'Cancelled' && (
-              <button onClick={handleMarkComplete} className="w-full py-3 border-2 border-green-mid text-green-dark rounded-xl font-semibold text-sm">
-                ✓ Mark as Completed
+            {/* Kept apart from the everyday actions above, at the very end. */}
+            <div className="pt-6">
+              <button onClick={() => setDeleteOpen(true)} className="w-full py-3 border border-danger text-danger rounded-xl font-medium text-sm">
+                Delete Session
               </button>
-            )}
-
-            <button onClick={() => setDeleteOpen(true)} className="w-full py-3 border border-danger text-danger rounded-xl font-medium text-sm">
-              Delete Session
-            </button>
+            </div>
           </div>
         )}
 
