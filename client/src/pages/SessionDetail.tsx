@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { format, addDays } from 'date-fns';
-import { parseLocalDate, fmtSessionDate, fmtUtcTimestamp, localTodayStr } from '../utils/dateUtils';
+import { parseLocalDate, fmtSessionDate, fmtSessionTime, fmtUtcTimestamp, localTodayStr } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import EmailFailedBanner from '../components/EmailFailedBanner';
 import ConfirmModal from '../components/ConfirmModal';
@@ -204,7 +204,7 @@ export default function SessionDetail() {
     setCloning(true);
     try {
       const result = await apiCall<SessionDetailData>(`/api/sessions/${id}/clone`, 'POST', { days_offset: daysOffset });
-      show(`Session cloned for ${result.session_date}`, 'success');
+      show(`Session cloned for ${fmtSessionDate(result.session_date, 'EEE, MMM d')}`, 'success');
       navigate(`/sessions/${result.id}`);
     } catch {
       show('Could not clone session', 'error');
@@ -453,8 +453,8 @@ export default function SessionDetail() {
                 )}
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Date</span><span>{session.session_date}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Time</span><span>{session.session_time || '—'}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Date</span><span>{session.session_date ? fmtSessionDate(session.session_date, 'EEE, MMM d, yyyy') : '—'}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Time</span><span>{fmtSessionTime(session.session_time)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Window</span><span>{session.session_window_hours}h</span></div>
                 <div className="flex justify-between items-center text-sm">
                   <label htmlFor="repeat" className="text-gray-500">Recurring</label>
