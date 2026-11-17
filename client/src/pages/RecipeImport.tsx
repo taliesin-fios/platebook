@@ -436,7 +436,7 @@ function ReviewForm({ form, setForm, confidence, confidenceLevel, source, onSave
       {/* Save actions */}
       <div className="space-y-2">
         <button onClick={onSave} disabled={saving} className="w-full py-3.5 bg-navy text-white rounded-xl font-semibold disabled:opacity-60">
-          {saving ? 'Saving...' : 'Save Recipe'}
+          {saving ? 'Saving…' : 'Save'}
         </button>
         <button onClick={onSaveAnother} disabled={saving} className="w-full py-3 border border-navy text-navy rounded-xl font-medium text-sm disabled:opacity-60">
           Save & Import Another

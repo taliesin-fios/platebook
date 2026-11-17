@@ -134,7 +134,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
     setSaving(true);
     try {
       await apiCall(`/api/intake/${intake.id}`, 'PUT', { status, internal_notes: notes });
-      show('Intake updated', 'success');
+      show('Inquiry updated', 'success');
       onStatusChange(intake.id, status, notes);
     } catch (err) {
       show(errorMessage(err) || 'Could not save', 'error');
@@ -575,7 +575,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
               disabled={saving}
               className="w-full py-2.5 bg-navy text-white rounded-xl text-sm font-semibold mb-2 disabled:opacity-60"
             >
-              {saving ? 'Saving…' : 'Save Status & Notes'}
+              {saving ? 'Saving…' : 'Save'}
             </button>
             <button
               onClick={copyClientLink}
@@ -589,7 +589,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
               disabled={saving}
               className="mt-2 w-full py-3 min-h-[44px] text-xs text-gray-400 hover:text-danger transition-colors disabled:opacity-60"
             >
-              Delete inquiry
+              Delete Inquiry
             </button>
           </div>
           )}
@@ -650,7 +650,7 @@ export default function IntakeAdmin() {
   return (
     <div className="page pb-24">
       <PageHeader
-        title="Client Intakes"
+        title="Inquiries"
         action={
           <span className="text-xs text-white opacity-70">
             {intakes.length} total

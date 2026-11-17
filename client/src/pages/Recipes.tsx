@@ -215,8 +215,8 @@ export default function Recipes() {
 
       <ConfirmModal
         open={!!deleteTarget}
-        title="Remove Recipe"
-        message={`Remove "${deleteTarget?.name}" from the library?`}
+        title="Delete Recipe"
+        message={`Delete "${deleteTarget?.name}" from your recipe library?`}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />

@@ -390,7 +390,7 @@ export default function Settings() {
         </div>
 
         <button onClick={handleSave} disabled={saving} className="w-full py-3.5 bg-navy text-white rounded-xl font-semibold text-base disabled:opacity-60">
-          {saving ? 'Saving...' : 'Save Settings'}
+          {saving ? 'Saving…' : 'Save Settings'}
         </button>
 
         {/* Phones: the bottom bar has no room for Sign Out, so it lives here (desktop has it in the side nav). */}

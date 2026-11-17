@@ -723,7 +723,7 @@ export default function SessionNew() {
               disabled={saving || session.recipe_ids.length === 0 || (hasAllergenConflicts && !allergenAcknowledged)}
               className="flex-1 py-3 bg-navy text-white rounded-xl text-sm font-semibold disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save Session'}
+              {saving ? 'Saving…' : 'Create Session'}
             </button>
           )}
         </div>
