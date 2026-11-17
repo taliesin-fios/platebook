@@ -3,7 +3,7 @@
 
 import { useState, useEffect, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { fmtSessionDate, fmtUtcTimestamp } from '../utils/dateUtils';
+import { fmtSessionDate, fmtSessionTime, fmtUtcTimestamp } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import { SkeletonList } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
@@ -117,7 +117,7 @@ export default function Sessions() {
             <div className="font-display font-semibold text-navy truncate">{s.client_name || 'Unknown Client'}</div>
             <div className="text-xs text-gray-500 mt-0.5">
               {formatDate(s.session_date)}
-              {s.session_time ? ` · ${s.session_time}` : ''}
+              {s.session_time ? ` · ${fmtSessionTime(s.session_time)}` : ''}
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">

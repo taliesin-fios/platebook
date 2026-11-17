@@ -7,6 +7,7 @@ import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { ALLERGENS_LIST, ALLERGEN_ICONS, DIETARY_STYLES, PROTEINS, EQUIPMENT_OPTIONS } from '../constants';
+import { clientPathAfterSave } from '../utils/clientPaths';
 import type { Client } from '../types';
 
 /** Editable client fields. Loaded rows can carry nulls in the optional text columns. */
@@ -147,7 +148,8 @@ export default function ClientForm() {
   const { show } = useToast();
   const isEdit = !!id;
 
-  const [sections, setSections]             = useState<Record<SectionKey, boolean>>({ A: true, B: false, C: false, D: false });
+  // Dietary Profile (B) starts open: allergens must be seen before a client is saved.
+  const [sections, setSections]             = useState<Record<SectionKey, boolean>>({ A: true, B: true, C: false, D: false });
   const [saving, setSaving]                 = useState(false);
   const [errors, setErrors]                 = useState<FieldErrors>({});
   const [showContainerNotice, setShowContainerNotice] = useState(false);
@@ -208,9 +210,10 @@ export default function ClientForm() {
     try {
       const method = isEdit ? 'PUT' : 'POST';
       const url    = isEdit ? `/api/clients/${id}` : '/api/clients';
-      await apiCall(url, method, form);
+      const saved = await apiCall<Partial<Client> | null>(url, method, form);
       show(isEdit ? 'Client updated' : 'Client saved', 'success');
-      navigate('/clients');
+      // `replace`: the browser's Back shouldn't reopen the form just saved.
+      navigate(clientPathAfterSave(saved), { replace: true });
     } catch (err) {
       const msg = (errorMessage(err) || '').toLowerCase();
       if (msg.includes('unique') || msg.includes('duplicate') || msg.includes('already exists')) {
