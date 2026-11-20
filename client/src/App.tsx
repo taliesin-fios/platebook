@@ -32,6 +32,7 @@ const SessionDetail  = lazy(() => import('./pages/SessionDetail'));
 const Templates      = lazy(() => import('./pages/Templates'));
 const Costs          = lazy(() => import('./pages/Costs'));
 const Settings       = lazy(() => import('./pages/Settings'));
+const Guide          = lazy(() => import('./pages/Guide'));
 const Planner        = lazy(() => import('./pages/Planner'));
 const Calendar       = lazy(() => import('./pages/Calendar'));
 const IntakeForm     = lazy(() => import('./pages/IntakeForm'));
@@ -246,6 +247,7 @@ export default function App() {
                 <Route path="/templates"          element={<Templates />} />
                 <Route path="/costs"              element={<Costs />} />
                 <Route path="/settings"           element={<Settings />} />
+                <Route path="/guide"              element={<Guide />} />
                 <Route path="/planner"            element={<Planner />} />
                 <Route path="/calendar"           element={<Calendar />} />
                 <Route path="/intake"             element={<IntakeAdmin />} />

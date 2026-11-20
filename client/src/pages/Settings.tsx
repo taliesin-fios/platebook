@@ -2,6 +2,7 @@
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
 import { useRef, useState, useEffect, useContext, type ChangeEvent, type ReactNode } from 'react';
+import { useNavigate } from 'react-router';
 import PageHeader from '../components/PageHeader';
 import ConfirmModal from '../components/ConfirmModal';
 import AiSettings from '../components/AiSettings';
@@ -21,6 +22,7 @@ const SectionHeader = ({ children }: { children: ReactNode }) => (
 
 export default function Settings() {
   const { show } = useToast();
+  const navigate = useNavigate();
   const { refreshSettings } = useContext(SettingsContext);
   const { logout } = useAuth();
   const [settings,     setSettings]     = useState<SettingsData | null>(null);
@@ -375,6 +377,21 @@ export default function Settings() {
               <span>⚠</span>
             </button>
           </div>
+        </div>
+
+        {/* Help */}
+        <div className="card">
+          <SectionHeader>Help</SectionHeader>
+          <p className="text-sm text-gray-500 mb-3">
+            Step-by-step help for the everyday jobs, and a short tour of the main screens.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/guide')}
+            className="px-4 py-2.5 rounded-xl bg-warm-white border border-gray-200 text-navy font-semibold text-sm"
+          >
+            Open the guide
+          </button>
         </div>
 
         {/* About */}
