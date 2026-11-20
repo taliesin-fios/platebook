@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { format } from 'date-fns';
-import { parseLocalDate } from '../utils/dateUtils';
+import { parseLocalDate, fmtSessionDate, fmtSessionTime } from '../utils/dateUtils';
+import { nextDateForWeekday, defaultTimeFor, applySuggestion } from '../utils/sessionDefaults';
+import type { DayAndTime } from '../utils/sessionDefaults';
 import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
@@ -13,6 +15,7 @@ import { StarDisplay } from '../components/StarRating';
 import type {
   ClientListItem, FromTemplateResponse, Id, MenuSuggestion, Recipe, SessionDetail, SessionListItem, SessionStatus, Settings,
 } from '../types';
+import { toggleable } from '../utils/keyboardActivate';
 
 /** The new session being built across the wizard steps. */
 interface SessionDraft {
@@ -56,6 +59,7 @@ export default function SessionNew() {
   const { show } = useToast();
   const [params] = useSearchParams();
   const [step, setStep] = useState(0);
+  const [prefillNote, setPrefillNote] = useState('');
   const [clients, setClients] = useState<ClientListItem[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [settings, setSettings] = useState<Partial<Settings>>({});
@@ -132,6 +136,28 @@ export default function SessionNew() {
   }, [session.client_id]);
 
   const selectedClient = clients.find(c => c.id === parseInt(session.client_id));
+
+  // Suggest the client's usual day and time, once per client. A date from the
+  // link (?date=) or one the chef has typed is never replaced; a suggestion
+  // made for a client picked earlier is, so it can't stay on the wrong client.
+  const prefilledFor = useRef<number | null>(null);
+  const suggested = useRef<DayAndTime>({ date: '', time: '' });
+  useEffect(() => {
+    if (!selectedClient || prefilledFor.current === selectedClient.id) return;
+    prefilledFor.current = selectedClient.id;
+    const now = { date: session.session_date, time: session.session_time };
+    const next = applySuggestion(now, suggested.current, {
+      date: nextDateForWeekday(selectedClient.preferred_day),
+      time: defaultTimeFor(selectedClient.preferred_time),
+    });
+    suggested.current = next.suggested;
+    setPrefillNote(next.suggested.date
+      ? `Suggested from ${selectedClient.name}'s preferred day (${selectedClient.preferred_day})${next.suggested.time ? ' and time' : ''}. Change it if you need to.`
+      : '');
+    if (next.date !== now.date || next.time !== now.time) {
+      setSession(prev => ({ ...prev, session_date: next.date, session_time: next.time }));
+    }
+  }, [selectedClient, session.session_date, session.session_time]);
   const clientAllergens = selectedClient?.allergens || [];
 
   const selectedRecipes = recipes.filter(r => session.recipe_ids.includes(r.id));
@@ -298,7 +324,7 @@ export default function SessionNew() {
               <div className="card border border-green-mid">
                 <div className="flex items-start justify-between mb-1">
                   <div className="text-sm font-semibold text-green-dark">📋 Repeat last menu?</div>
-                  <button
+                  <button aria-label="Dismiss"
                     onClick={() => setPrevSession(null)}
                     className="text-gray-400 text-lg leading-none"
                     style={{ minHeight: 'auto' }}
@@ -346,7 +372,8 @@ export default function SessionNew() {
             <div className="card space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Date *</label>
-                <input type="date" value={session.session_date} onChange={e => setSession(prev => ({ ...prev, session_date: e.target.value }))} />
+                <input type="date" value={session.session_date} onChange={e => { setPrefillNote(''); setSession(prev => ({ ...prev, session_date: e.target.value })); }} />
+                {prefillNote && <p className="text-xs text-gray-500 mt-1.5">{prefillNote}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Time</label>
@@ -445,7 +472,7 @@ export default function SessionNew() {
             {/* Allergen filter toggle */}
             {clientAllergens.length > 0 && (
               <div className="flex items-center gap-2 mb-3 p-2 bg-gray-50 rounded-xl">
-                <button
+                <button role="switch" aria-checked={filters.hideConflicts} aria-label="Hide allergen conflicts"
                   onClick={() => setFilters(prev => ({ ...prev, hideConflicts: !prev.hideConflicts }))}
                   className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${filters.hideConflicts ? 'bg-green-mid' : 'bg-gray-300'}`}
                   style={{ minHeight: 'auto', padding: 0 }}
@@ -497,6 +524,7 @@ export default function SessionNew() {
                   <div
                     key={r.id}
                     onClick={() => toggleRecipe(r.id)}
+                    {...toggleable(selected)}
                     className={`card cursor-pointer transition-all ${
                       selected ? 'border-2 border-green-mid bg-green-light' :
                       conflicts.length > 0 ? 'border border-danger bg-red-50' :
@@ -607,8 +635,8 @@ export default function SessionNew() {
               <div className="section-header">Session Summary</div>
               <div className="space-y-2">
                 <div className="flex justify-between"><span className="text-sm text-gray-500">Client</span><span className="text-sm font-medium">{selectedClient?.name || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-sm text-gray-500">Date</span><span className="text-sm font-medium">{session.session_date || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-sm text-gray-500">Time</span><span className="text-sm font-medium">{session.session_time || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-500">Date</span><span className="text-sm font-medium">{session.session_date ? fmtSessionDate(session.session_date, 'EEE, MMM d, yyyy') : '—'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-500">Time</span><span className="text-sm font-medium">{fmtSessionTime(session.session_time)}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-gray-500">Serving Size</span><span className="text-sm font-medium">{session.serving_size}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-gray-500">Status</span><span className="text-sm font-medium">{session.status}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-gray-500">Recurring</span><span className="text-sm font-medium">{repeatLabel(session.repeat_every_weeks)}</span></div>
@@ -695,7 +723,7 @@ export default function SessionNew() {
               disabled={saving || session.recipe_ids.length === 0 || (hasAllergenConflicts && !allergenAcknowledged)}
               className="flex-1 py-3 bg-navy text-white rounded-xl text-sm font-semibold disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Confirm Session'}
+              {saving ? 'Saving…' : 'Create Session'}
             </button>
           )}
         </div>

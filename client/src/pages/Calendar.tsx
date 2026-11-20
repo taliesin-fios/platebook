@@ -8,7 +8,9 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval,
 import PageHeader from '../components/PageHeader';
 import { STATUS_COLORS } from '../constants';
 import { findConflictDates } from '../utils/sessionConflicts';
+import { fmtSessionTime } from '../utils/dateUtils';
 import type { SessionListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 type SessionsByDate = Record<string, SessionListItem[]>;
 
@@ -69,7 +71,7 @@ export default function Calendar() {
 
       {/* Month navigator */}
       <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-        <button
+        <button aria-label="Previous month"
           onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}
           className="p-2 rounded-xl hover:bg-green-light text-navy"
           style={{ minHeight: 'auto' }}
@@ -79,7 +81,7 @@ export default function Calendar() {
         <span className="font-display font-semibold text-navy">
           {format(currentMonth, 'MMMM yyyy')}
         </span>
-        <button
+        <button aria-label="Next month"
           onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}
           className="p-2 rounded-xl hover:bg-green-light text-navy"
           style={{ minHeight: 'auto' }}
@@ -221,13 +223,14 @@ export default function Calendar() {
                   <div
                     key={s.id}
                     onClick={() => navigate(`/sessions/${s.id}`)}
+                    {...pressable}
                     className="card cursor-pointer hover:shadow-card-hover transition-shadow"
                   >
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="font-semibold text-navy text-sm">{s.client_name || 'Unknown Client'}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {s.session_time || 'Time TBD'} · {s.dish_count || 0} dishes · {s.serving_size} servings
+                          {fmtSessionTime(s.session_time, 'Time TBD')} · {s.dish_count || 0} dishes · {s.serving_size} servings
                         </p>
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[s.status] || 'bg-gray-100'}`}>

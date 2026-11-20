@@ -9,7 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc",
-    "lint": "eslint src",
+    "lint": "eslint src && node ../scripts/icon-button-labels.mjs",
     "lint:fix": "eslint src --fix",
     "test": "vitest run",
     "test:watch": "vitest"

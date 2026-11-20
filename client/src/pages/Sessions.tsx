@@ -3,13 +3,14 @@
 
 import { useState, useEffect, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { fmtSessionDate, fmtUtcTimestamp } from '../utils/dateUtils';
+import { fmtSessionDate, fmtSessionTime, fmtUtcTimestamp } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import { SkeletonList } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { STATUS_COLORS, marginColor, repeatLabel } from '../constants';
 import { errorMessage } from '../hooks/useApi';
 import type { EmailSentResponse, SessionListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 const InvoiceIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -109,6 +110,7 @@ export default function Sessions() {
 
     return (
       <div
+        {...pressable}
         className="card mb-3 cursor-pointer hover:shadow-card-hover transition-shadow"
         onClick={() => navigate(`/sessions/${s.id}`)}
       >
@@ -117,7 +119,7 @@ export default function Sessions() {
             <div className="font-display font-semibold text-navy truncate">{s.client_name || 'Unknown Client'}</div>
             <div className="text-xs text-gray-500 mt-0.5">
               {formatDate(s.session_date)}
-              {s.session_time ? ` · ${s.session_time}` : ''}
+              {s.session_time ? ` · ${fmtSessionTime(s.session_time)}` : ''}
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -126,7 +128,7 @@ export default function Sessions() {
             </span>
             {/* Re-send PDF — only on completed sessions with a client email */}
             {canResend && (
-              <button
+              <button aria-label={s.pdf_emailed_at ? 'Re-send meal plan' : 'Send meal plan to client'}
                 onClick={e => handleResend(s, e)}
                 disabled={isSending}
                 className="p-1.5 rounded-lg text-gray-400 hover:text-green-dark hover:bg-green-light transition-colors disabled:opacity-40"
@@ -140,7 +142,7 @@ export default function Sessions() {
               </button>
             )}
             {/* Invoice quick-action */}
-            <button
+            <button aria-label="Generate invoice for this session"
               onClick={e => { e.stopPropagation(); navigate(`/invoices/new?session_id=${s.id}`); }}
               className="p-1.5 rounded-lg text-gray-400 hover:text-navy hover:bg-blue-light transition-colors"
               title="Generate invoice for this session"
@@ -219,7 +221,7 @@ export default function Sessions() {
             style={{ minHeight: '44px' }}
           />
           {search && (
-            <button
+            <button aria-label="Clear search"
               onClick={() => setSearch('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               style={{ minHeight: 'auto' }}
@@ -307,7 +309,7 @@ export default function Sessions() {
         )}
       </div>
 
-      <button className="fab" onClick={() => navigate('/sessions/new')}>+</button>
+      <button aria-label="New session" className="fab" onClick={() => navigate('/sessions/new')}>+</button>
     </div>
   );
 }

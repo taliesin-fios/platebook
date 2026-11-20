@@ -54,7 +54,7 @@ describe('Guide', () => {
 
   it('covers the five everyday jobs in order', () => {
     expect(WORKFLOWS.map(w => w.title)).toEqual([
-      'Add a client', 'Plan a session', 'Shop from the grocery list', 'Send an invoice', 'Handle a booking request',
+      'Add a client', 'Plan a session', 'Shop from the grocery list', 'Send an invoice', 'Handle an inquiry',
     ]);
     for (const [i, w] of WORKFLOWS.entries()) expect(html).toContain(`${i + 1}. ${w.title}`);
   });

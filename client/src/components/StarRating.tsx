@@ -13,7 +13,7 @@ export default function StarRating({ value: rawValue = 0, max = 5, onChange, siz
   return (
     <div className="flex gap-1">
       {Array.from({ length: max }).map((_, i) => (
-        <button
+        <button aria-label={`${i + 1} of ${max} stars`}
           key={i}
           onClick={() => onChange && onChange(i + 1)}
           style={{ minHeight: 'auto', padding: 0 }}

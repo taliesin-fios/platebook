@@ -236,6 +236,29 @@ async fn clients_crud_and_validation(pool: PgPool) {
         c.get("/api/clients/abc").await.status,
         StatusCode::NOT_FOUND
     );
+
+    // Undo: restore brings the removed client back, with its data.
+    let restored = c
+        .post(&format!("/api/clients/{id}/restore"), json!({}))
+        .await;
+    assert_eq!(restored.status, StatusCode::OK, "{}", restored.body);
+    assert_eq!(restored.body, json!({ "success": true }));
+    let back = c.get(&format!("/api/clients/{id}")).await;
+    assert_eq!(back.status, StatusCode::OK);
+    assert_eq!(back.body["adults"], 3);
+    assert_eq!(c.get("/api/clients").await.body[0]["id"], id);
+    // Restoring a client that isn't removed, or doesn't exist, is a 404.
+    for uri in [
+        format!("/api/clients/{id}/restore"),
+        "/api/clients/999999/restore".to_string(),
+        "/api/clients/abc/restore".to_string(),
+    ] {
+        assert_eq!(
+            c.post(&uri, json!({})).await.status,
+            StatusCode::NOT_FOUND,
+            "{uri}"
+        );
+    }
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
@@ -685,7 +708,10 @@ async fn grocery_generates_merges_and_toggles(pool: PgPool) {
     let other = c
         .post(
             "/api/recipes",
-            json!({ "name": "Soup", "ingredients": [{ "name": "Onion ", "qty_4_serving": "1/2 cups" }] }),
+            json!({ "name": "Soup", "ingredients": [
+                { "name": "Onion ", "qty_4_serving": "1/2 cups" },
+                { "name": "Stock", "qty_4_serving": "1 Cup" },
+                { "name": "Butter", "qty_4_serving": "1.5 Tablespoons" }] }),
         )
         .await;
     c.put(
@@ -712,6 +738,26 @@ async fn grocery_generates_merges_and_toggles(pool: PgPool) {
         onion["source_dishes"],
         json!(["Stew: 1 1/2 cups", "Soup: 1/2 cups"])
     );
+    let find = |name: &str| {
+        generated["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|i| {
+                i["ingredient_name"]
+                    .as_str()
+                    .unwrap()
+                    .eq_ignore_ascii_case(name)
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    // "2 cups" + "1 Cup" is one line, not two.
+    let stock = find("stock");
+    assert_eq!(stock.len(), 1, "{stock:?}");
+    assert_eq!(stock[0]["total_quantity"], "3 cups");
+    // A one-dish amount is printed like a summed one: "1.5 Tablespoons" → "1 1/2 tbsp".
+    assert_eq!(find("butter")[0]["total_quantity"], "1 1/2 tbsp");
     // Sorted by store section: Produce ("Other" for missing) ... Canned before Other
     assert_eq!(generated["items"][0]["store_section"], "Canned & Jarred");
 

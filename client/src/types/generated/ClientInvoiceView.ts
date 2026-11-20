@@ -5,10 +5,16 @@ import type { InvoiceStatus } from "./InvoiceStatus";
 /**
  * GET /api/invoices/:id/public: what a client sees from their invoice link.
  * No internal notes, client contact details or chef fields beyond the
- * business name.
+ * business name and how the chef takes payment (already on their booking
+ * page).
  */
 export type ClientInvoiceView = { id: number, invoice_number: string | null, status: InvoiceStatus, business_name: string | null, client_name: string | null, issue_date: string | null, due_date: string | null, message: string | null, subtotal: number, tax_amount: number, total: number, paid_at: string | null, line_items: Array<ClientInvoiceLine>, 
 /**
  * Online payments are on: the page can offer to pay.
  */
-can_pay_online: boolean, };
+can_pay_online: boolean, 
+/**
+ * The chef's "payment methods" setting (free text), so the page can say
+ * how to pay when there's no online payment. `null` when not set.
+ */
+payment_methods: string | null, };

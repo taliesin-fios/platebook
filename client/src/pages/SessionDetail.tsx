@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { format, addDays } from 'date-fns';
-import { parseLocalDate, fmtSessionDate, fmtUtcTimestamp, localTodayStr } from '../utils/dateUtils';
+import { parseLocalDate, fmtSessionDate, fmtSessionTime, fmtUtcTimestamp, localTodayStr } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import EmailFailedBanner from '../components/EmailFailedBanner';
 import ConfirmModal from '../components/ConfirmModal';
@@ -13,9 +13,12 @@ import { apiCall, errorMessage } from '../hooks/useApi';
 import { STATUS_COLORS, calcFeasibility, FEASIBILITY_COLORS, getReheatedInstructions, CATEGORY_BAR_COLORS, marginColor, REPEAT_OPTIONS } from '../constants';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
+import { regenerateWarning } from '../utils/groceryList';
+import { sinkTicked } from '../utils/groceryOrder';
 import type {
   CompletedSession, EmailSentResponse, Flag, GroceryItem, GroceryListResponse, InvoiceListItem, SessionDetail as SessionDetailData, SessionDish,
 } from '../types';
+import { toggleable } from '../utils/keyboardActivate';
 
 /** uncheckAll passes a boolean is_checked; toggling only reads its truthiness. */
 type GroceryToggle = Omit<GroceryItem, 'is_checked'> & { is_checked?: Flag | boolean };
@@ -41,6 +44,7 @@ export default function SessionDetail() {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [tab, setTab] = useState('overview');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [emailing, setEmailing] = useState(false);
   const [repeatOpen, setRepeatOpen] = useState(false);
@@ -204,7 +208,7 @@ export default function SessionDetail() {
     setCloning(true);
     try {
       const result = await apiCall<SessionDetailData>(`/api/sessions/${id}/clone`, 'POST', { days_offset: daysOffset });
-      show(`Session cloned for ${result.session_date}`, 'success');
+      show(`Session cloned for ${fmtSessionDate(result.session_date, 'EEE, MMM d')}`, 'success');
       navigate(`/sessions/${result.id}`);
     } catch {
       show('Could not clone session', 'error');
@@ -285,6 +289,7 @@ export default function SessionDetail() {
   };
 
   const regenerateGrocery = async () => {
+    setRegenerateOpen(false);
     setGroceryLoading(true);
     try {
       const data = await apiCall<GroceryListResponse>(`/api/sessions/${id}/grocery/generate`, 'POST');
@@ -435,6 +440,21 @@ export default function SessionDetail() {
         {/* OVERVIEW TAB */}
         {tab === 'overview' && (
           <div className="space-y-4">
+            {session.status !== 'Completed' && session.status !== 'Cancelled' && (() => {
+              // Once the session's day has come, completing it is the next step.
+              const due = !session.session_date || session.session_date <= localTodayStr();
+              return (
+                <button
+                  onClick={handleMarkComplete}
+                  className={`w-full py-3 rounded-xl font-semibold text-sm ${due
+                    ? 'bg-green-dark text-white'
+                    : 'border-2 border-green-mid text-green-dark'}`}
+                >
+                  ✓ Mark as Completed
+                </button>
+              );
+            })()}
+
             <div className="card">
               <div className="flex items-center justify-between mb-2">
                 <div className="section-header mb-0">Session Info</div>
@@ -453,8 +473,8 @@ export default function SessionDetail() {
                 )}
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Date</span><span>{session.session_date}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Time</span><span>{session.session_time || '—'}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Date</span><span>{session.session_date ? fmtSessionDate(session.session_date, 'EEE, MMM d, yyyy') : '—'}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Time</span><span>{fmtSessionTime(session.session_time)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Window</span><span>{session.session_window_hours}h</span></div>
                 <div className="flex justify-between items-center text-sm">
                   <label htmlFor="repeat" className="text-gray-500">Recurring</label>
@@ -584,7 +604,16 @@ export default function SessionDetail() {
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-400 mt-1">No invoice created for this session yet.</p>
+                    <div className="mt-1">
+                      <p className="text-xs text-gray-400">No invoice created for this session yet.</p>
+                      <button
+                        onClick={() => navigate(`/invoices/new?session_id=${id}`)}
+                        className="w-full mt-2 py-2 text-xs font-semibold text-navy border border-gray-200 rounded-xl hover:bg-blue-light transition-colors"
+                        style={{ minHeight: 'auto' }}
+                      >
+                        Create Invoice →
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -662,15 +691,12 @@ export default function SessionDetail() {
               )}
             </div>
 
-            {session.status !== 'Completed' && session.status !== 'Cancelled' && (
-              <button onClick={handleMarkComplete} className="w-full py-3 border-2 border-green-mid text-green-dark rounded-xl font-semibold text-sm">
-                ✓ Mark as Completed
+            {/* Kept apart from the everyday actions above, at the very end. */}
+            <div className="pt-6">
+              <button onClick={() => setDeleteOpen(true)} className="w-full py-3 border border-danger text-danger rounded-xl font-medium text-sm">
+                Delete Session
               </button>
-            )}
-
-            <button onClick={() => setDeleteOpen(true)} className="w-full py-3 border border-danger text-danger rounded-xl font-medium text-sm">
-              Delete Session
-            </button>
+            </div>
           </div>
         )}
 
@@ -678,7 +704,7 @@ export default function SessionDetail() {
         {tab === 'grocery' && (
           <div>
             <div className="flex gap-2 mb-4">
-              <button onClick={regenerateGrocery} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-medium">
+              <button onClick={() => (regenerateWarning(groceryItems) ? setRegenerateOpen(true) : regenerateGrocery())} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-medium">
                 ↺ Regenerate
               </button>
               <button onClick={uncheckAll} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-medium">
@@ -720,11 +746,12 @@ export default function SessionDetail() {
                       Mark All
                     </button>
                   </div>
-                  {!collapsed && items.map((item, idx) => {
+                  {!collapsed && sinkTicked(items).map((item, idx) => {
                     const sourceList = Array.isArray(item.source_dishes) ? item.source_dishes : (() => { try { return JSON.parse(item.source_dishes || '[]'); } catch { return []; } })();
                     return (
                       <div
                         key={item.id || idx}
+                        {...toggleable(item.is_checked)}
                         className={`flex items-start gap-3 py-2.5 px-3 mb-1.5 rounded-xl cursor-pointer transition-colors ${item.is_checked ? 'bg-gray-50' : 'bg-white border border-gray-100'}`}
                         onClick={() => item.id && toggleGroceryItem(item)}
                       >
@@ -787,8 +814,9 @@ export default function SessionDetail() {
         )}
       </div>
 
-      {/* Fixed bottom actions */}
-      <div className="fixed fixed-action-bar left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-20 md:left-[220px]">
+      {/* Fixed bottom actions. On a phone the Grocery tab gives this space to the
+          list: it has its own PDF button, and the rest are a tab away. */}
+      <div className={`fixed fixed-action-bar left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-20 md:left-[220px] ${tab === 'grocery' ? 'hidden md:block' : ''}`}>
         <div className="max-w-3xl mx-auto flex gap-2">
           <button
             onClick={handleGeneratePDF}
@@ -817,7 +845,7 @@ export default function SessionDetail() {
           >
             🔁 Repeat
           </button>
-          <button
+          <button aria-label={invoice ? `View invoice ${invoice.invoice_number}` : 'Create invoice for this session'}
             onClick={() => invoice
               ? navigate(`/invoices/${invoice.id}`)
               : navigate(`/invoices/new?session_id=${id}`)
@@ -845,6 +873,16 @@ export default function SessionDetail() {
         message="This will permanently delete this session and all associated data."
         onConfirm={handleDelete}
         onCancel={() => setDeleteOpen(false)}
+      />
+
+      <ConfirmModal
+        open={regenerateOpen}
+        title="Rebuild the grocery list?"
+        message={`${regenerateWarning(groceryItems) ?? ''} Rebuild only if the menu has changed.`}
+        confirmLabel="Rebuild list"
+        confirmClass="bg-navy"
+        onConfirm={regenerateGrocery}
+        onCancel={() => setRegenerateOpen(false)}
       />
 
       {/* Email prompt — shown after marking complete when client has an email */}

@@ -26,6 +26,7 @@ use crate::db::Tenant;
 use crate::error::{AppError, DbResult};
 use crate::models::{GroceryItemRow, Ingredient};
 use crate::pdf::{self, Template, docs};
+use crate::quantity::{display_unit, format_qty, normalize_name, normalize_unit};
 use crate::routes::{JsonBody, parse_id};
 use crate::state::AppState;
 
@@ -96,7 +97,6 @@ static MIXED: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(\d+)\s+(\d+)/(\d+)\s*(.*)").expect("regex"));
 static FRAC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d+)/(\d+)\s*(.*)").expect("regex"));
 static NUM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d+\.?\d*)\s*(.*)").expect("regex"));
-static TRAILING_ZEROS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\.?0+$").expect("regex"));
 
 /// DI12/DI13: "1 1/2 cups" → (1.5, "cups"). `None` for non-numeric amounts.
 fn parse_qty_simple(s: Option<&str>) -> Option<(Qty, String)> {
@@ -138,55 +138,18 @@ fn parse_qty_simple(s: Option<&str>) -> Option<(Qty, String)> {
     None
 }
 
-fn js_round(x: f64) -> f64 {
-    (x + 0.5).floor()
-}
-
-/// `n.toFixed(2)` with trailing zeros (and a bare dot) removed.
-fn fixed2_trimmed(n: f64) -> String {
-    let s = format!("{n:.2}");
-    TRAILING_ZEROS.replace(&s, "").into_owned()
-}
-
-/// A JS number as `String(n)` prints a whole number.
-fn js_int(n: f64) -> String {
-    format!("{}", n as i64)
-}
-
-/// Round to the nearest 1/8 and print as "1 1/2 cups".
-fn format_qty_simple(value: f64, unit: &str) -> String {
-    let rounded = js_round(value * 8.0) / 8.0;
-    let whole = rounded.floor();
-    let frac = js_round((rounded - whole) * 8.0) as i64;
-    let frac_str = match frac {
-        1 => "1/8",
-        2 => "1/4",
-        3 => "3/8",
-        4 => "1/2",
-        5 => "5/8",
-        6 => "3/4",
-        7 => "7/8",
-        _ => "",
-    };
-    let num = if whole > 0.0 && !frac_str.is_empty() {
-        format!("{} {frac_str}", js_int(whole))
-    } else if whole > 0.0 {
-        js_int(whole)
-    } else if !frac_str.is_empty() {
-        frac_str.to_string()
-    } else {
-        fixed2_trimmed(rounded)
-    };
-    if unit.is_empty() {
-        num
-    } else {
-        format!("{num} {unit}")
-    }
-}
-
 struct Acc {
     item: GeneratedGroceryItem,
+    /// Running total and the unit as the first recipe wrote it.
     parsed: Option<(Qty, String)>,
+}
+
+/// "1.5 Cups" → "1 1/2 cups": every numeric amount on the list in one form.
+fn shown_total(value: f64, raw_unit: &str) -> String {
+    format_qty(
+        value,
+        &display_unit(&normalize_unit(raw_unit), raw_unit, value),
+    )
 }
 
 #[derive(sqlx::FromRow)]
@@ -252,9 +215,13 @@ pub async fn generate_grocery_list(
             }
             .filter(|q| !q.is_empty());
             let parsed = parse_qty_simple(qty.as_deref());
-            // DI13: dedup on name + unit so "butter (cups)" and "butter (tbsp)" stay apart
-            let unit = parsed.as_ref().map(|(_, u)| u.clone()).unwrap_or_default();
-            let key = format!("{}|{unit}", ing.name.to_lowercase().trim());
+            // DI13: dedup on name + unit so "butter (cups)" and "butter (tbsp)" stay apart,
+            // while "cup" and "cups" (or "tbsp" and "Tablespoons") merge.
+            let unit = parsed
+                .as_ref()
+                .map(|(_, u)| normalize_unit(u))
+                .unwrap_or_default();
+            let key = format!("{}|{unit}", normalize_name(&ing.name));
             let shown = qty.clone().unwrap_or_else(|| "?".into());
             let source = format!("{}: {shown}", dish.recipe_name);
 
@@ -266,7 +233,10 @@ pub async fn generate_grocery_list(
                         Acc {
                             item: GeneratedGroceryItem {
                                 ingredient_name: ing.name.clone(),
-                                total_quantity: qty.clone().unwrap_or_else(|| "—".into()),
+                                total_quantity: match &parsed {
+                                    Some((q, u)) => shown_total(q.value, u),
+                                    None => qty.clone().unwrap_or_else(|| "—".into()),
+                                },
                                 store_section: ing
                                     .store_section
                                     .clone()
@@ -285,7 +255,7 @@ pub async fn generate_grocery_list(
                     match (&qty, &parsed, &mut acc.parsed) {
                         (Some(_), Some((p, _)), Some((total, u))) => {
                             total.value += p.value;
-                            acc.item.total_quantity = format_qty_simple(total.value, u);
+                            acc.item.total_quantity = shown_total(total.value, u);
                         }
                         (Some(q), _, _) if acc.item.total_quantity != "—" => {
                             acc.item.total_quantity = format!("{} + {q}", acc.item.total_quantity);
@@ -470,12 +440,13 @@ mod tests {
     }
 
     #[test]
-    fn formats_eighths_like_node() {
-        assert_eq!(format_qty_simple(1.5, "cups"), "1 1/2 cups");
-        assert_eq!(format_qty_simple(0.25, "tsp"), "1/4 tsp");
-        assert_eq!(format_qty_simple(4.0, "lb"), "4 lb");
-        assert_eq!(format_qty_simple(3.0, ""), "3");
-        assert_eq!(format_qty_simple(0.01, "g"), "0 g");
-        assert_eq!(format_qty_simple(0.99, ""), "1");
+    fn shows_every_amount_in_one_form() {
+        assert_eq!(shown_total(1.5, "cups"), "1 1/2 cups");
+        assert_eq!(shown_total(1.5, "Tablespoons"), "1 1/2 tbsp");
+        assert_eq!(shown_total(0.5, "cups"), "1/2 cup");
+        assert_eq!(shown_total(2.0, "cup"), "2 cups");
+        assert_eq!(shown_total(4.0, "lb"), "4 lb");
+        assert_eq!(shown_total(3.0, ""), "3");
+        assert_eq!(shown_total(2.0, "large"), "2 large");
     }
 }

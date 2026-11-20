@@ -352,7 +352,7 @@ function ReviewForm({ form, setForm, confidence, confidenceLevel, source, onSave
           {form.key_overlap_ingredients.map((tag, i) => (
             <span key={i} className="flex items-center gap-1 px-2.5 py-1 bg-green-light text-green-dark rounded-full text-xs font-medium">
               {tag}
-              <button onClick={() => set('key_overlap_ingredients', form.key_overlap_ingredients.filter((_, j) => j !== i))} style={{ minHeight: 'auto' }}>×</button>
+              <button aria-label={`Remove ${tag}`} onClick={() => set('key_overlap_ingredients', form.key_overlap_ingredients.filter((_, j) => j !== i))} style={{ minHeight: 'auto' }}>×</button>
             </span>
           ))}
         </div>
@@ -414,7 +414,7 @@ function ReviewForm({ form, setForm, confidence, confidenceLevel, source, onSave
                       <input value={ing.qty_6_serving || ''} onChange={e => updateIngredient(i, 'qty_6_serving', e.target.value)} style={{ minHeight: '32px', fontSize: '12px', padding: '4px 6px', width: '70px', textAlign: 'center' }} />
                     </td>
                     <td className="py-1.5">
-                      <button onClick={() => removeIngredient(i)} className="text-danger" style={{ minHeight: 'auto' }}>×</button>
+                      <button aria-label={`Remove ${ing.name || 'ingredient'}`} onClick={() => removeIngredient(i)} className="text-danger" style={{ minHeight: 'auto' }}>×</button>
                     </td>
                   </tr>
                 );
@@ -436,7 +436,7 @@ function ReviewForm({ form, setForm, confidence, confidenceLevel, source, onSave
       {/* Save actions */}
       <div className="space-y-2">
         <button onClick={onSave} disabled={saving} className="w-full py-3.5 bg-navy text-white rounded-xl font-semibold disabled:opacity-60">
-          {saving ? 'Saving...' : 'Save Recipe'}
+          {saving ? 'Saving…' : 'Save'}
         </button>
         <button onClick={onSaveAnother} disabled={saving} className="w-full py-3 border border-navy text-navy rounded-xl font-medium text-sm disabled:opacity-60">
           Save & Import Another
@@ -546,7 +546,7 @@ Examples:
           className="resize-none pr-8"
         />
         {text && (
-          <button
+          <button aria-label="Clear text"
             onClick={() => setText('')}
             className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-lg font-bold"
             style={{ minHeight: 'auto' }}

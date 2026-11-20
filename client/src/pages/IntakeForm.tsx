@@ -449,7 +449,7 @@ export default function IntakeForm() {
             <img src={profile.logo_base64} alt="" className="h-16 w-auto mx-auto mb-3 object-contain" />
           )}
           <h1 className="text-3xl font-bold font-serif mb-2" style={{ color: '#3A5C32' }}>
-            {bizName || (isEditMode ? 'Update Your Preferences' : 'New Client Intake')}
+            {bizName || (isEditMode ? 'Update Your Preferences' : 'Booking Request')}
           </h1>
           <p className="text-gray-500 text-sm">
             {isEditMode
@@ -708,7 +708,7 @@ export default function IntakeForm() {
             className="w-full py-4 rounded-2xl font-bold text-white text-base transition-opacity disabled:opacity-60"
             style={{ background: '#5E7F57' }}
           >
-            {submitting ? (isEditMode ? 'Saving…' : 'Submitting…') : (isEditMode ? 'Update My Preferences →' : 'Submit My Intake →')}
+            {submitting ? (isEditMode ? 'Saving…' : 'Submitting…') : (isEditMode ? 'Update My Preferences →' : 'Send Booking Request →')}
           </button>
 
           <p className="text-xs text-center text-gray-400 mt-4">

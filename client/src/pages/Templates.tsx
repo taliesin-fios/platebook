@@ -88,7 +88,7 @@ function TemplateEditModal({ template, onSave, onClose }: TemplateEditModalProps
         {/* Header */}
         <div className="flex items-center justify-between mb-4 shrink-0">
           <h3 className="font-display font-bold text-green-dark text-lg">Edit Template</h3>
-          <button
+          <button aria-label="Close"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
             style={{ minHeight: 'auto' }}
@@ -194,7 +194,7 @@ function TemplateEditModal({ template, onSave, onClose }: TemplateEditModalProps
             className="flex-1 py-3 bg-navy text-white rounded-xl text-sm font-semibold disabled:opacity-60"
             style={{ minHeight: '44px' }}
           >
-            {saving ? 'Saving…' : 'Save Template'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
@@ -262,7 +262,7 @@ export default function Templates() {
               {/* Action buttons */}
               <div className="flex items-center gap-1 shrink-0">
                 {/* Edit */}
-                <button
+                <button aria-label={`Edit ${t.name}`}
                   onClick={() => setEditTarget(t)}
                   className="p-2 text-gray-400 hover:text-navy rounded-lg hover:bg-blue-light transition-colors"
                   style={{ minHeight: 'auto' }}
@@ -276,11 +276,11 @@ export default function Templates() {
 
                 {/* Delete (not for default templates) */}
                 {!t.is_default && (
-                  <button
+                  <button aria-label={`Delete ${t.name}`}
                     onClick={() => setDeleteTarget(t)}
                     className="p-2 text-gray-400 hover:text-danger rounded-lg hover:bg-red-50 transition-colors"
                     style={{ minHeight: 'auto' }}
-                    title="Delete template"
+                    title="Delete Template"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polyline points="3 6 5 6 21 6" />
@@ -337,7 +337,7 @@ export default function Templates() {
       <ConfirmModal
         open={!!deleteTarget}
         title="Delete Template"
-        message={`Remove "${deleteTarget?.name}"?`}
+        message={`Delete "${deleteTarget?.name}"?`}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />

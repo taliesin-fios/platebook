@@ -63,7 +63,7 @@ Platebook is a **business management tool for home and personal chefs**: chefs w
 | **Costs** | Track service fees, ingredient costs, and margin per session and per client |
 | **PDFs** | Generate professional client leave-behind sheets and grocery lists |
 | **AI** | Use Claude AI to import recipes from text and get dish suggestions tailored to each client |
-| **Booking** | Share your own booking link (`/book/your-business`); new client requests land in your Intake inbox |
+| **Booking** | Share your own booking link (`/book/your-business`); new client requests land on your **Inquiries** page |
 | **Invoices** | Build invoices from sessions, email them, and track deposits and payments |
 
 **Who it's for:** Solo home and personal chefs serving multiple households.
@@ -83,7 +83,7 @@ Platebook is a **business management tool for home and personal chefs**: chefs w
 
 The first time you open the dashboard on a phone or computer, a short **tour** (five cards) explains what each main screen is for: Dashboard, Clients, Sessions and the grocery list, Recipes, and Invoices. Use **Next** and **Back** to move through it. **Skip tour**, the `Escape` key or **Done** closes it, and it won't come back by itself on that device. Because this is remembered in your browser, you'll see the tour once more if you sign in on another device or clear your browser's data.
 
-The **guide** ("How it works") is a short page inside the app with step-by-step help for the everyday jobs: adding a client, planning a session, shopping from the grocery list, sending an invoice and handling a booking request. Open it with **Guide** at the top of the dashboard, **Guide** in the sidebar on a computer, or **Settings → Help**. **Take the tour** at the top of the guide plays the tour again.
+The **guide** ("How it works") is a short page inside the app with step-by-step help for the everyday jobs: adding a client, planning a session, shopping from the grocery list, sending an invoice and handling an inquiry from your booking page. Open it with **Guide** at the top of the dashboard, **Guide** in the sidebar on a computer, or **Settings → Help**. **Take the tour** at the top of the guide plays the tour again.
 
 **Signing in later:** use your email and password, or "Email me a sign-in link instead". If you forget your password, use **Forgot password?** on the sign-in page.
 
@@ -244,8 +244,8 @@ A searchable list of all your client households.
 
 **Actions:**
 - **Tap a card** → view full client profile
-- **Swipe left** on a card → reveal Edit and Delete buttons
-- **+ FAB button** (bottom right) → add a new client
+- **Swipe left** on a card → reveal Edit and Delete buttons. Delete takes the client off your list; their past sessions and invoices are kept. Tap **Undo** on the message that follows to bring them back.
+- **+ button** (bottom right) → add a new client
 
 #### Client Form (4 Sections)
 
@@ -324,11 +324,13 @@ Each session card shows: client name, date, time, status badge, dish count, serv
 **Tap a session** to open the full detail view with 5 tabs:
 
 #### Tab 1: Overview
+- **✓ Mark as Completed** at the top (filled in once the session's day has come)
 - Session summary (date, time, client, serving size, status)
 - Session feasibility indicator (GREEN / AMBER / RED)
+- The session's invoice, or **Create Invoice →** when it has none
 - Full dish list with hold and reheat quality stars
 - Chef notes
-- Action buttons: Mark Complete, Generate PDFs, Edit, Delete
+- **Delete Session** at the very bottom, apart from everything else
 
 #### Tab 2: Grocery
 - All ingredients aggregated from all dishes, scaled to your serving size
@@ -397,7 +399,7 @@ Configure Platebook to match your business.
 
 **Business Info** — your business name, chef name, phone, business email, website and city. These appear on your booking page, PDFs and invoices. Your business email is where new-booking alerts go and what clients reply to.
 
-**Booking & Payments** — your booking link (with a Copy button), deposit, cancellation notice, accepted payment methods, the response time clients are told to expect, and your booking terms.
+**Booking & Payments** — your booking link (with a Copy button), deposit, cancellation notice, accepted payment methods (shown to clients on your booking page and on an unpaid invoice's page), the response time clients are told to expect, and your booking terms.
 
 **Services You Offer** — the kinds of work you do (in-home cooking, meal prep, events, classes, special diets).
 
@@ -408,7 +410,7 @@ Configure Platebook to match your business.
 **AI Assistant** — choose the AI provider for your account (Anthropic Claude, OpenAI, Google Gemini, OpenRouter, Mistral, Groq, or any OpenAI-compatible service), a model and your own API key. See [AI Features](#6-ai-features).
 
 **Data Management:**
-- **Export All My Data (JSON)** — downloads everything in your account (clients, recipes, sessions, invoices, intakes, settings)
+- **Export All My Data (JSON)** — downloads everything in your account (clients, recipes, sessions, invoices, inquiries, settings)
 - **Export Costs CSV** — downloads a spreadsheet of all session financials
 - **Clear Sample Data** — removes The Chen Family sample client (cannot be undone)
 
@@ -424,7 +426,7 @@ The session wizard has 5 steps:
 Pick a client from the dropdown. Their allergens, dietary style, and serving size are shown below. If the client doesn't exist yet, tap "Add New Client" to create one first.
 
 **Step 2 — Schedule**
-- Date (required)
+- Date (required). If the client has a preferred day, the next such date is filled in for you, and their preferred time with it; change either freely.
 - Time (optional but useful for the timeline)
 - Serving size (4 or 6)
 - Session window in hours (default 3.0)
@@ -450,7 +452,7 @@ This is the most important step.
 **Step 5 — Review**
 - See the full session summary before confirming
 - If any dishes conflict with client allergens, you must check the acknowledgment box
-- Tap "Confirm Session" to save
+- Tap "Create Session" to save
 
 ### Recurring Sessions
 
@@ -495,7 +497,7 @@ Each reminder goes out once. If you change a session's date or time after its re
    - **MEDIUM (50–79)** — amber, review times and quantities carefully
    - **LOW (0–49)** — red, significant manual editing needed
 6. Edit any field directly in the form
-7. Tap "Save Recipe" or "Save & Import Another"
+7. Tap "Save" or "Save & Import Another"
 
 **Tips:**
 - The more complete your pasted text, the higher the confidence score
@@ -509,7 +511,8 @@ Each reminder goes out once. If you change a session's date or time after its re
 1. Open a session → tap the **Grocery tab**
 2. The list is automatically generated from all dishes in the session, with:
    - Quantities scaled to your serving size (4 or 6)
-   - Duplicate ingredients combined (e.g., garlic from three recipes totaled together)
+   - Duplicate ingredients combined (e.g., garlic from three recipes totaled together), also when recipes spell the unit differently ("1 cup" and "2 cups", "tbsp" and "Tablespoons")
+   - Every amount written the same way: fractions to the nearest 1/8 ("1 1/2 cups", not "1.5 cups"), one spelling per unit. The Planner's list uses the same form.
    - Items grouped by store section
 3. As you shop, **tap each item** to check it off (gray strikethrough)
 4. Use "Mark All" on a section header to check off an entire section at once
@@ -540,19 +543,21 @@ Both PDFs automatically use your business name from Settings.
 
 **If an email doesn't go through:** when emailing a meal plan (✉️ Email on a session) or an invoice fails, Platebook tries once more automatically. If that fails too, the session or invoice page shows a red banner with the time and a **Try again** button, and the Sessions and Invoices lists show "⚠ Email failed" until a send succeeds. A missing client email address isn't counted as a failure: add one to the client (or invoice) and send again.
 
-The same goes for the two emails sent when a client books through your booking page: their confirmation (with the link to review their request) and your new-booking alert. If either fails after the automatic retry, the Client Intakes page shows a red note at the top, and the inquiry shows "⚠ Confirmation email failed" or "⚠ Alert email failed". Open the inquiry to see when it happened. For the confirmation, **Try again** sends it to the client again. A failed alert to you can't be resent (you're already looking at the inquiry), but it usually means your business email in Settings needs fixing.
+The same goes for the two emails sent when a client books through your booking page: their confirmation (with the link to review their request) and your new-booking alert. If either fails after the automatic retry, the Inquiries page shows a red note at the top, and the inquiry shows "⚠ Confirmation email failed" or "⚠ Alert email failed". Open the inquiry to see when it happened. For the confirmation, **Try again** sends it to the client again. A failed alert to you can't be resent (you're already looking at the inquiry), but it usually means your business email in Settings needs fixing.
 
 **Getting paid online:** with online payments on (Stripe, set up by whoever runs your Platebook server), the invoice email has a **Pay online** button. It opens a page with the invoice where your client pays by card. The invoice turns **Paid** on its own once Stripe confirms the payment. To send the link again, tap **🔗** in the invoice's action bar to copy it. The link works for 180 days, and only for that invoice. A paid or void invoice can't be paid again. If you void an invoice whose link is still open, check for a payment before you do; a refund is made in Stripe.
+
+**Paid and void are final.** Marking an invoice paid (the **✅ Paid** button, or choosing **Paid** or **Void** under Invoice Status and saving) asks first, because after that its lines, amounts and status can't be changed; only the internal notes stay editable. **📧 Email** and **⬇️** work on a new invoice too: they save it first, then send or download it.
 
 ---
 
 ### Booking Inquiries
 
-Requests from your booking page land on the **Client Intakes** page. Tap one to see the client's answers, record a deposit, add private notes, or convert it into a client.
+Requests from your booking page land on the **Inquiries** page. Tap one to see the client's answers, record a deposit, add private notes, or convert it into a client.
 
 - **Payment history:** the Payment section lists every payment action on the inquiry, oldest first: deposit requested, marked paid, waived, and online payments and refunds when Stripe is on.
 - **Deposits:** with online payments on (Stripe, set up by whoever runs your Platebook server), clients pay the deposit themselves from their booking page: the link in their confirmation email, or right after they book. It's marked paid automatically and shows in Payment History. To send a client their page again, use **Copy client's booking link** on the inquiry. Without online payments, record deposits by hand with the Payment Actions buttons.
-- **Deleting an inquiry:** use **Delete inquiry** at the bottom (for spam, duplicates or leads that went nowhere). It isn't erased: it moves to the **Deleted** filter with its payment history, and **Restore** brings it back. While it's deleted, the client's link to their request stops working and you can't edit it or take payments on it. If a client pays online for a deleted inquiry, it's restored automatically.
+- **Deleting an inquiry:** use **Delete Inquiry** at the bottom (for spam, duplicates or leads that went nowhere). It isn't erased: it moves to the **Deleted** filter with its payment history, and **Restore** brings it back. While it's deleted, the client's link to their request stops working and you can't edit it or take payments on it. If a client pays online for a deleted inquiry, it's restored automatically.
 
 ---
 

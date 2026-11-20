@@ -34,7 +34,7 @@ export const WORKFLOWS: Workflow[] = [
       'Start a new session and pick the client.',
       'Set the date and time. Make it recurring if they book you regularly.',
       'Choose the dishes. The bar at the bottom shows whether the menu fits your time, and dishes that clash with an allergy are flagged.',
-      'Enter your fee and expected grocery cost, review, then Confirm Session.',
+      'Enter your fee and expected grocery cost, review, then Create Session.',
     ],
     action: { label: 'Plan a session', path: '/sessions/new' },
   },
@@ -61,15 +61,15 @@ export const WORKFLOWS: Workflow[] = [
     action: { label: 'Open invoices', path: '/invoices' },
   },
   {
-    title: 'Handle a booking request',
+    title: 'Handle an inquiry',
     intro: 'New clients can ask for you through your booking link.',
     steps: [
       'Copy your booking link from the dashboard and share it.',
-      'Requests arrive in your booking inbox. Open one to read their answers.',
+      'Their requests arrive on the Inquiries page. Open one to read their answers.',
       'Record the deposit and add any private notes.',
-      'When you take them on, convert the request to a client so their details carry over.',
+      'When you take them on, convert the inquiry to a client so their details carry over.',
     ],
-    action: { label: 'Open booking inbox', path: '/intake' },
+    action: { label: 'Open inquiries', path: '/intake' },
   },
 ];
 

@@ -72,7 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   Undo
                 </button>
               )}
-              <button
+              <button aria-label="Dismiss"
                 onClick={() => dismiss(t.id)}
                 className="opacity-70 hover:opacity-100 font-bold"
                 style={{ minHeight: 'auto' }}
