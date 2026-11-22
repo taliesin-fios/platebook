@@ -1,8 +1,10 @@
 # Platebook
 
-> **The kitchen office for home & personal chefs.** Clients, bookings, menus, grocery runs, meal-plan PDFs and invoices in one self-hosted app.
+> **The kitchen office for home & personal chefs.** Clients, bookings, menus, grocery runs, meal-plan PDFs and invoices in one app you can self-host.
 >
-> Created by **[Taliesin Fios](https://github.com/taliesin-fios)** (taliesin-fios) · [PolyForm Shield 1.0.0](LICENSE): free to use and self-host, not for resale.
+> **[Source code](https://github.com/taliesin-fios/platebook)** · **[Self-hosting guide](docs/SELF_HOSTING.md)** · **[Give feedback](https://github.com/taliesin-fios/platebook/discussions)**
+>
+> Created by **[Taliesin Fios](https://github.com/taliesin-fios)** (taliesin-fios) · Source-available under [PolyForm Shield 1.0.0](LICENSE), not an OSI-approved open-source license.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.jpg" alt="Dashboard: this week's sessions, active clients, revenue and margin, and upcoming sessions" width="49%">
@@ -25,15 +27,13 @@ Platebook is for chefs who cook in clients' homes, run weekly meal prep, or cate
 
 One server can host one chef or many. Each account's data is private to it, enforced by Postgres row-level security.
 
+**Public demo:** When a deployment enables the demo, it uses a shared sample account that resets periodically. It is for trying the app, not a private account or durable place to keep your data. Self-host Platebook to run your own server with your own data.
+
 ## License
 
-**Source-available under the [PolyForm Shield License 1.0.0](LICENSE).**
+**Source-available under the [PolyForm Shield License 1.0.0](LICENSE).** This is not an OSI-approved open-source license. The license permits use for any purpose except providing a product that competes with Platebook; it states that competing goods and services can compete even when offered free of charge. Read the [full license](LICENSE), which governs use, distribution and modifications; this README is only a summary.
 
-- ✅ Free to use, change and self-host, including to run your own paid chef business.
-- ✅ Free to share copies and changes, with the license attached.
-- ❌ You may not sell Platebook, or offer it (or a modified version) as a product or hosted service that competes with it.
-
-This isn't an OSI "open source" license, because it restricts competing commercial use. If you want to use Platebook in a way the license doesn't cover, open an issue to ask.
+For feedback or license questions, [open a discussion](https://github.com/taliesin-fios/platebook/discussions).
 
 **Credit.** Platebook was created by [Taliesin Fios](https://github.com/taliesin-fios) (GitHub: taliesin-fios). Copies and forks must keep the license and the `Required Notice:` lines in [LICENSE](LICENSE) and [NOTICE](NOTICE); please keep the source-file headers and the in-app "Powered by Platebook" credit as well.
 
