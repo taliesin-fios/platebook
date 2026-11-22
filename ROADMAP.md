@@ -10,7 +10,7 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| 1 | Tag `v0.3.0` on `main` once the release PR is merged (versions bumped, `[0.3.0]` in `CHANGELOG.md` with upgrade notes for migrations 0010 and 0011). Online payments ship as beta for self-hosted single-chef servers; an end-to-end Stripe test-mode run is no longer a blocker. | S | In review |
+| 1 | Release `v0.4.0`: a release PR that bumps the versions and turns `[Unreleased]` in `CHANGELOG.md` into `[0.4.0]`, with an upgrade note for migration 0012 (`signup_invites`, additive). It covers invite-only sign-up, the public demo, the first-run tour and in-app guide, allergen checks on sessions and meal plans, Undo for deleted clients, and the usability and accessibility fixes merged since 0.3.0. Tag `v0.4.0` on `main` once it's merged; the tag also runs the image release with the updated Docker actions for the first time. | S | Next |
 
 ## Later: features, ordered by what chefs ask for
 
@@ -29,7 +29,7 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 ## Done
 
 - **P&L / tax export (in v0.3.0):** a monthly Profit & Loss card on the Costs page with CSV export. Cash basis, no mileage yet.
-- **v0.3.0 (2026-11-04; tag after the release PR merges):** clients pay the booking deposit online from their booking page and invoices from their invoice link (Stripe), with working return pages, retries that can't double-charge, the webhook marking them paid, and copyable client links for the chef.
+- **v0.3.0 (released 2026-11-04, tag `v0.3.0` on `22f9406`):** clients pay the booking deposit online from their booking page and invoices from their invoice link (Stripe), with working return pages, retries that can't double-charge, the webhook marking them paid, and copyable client links for the chef.
 - **v0.2.0 (released 2026-11-02, tag `v0.2.0` on `7c27e62`):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation. A client's booking link no longer exposes the chef's private notes. Inquiries can be deleted and restored without losing their history, and each shows its payment history. The deletion rule for every table is in `ARCHITECTURE.md`. The dashboard's Collected (MTD) tile shows a trend against the same days of last month.
 - **v0.1.1 (never published; part of v0.2.0):** failed meal-plan and invoice emails are remembered and shown with **Try again**, every email gets one automatic retry, and "today", "this month" and "overdue" follow the account's time zone.
 - **v0.1.0:** session reminder emails, recurring sessions, time-aware calendar conflicts, a real "this week" dashboard stat, a share/print/copy grocery list, and consistent margin colors.
