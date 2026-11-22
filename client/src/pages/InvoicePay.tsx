@@ -5,7 +5,7 @@
  * InvoicePay — the client's invoice page, from the link in their invoice email.
  * Route: /invoice/:id?token=… (public; the token is checked by the server)
  * Shows the invoice and, when the chef takes card payments, a Pay button
- * (Stripe Checkout). Stripe sends the client back here with &paid=1 or
+ * (Stripe Checkout); otherwise how the chef takes payment. Stripe sends the client back here with &paid=1 or
  * &cancelled=1.
  */
 import { useEffect, useState } from 'react';
@@ -13,6 +13,7 @@ import { useParams, useSearchParams } from 'react-router';
 import { fmtSessionDate, fmtUtcTimestamp } from '../utils/dateUtils';
 import type { ClientInvoiceView } from '../types';
 import PoweredBy from '../components/PoweredBy';
+import { howToPay } from '../utils/invoicePay';
 
 const money = (v: number | null | undefined) => `$${(Number(v) || 0).toFixed(2)}`;
 
@@ -83,6 +84,7 @@ export default function InvoicePay() {
 
   const settled = invoice.status === 'paid' || invoice.status === 'void';
   const canPay = invoice.can_pay_online && !settled && (Number(invoice.total) || 0) > 0 && !paidBack;
+  const payNote = paidBack ? null : howToPay(invoice);
   const label = invoice.invoice_number ? `Invoice ${invoice.invoice_number}` : 'Invoice';
 
   return (
@@ -164,6 +166,12 @@ export default function InvoicePay() {
             style={{ background: '#5E7F57' }}>
             {paying ? 'Opening secure checkout…' : `Pay ${money(invoice.total)} →`}
           </button>
+        )}
+        {payNote && (
+          <div className="rounded-2xl border p-4" style={{ background: '#EEF3EA', borderColor: '#5E7F57' }}>
+            <h2 className="font-semibold mb-1 text-sm" style={{ color: '#3A5C32' }}>How to pay</h2>
+            <p className="text-sm text-gray-700 whitespace-pre-line">{payNote}</p>
+          </div>
         )}
         {payError && <p className="text-xs mt-2 text-center" style={{ color: '#A94442' }}>{payError}</p>}
 

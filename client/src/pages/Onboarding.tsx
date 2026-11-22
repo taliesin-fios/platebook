@@ -400,7 +400,7 @@ export default function Onboarding() {
                 <h1 className="font-display text-2xl font-semibold text-olive mb-1">You’re ready to cook</h1>
                 <p className="text-sm text-gray-500 mb-6">
                   {seedResult?.library?.recipes ? `${seedResult.library.recipes} recipes added. ` : ''}
-                  Share your booking link and new clients will land in your Intake inbox.
+                  Share your booking link and new clients' requests will land in your Inquiries.
                 </p>
               </div>
               <div className="bg-sage rounded-xl p-4 mb-6">

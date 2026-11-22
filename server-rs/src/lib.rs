@@ -24,6 +24,7 @@ pub mod models;
 pub mod money;
 pub mod ownership;
 pub mod pdf;
+pub mod quantity;
 pub mod rate_limit;
 pub mod recipe_import;
 pub mod reminders;

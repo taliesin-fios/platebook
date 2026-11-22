@@ -208,6 +208,13 @@ Slides up from bottom: `translateY(100px) → translateY(0)` over `0.3s ease-out
 
 **Tap target rule:** All `button`, `a`, and `[role="button"]` elements have `min-height: 44px` globally enforced (Apple HIG standard).
 
+**Label rule:** A button that shows only an icon, emoji or symbol (`×`, `+`, `‹`, an SVG) gets an `aria-label` saying what it does ("Close", "Add client", "Next month"). Keep a `title` too if you want a hover tooltip, but `title` alone isn't a label. `npm run lint` checks this (`scripts/icon-button-labels.mjs`).
+
+**Wording rules:**
+- **Delete** a record (a client, recipe, session, template, invoice or inquiry); **Remove** something from a form or a setting (an ingredient row, an invoice line, a tag, the logo, saved AI keys).
+- A button that saves the edits on screen says **Save** (busy: **Saving…**, with the ellipsis character). A form that makes a new record says **Create *Thing*** ("Create Client", "Create Session"). Name what's saved only when a page has more than one save button ("Save Settings", "Save AI Settings").
+- The chef's side calls a request from the booking page an **inquiry** (the page is **Inquiries**); the client's booking form calls it a **booking request**. "Intake" stays in code and URLs only.
+
 ---
 
 ## Email Templates

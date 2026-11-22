@@ -3,15 +3,17 @@
 
 import { useEffect, useState, useCallback, useContext } from 'react';
 import { useNavigate } from 'react-router';
-import { fmtSessionDate, localDateStrOffset, localTodayStr } from '../utils/dateUtils';
+import { fmtSessionDate, fmtSessionTime, localDateStrOffset, localTodayStr } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import { SkeletonStatGrid } from '../components/Skeleton';
+import { FirstRunTour } from '../components/Tour';
 import { STATUS_COLORS, FEASIBILITY_COLORS, calcFeasibility, APP_NAME, bookingUrl } from '../constants';
 import { SettingsContext } from '../App';
 import { parseNum } from '../utils/numbers';
 import { mtdTrend } from '../utils/trend';
 import { clientsTile, invoiceSummary, marginTile, parseStringList } from '../utils/dashboardStats';
 import type { ClientListItem, CostSummary, SessionListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 function IntakeLinkCard() {
   const [copied, setCopied] = useState(false);
@@ -137,12 +139,20 @@ export default function Dashboard() {
 
   return (
     <div className="page pb-24">
+      <FirstRunTour onOpenGuide={() => navigate('/guide')} />
       <div className="page-header">
         <div className="flex-1">
           <div className="font-display text-xl font-semibold">{appSettings.business_name || APP_NAME}</div>
           {appSettings.location && <div className="text-xs text-blue-200 mt-0.5">{appSettings.location}</div>}
         </div>
         <button
+          onClick={() => navigate('/guide')}
+          className="text-white text-sm font-semibold rounded-lg bg-white/15 px-3 py-1.5 hover:bg-white/25"
+          style={{ minHeight: 'auto' }}
+        >
+          Guide
+        </button>
+        <button aria-label="Settings"
           onClick={() => navigate('/settings')}
           className="text-white opacity-80"
           style={{ minHeight: 'auto' }}
@@ -243,13 +253,14 @@ export default function Dashboard() {
 
           {/* First (next) session — full detail */}
           <div
+            {...pressable}
             className="card cursor-pointer hover:shadow-card-hover transition-shadow mb-2"
             onClick={() => navigate(`/sessions/${nextSession.id}`)}
           >
             <div className="flex items-start justify-between mb-2">
               <div>
                 <div className="font-display text-lg font-semibold text-navy">{nextSession.client_name}</div>
-                <div className="text-sm text-gray-600">{formatDate(nextSession.session_date)}{nextSession.session_time ? ` · ${nextSession.session_time}` : ''}</div>
+                <div className="text-sm text-gray-600">{formatDate(nextSession.session_date)}{nextSession.session_time ? ` · ${fmtSessionTime(nextSession.session_time)}` : ''}</div>
               </div>
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[nextSession.status] || 'bg-gray-100'}`}>
                 {nextSession.status}
@@ -285,6 +296,7 @@ export default function Dashboard() {
           {upcoming.slice(1).map(s => (
             <div
               key={s.id}
+              {...pressable}
               className="card mb-2 cursor-pointer hover:shadow-card-hover transition-shadow"
               onClick={() => navigate(`/sessions/${s.id}`)}
             >
@@ -292,7 +304,7 @@ export default function Dashboard() {
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-navy text-sm truncate">{s.client_name}</div>
                   <div className="text-xs text-gray-500 mt-0.5">
-                    {formatDate(s.session_date)}{s.session_time ? ` · ${s.session_time}` : ''}
+                    {formatDate(s.session_date)}{s.session_time ? ` · ${fmtSessionTime(s.session_time)}` : ''}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-2 shrink-0">
@@ -327,6 +339,7 @@ export default function Dashboard() {
         ) : recent.map(s => (
           <div
             key={s.id}
+            {...pressable}
             className="card mb-3 cursor-pointer hover:shadow-card-hover transition-shadow"
             onClick={() => navigate(`/sessions/${s.id}`)}
           >

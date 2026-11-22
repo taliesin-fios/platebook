@@ -7,9 +7,11 @@ import { format } from 'date-fns';
 import { localDateStrOffset, localTodayStr, parseLocalDate } from '../utils/dateUtils';
 import PageHeader from '../components/PageHeader';
 import EmailFailedBanner from '../components/EmailFailedBanner';
+import ConfirmModal from '../components/ConfirmModal';
 import { useToast } from '../components/Toast';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
+import { FINAL_STATUSES, needsFinalConfirm } from '../utils/invoiceStatus';
 import type { ClientLink, EmailSentResponse, Invoice, Settings } from '../types';
 
 interface LineItemDraft {
@@ -45,6 +47,8 @@ interface InvoiceForm {
 type Preset = { description: string; unit_price: number };
 
 type ApiResult<T> = T & { error?: string; code?: string };
+/** The invoice as saved on the server: what PDF and email act on. */
+interface SavedRef { id: number; invoice_number: string }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -106,6 +110,8 @@ export default function InvoiceBuilder() {
   const [emailFailedAt, setEmailFailedAt] = useState<string | null>(null);
   const [savedKey,    setSavedKey]    = useState('');
   const [savedStatus, setSavedStatus] = useState('draft');
+  // Asking before a save that makes the invoice paid or void (both are final).
+  const [confirmFinal, setConfirmFinal] = useState<string | null>(null);
   const locked = !isNew && (savedStatus === 'paid' || savedStatus === 'void');
   const presetsRef = useRef<HTMLDivElement>(null);
   const createdFromRef = useRef<string | null>(null); // StrictMode runs effects twice: POST once per source
@@ -276,7 +282,10 @@ export default function InvoiceBuilder() {
   };
 
   // ── Save ──────────────────────────────────────────────────────────────────────
-  const handleSave = async (nextStatus?: string): Promise<boolean> => {
+  // Saves the form. A new invoice is created and the page moves to it, unless
+  // `stay` is set: then the caller finishes its own step (PDF, email) first and
+  // calls `openSaved`. Returns the saved invoice, or null when saving failed.
+  const handleSave = async (nextStatus?: string, stay = false): Promise<SavedRef | null> => {
     setSaving(true);
     // A paid or void invoice only takes internal notes. Sending just those means
     // the server never compares totals, so a record whose stored total doesn't
@@ -298,10 +307,10 @@ export default function InvoiceBuilder() {
         body: JSON.stringify(payload),
       });
       const inv: ApiResult<Invoice> = await r.json();
-      if (inv.error) { show(inv.error, 'error'); return false; }
+      if (inv.error) { show(inv.error, 'error'); return null; }
 
       if (isNew) {
-        navigate(`/invoices/${inv.id}`, { replace: true });
+        if (!stay) openSaved(inv.id);
       } else {
         const saved = invToForm(inv);
         setForm(saved);
@@ -309,37 +318,51 @@ export default function InvoiceBuilder() {
         setSavedStatus(saved.status);
         show('Invoice saved', 'success');
       }
-      return true;
+      return { id: inv.id, invoice_number: inv.invoice_number || '' };
     } catch {
       show('Save failed', 'error');
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleMarkPaid = () => handleSave('paid');
+  const openSaved = (savedId: number) => navigate(`/invoices/${savedId}`, { replace: true });
 
-  // The server renders the saved invoice, so save pending edits first
-  // (paid and void invoices can't change).
-  const saveIfEdited = async () => {
+  // Paid and void are final, so a save that reaches either asks first.
+  const requestSave = (nextStatus?: string) => {
+    const target = nextStatus || form.status;
+    if (needsFinalConfirm(target, savedStatus, locked)) {
+      setConfirmFinal(target);
+      return;
+    }
+    void handleSave(nextStatus);
+  };
+
+  // The server renders the saved invoice, so save first: a new invoice is
+  // created (as a draft or sent; a final status still goes through Save and its
+  // question), an edited draft or sent one is updated. Null means stop.
+  const saveForAction = async (): Promise<SavedRef | null> => {
+    if (isNew) {
+      if (FINAL_STATUSES.includes(form.status)) { setConfirmFinal(form.status); return null; }
+      return handleSave(undefined, true);
+    }
     const editable = form.status === 'draft' || form.status === 'sent';
-    if (!editable || formKey(form) === savedKey) return true;
-    return handleSave();
+    if (editable && formKey(form) !== savedKey) return handleSave();
+    return { id: Number(id), invoice_number: form.invoice_number };
   };
 
   const handlePrint = async () => {
-    if (isNew) {
-      show('Save the invoice first, then download the PDF', 'error');
-      return;
-    }
+    const saved = await saveForAction();
+    if (!saved) return;
     try {
-      if (!(await saveIfEdited())) return;
-      const number = form.invoice_number || `INV-${id}`;
-      await downloadServerPdf(`/api/invoices/${id}/pdf`, pdfFilename.invoice(number));
+      const number = saved.invoice_number || `INV-${saved.id}`;
+      await downloadServerPdf(`/api/invoices/${saved.id}/pdf`, pdfFilename.invoice(number));
     } catch {
       // fallback to browser print if PDF gen fails
       window.print();
+    } finally {
+      if (isNew) openSaved(saved.id);
     }
   };
 
@@ -360,15 +383,13 @@ export default function InvoiceBuilder() {
       show('Add a client email address before sending', 'error');
       return;
     }
-    if (isNew) {
-      show('Save the invoice first, then send it', 'error');
-      return;
-    }
     setEmailing(true);
+    let saved: SavedRef | null = null;
     try {
-      if (!(await saveIfEdited())) return;
+      saved = await saveForAction();
+      if (!saved) return;
       // The server renders and attaches the saved invoice itself.
-      const r = await fetch(`/api/invoices/${id}/email`, { method: 'POST' });
+      const r = await fetch(`/api/invoices/${saved.id}/email`, { method: 'POST' });
       const data: ApiResult<EmailSentResponse> = await r.json();
       if (!r.ok) {
         if (data.code !== 'NO_EMAIL') setEmailFailedAt(new Date().toISOString());
@@ -383,6 +404,7 @@ export default function InvoiceBuilder() {
       show('Could not generate or send the invoice PDF', 'error');
     } finally {
       setEmailing(false);
+      if (isNew && saved) openSaved(saved.id);
     }
   };
 
@@ -614,7 +636,7 @@ export default function InvoiceBuilder() {
                 <div className="input-field text-sm text-right px-2 flex items-center justify-end text-navy font-medium bg-warm-white">
                   {fmt$(li.amount)}
                 </div>
-                <button
+                <button aria-label="Remove line"
                   onClick={() => removeLine(li._key)}
                   className="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none mt-2"
                   title="Remove line"
@@ -727,11 +749,23 @@ export default function InvoiceBuilder() {
 
       </div>
 
+      <ConfirmModal
+        open={confirmFinal !== null}
+        title={confirmFinal === 'paid' ? 'Mark as paid?' : 'Void this invoice?'}
+        message={confirmFinal === 'paid'
+          ? 'A paid invoice is a record: its lines, amounts and status can no longer be changed (internal notes stay editable).'
+          : 'A void invoice is cancelled for good: it can no longer be changed, sent or paid (internal notes stay editable).'}
+        confirmLabel={confirmFinal === 'paid' ? 'Mark as Paid' : 'Void Invoice'}
+        confirmClass={confirmFinal === 'paid' ? 'bg-green-dark' : 'bg-danger'}
+        onConfirm={async () => { const status = confirmFinal ?? undefined; await handleSave(status); setConfirmFinal(null); }}
+        onCancel={() => setConfirmFinal(null)}
+      />
+
       {/* ── Fixed action bar ──────────────────────────────────────────────── */}
       <div className="fixed fixed-action-bar left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-20 md:left-[220px] invoice-no-print">
         <div className="max-w-5xl mx-auto flex gap-2">
           <button
-            onClick={() => handleSave()}
+            onClick={() => requestSave()}
             disabled={saving || emailing}
             className="flex-1 py-3.5 bg-navy text-white rounded-xl font-semibold text-sm disabled:opacity-60"
           >
@@ -749,7 +783,7 @@ export default function InvoiceBuilder() {
           )}
           {(form.status === 'sent' || form.status === 'draft') && (
             <button
-              onClick={handleMarkPaid}
+              onClick={() => requestSave('paid')}
               disabled={saving || emailing}
               className="flex-1 py-3.5 bg-green-dark text-white rounded-xl font-semibold text-sm disabled:opacity-60"
             >
@@ -767,7 +801,7 @@ export default function InvoiceBuilder() {
               🔗
             </button>
           )}
-          <button
+          <button aria-label="Download as PDF"
             onClick={handlePrint}
             disabled={saving || emailing}
             title="Download as PDF"

@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast';
 import { apiCall } from '../hooks/useApi';
 import { parseNum } from '../utils/numbers';
 import type { ClientDetail as ClientDetailData, InvoiceListItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 const INVOICE_STATUS: Record<string, { label: string; bg: string; text: string }> = {
   draft: { label: 'Draft', bg: 'bg-gray-100',  text: 'text-gray-600' },
@@ -318,6 +319,7 @@ export default function ClientDetail() {
             ) : client.sessions.map(s => (
               <div
                 key={s.id}
+                {...pressable}
                 className="card mb-3 cursor-pointer hover:shadow-card-hover transition-shadow"
                 onClick={() => navigate(`/sessions/${s.id}`)}
               >
@@ -356,6 +358,7 @@ export default function ClientDetail() {
               return (
                 <div
                   key={inv.id}
+                  {...pressable}
                   className="card mb-3 cursor-pointer hover:shadow-card-hover transition-shadow"
                   onClick={() => navigate(`/invoices/${inv.id}`)}
                 >

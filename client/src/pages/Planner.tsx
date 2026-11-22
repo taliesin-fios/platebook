@@ -9,6 +9,7 @@ import { localTodayStr } from '../utils/dateUtils';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { errorMessage } from '../hooks/useApi';
 import type { Id, PlannerResponse, Recipe } from '../types';
+import { toggleable } from '../utils/keyboardActivate';
 
 const CATEGORIES = ['All', 'Couples', 'Families', 'Plant-Based', 'Other'];
 const SECTION_ICONS: Record<string, string> = {
@@ -143,7 +144,7 @@ export default function Planner() {
         action={
           <div className="flex items-center gap-1.5">
             <span className="text-white text-xs opacity-80">Serves</span>
-            <button
+            <button aria-label="Fewer servings"
               onClick={() => { const v = Math.max(1, servingSize - 1); setServingSize(v); setServingInput(String(v)); }}
               className="w-6 h-6 rounded-full bg-white/20 text-white text-sm font-bold flex items-center justify-center"
               style={{ minHeight: 'auto' }}
@@ -166,7 +167,7 @@ export default function Planner() {
               className="text-center font-semibold text-navy text-sm bg-white rounded-lg"
               style={{ width: '42px', padding: '2px 4px', minHeight: 'auto' }}
             />
-            <button
+            <button aria-label="More servings"
               onClick={() => { const v = servingSize + 1; setServingSize(v); setServingInput(String(v)); }}
               className="w-6 h-6 rounded-full bg-white/20 text-white text-sm font-bold flex items-center justify-center"
               style={{ minHeight: 'auto' }}
@@ -278,6 +279,7 @@ export default function Planner() {
                   <div
                     key={r.id}
                     onClick={() => toggleRecipe(r.id)}
+                    {...toggleable(isSel)}
                     className={`card mb-2 cursor-pointer transition-all ${isSel ? 'ring-2 ring-navy bg-blue-light' : ''}`}
                   >
                     <div className="flex items-start gap-3">

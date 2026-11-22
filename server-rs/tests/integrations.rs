@@ -1923,6 +1923,17 @@ async fn clients_pay_invoices_from_their_invoice_link(pool: PgPool) {
     assert_eq!(mine.body["status"], "sent");
     assert_eq!(mine.body["line_items"][0]["description"], "Meal prep");
     assert_eq!(mine.body["can_pay_online"], true);
+    // How the chef takes payment: null until they set it, then their text.
+    assert_eq!(mine.body["payment_methods"], Value::Null);
+    let set = c
+        .put(
+            "/api/settings",
+            json!({ "payment_methods": "  Venmo or check  " }),
+        )
+        .await;
+    assert_eq!(set.status, StatusCode::OK, "{}", set.body);
+    let mine = get(format!("{view}?token={token}")).send(&app).await;
+    assert_eq!(mine.body["payment_methods"], "Venmo or check");
     for key in ["internal_notes", "client_email", "account_id", "chef_email"] {
         assert!(mine.body.get(key).is_none(), "{key} leaked: {}", mine.body);
     }

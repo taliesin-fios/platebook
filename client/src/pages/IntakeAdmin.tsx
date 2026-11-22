@@ -8,6 +8,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { fmtUtcTimestamp } from '../utils/dateUtils';
+import { mailtoHref, telHref } from '../utils/contactLinks';
 import PageHeader from '../components/PageHeader';
 import EmailFailedBanner from '../components/EmailFailedBanner';
 import { useToast } from '../components/Toast';
@@ -15,6 +16,7 @@ import { apiCall, errorMessage } from '../hooks/useApi';
 import { useAppSettings } from '../App';
 import { bookingUrl } from '../constants';
 import type { ClientLink, EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus, PaymentEventItem } from '../types';
+import { pressable } from '../utils/keyboardActivate';
 
 /** After a payment action the server returns the raw row, with JSON columns as strings. */
 type IntakeState = Intake | IntakeRow;
@@ -52,6 +54,7 @@ function IntakeCard({ intake, onSelect }: { intake: Intake; onSelect: (intake: I
 
   return (
     <div
+      {...pressable}
       className="card mb-3 cursor-pointer hover:shadow-card-hover transition-shadow"
       onClick={() => onSelect(intake)}
     >
@@ -110,6 +113,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [resending, setResending]   = useState(false);
   const [events, setEvents]         = useState<PaymentEventItem[] | null>(null);
+  const navigate = useNavigate();
   const [eventsVersion, setEventsVersion] = useState(0);
   const { show } = useToast();
   const isDeleted = !!intake.deleted_at;
@@ -130,7 +134,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
     setSaving(true);
     try {
       await apiCall(`/api/intake/${intake.id}`, 'PUT', { status, internal_notes: notes });
-      show('Intake updated', 'success');
+      show('Inquiry updated', 'success');
       onStatusChange(intake.id, status, notes);
     } catch (err) {
       show(errorMessage(err) || 'Could not save', 'error');
@@ -234,6 +238,20 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
     }
   };
 
+  // The converted client may have been deleted since: say so here instead of
+  // opening a "Client not found" page.
+  const openClient = async () => {
+    const path = `/clients/${intake.converted_client_id}`;
+    try {
+      await apiCall(`/api${path}`);
+    } catch {
+      show('That client record has been deleted.', 'error');
+      return;
+    }
+    onClose();
+    navigate(path);
+  };
+
   const handleConvert = async () => {
     if (!confirm(`Convert ${intake.name}'s intake to a client record?`)) return;
     setSaving(true);
@@ -266,9 +284,14 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
         <div className="flex items-start justify-between mb-4">
           <div>
             <h2 className="font-display font-bold text-green-dark text-lg">{intake.name}</h2>
-            <p className="text-xs text-gray-400">{intake.email} · #{intake.id}</p>
+            <p className="text-xs text-gray-400">
+              {mailtoHref(intake.email)
+                ? <a href={mailtoHref(intake.email) ?? undefined} className="underline text-navy">{intake.email}</a>
+                : intake.email}
+              {' '}· #{intake.id}
+            </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 text-xl leading-none" style={{ minHeight: 'auto' }}>×</button>
+          <button aria-label="Close" onClick={onClose} className="text-gray-400 text-xl leading-none" style={{ minHeight: 'auto' }}>×</button>
         </div>
 
         <div className="space-y-4 overflow-y-auto" style={{ maxHeight: '65vh' }}>
@@ -293,11 +316,41 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
             </div>
           )}
 
+          {/* Next step: the one thing most inquiries need, before the details */}
+          {!isDeleted && (
+            <div className="card">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Next Step</p>
+              {intake.converted_client_id ? (
+                <button
+                  onClick={openClient}
+                  className="w-full py-2.5 bg-navy text-white rounded-xl text-sm font-semibold"
+                >
+                  Open client record
+                </button>
+              ) : (
+                <button
+                  onClick={handleConvert}
+                  disabled={saving}
+                  className="w-full py-2.5 bg-navy text-white rounded-xl text-sm font-semibold disabled:opacity-60"
+                >
+                  ✓ Convert to Client Record
+                </button>
+              )}
+              <p className="text-xs text-gray-500 mt-2">
+                {intake.converted_client_id
+                  ? 'Already a client. Plan their sessions from the client record.'
+                  : 'Creates the client from these answers and opens their record, where you can plan the first session.'}
+              </p>
+            </div>
+          )}
+
           {/* Contact */}
           {filled(intake.phone, intake.address) && (
           <div className="card">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Contact</p>
-            <InfoRow label="Phone"   value={intake.phone} />
+            <InfoRow label="Phone"   value={telHref(intake.phone)
+              ? <a href={telHref(intake.phone) ?? undefined} className="underline">{intake.phone}</a>
+              : intake.phone} />
             <InfoRow label="Address" value={intake.address} />
           </div>
           )}
@@ -522,22 +575,8 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
               disabled={saving}
               className="w-full py-2.5 bg-navy text-white rounded-xl text-sm font-semibold mb-2 disabled:opacity-60"
             >
-              {saving ? 'Saving…' : 'Save Status & Notes'}
+              {saving ? 'Saving…' : 'Save'}
             </button>
-            {!intake.converted_client_id && (
-              <button
-                onClick={handleConvert}
-                disabled={saving}
-                className="w-full py-2.5 border-2 border-green-mid text-green-dark rounded-xl text-sm font-semibold disabled:opacity-60"
-              >
-                ✓ Convert to Client Record
-              </button>
-            )}
-            {intake.converted_client_id && (
-              <p className="text-xs text-center text-green-dark font-medium">
-                ✓ Converted — Client #{intake.converted_client_id}
-              </p>
-            )}
             <button
               onClick={copyClientLink}
               className="mt-2 w-full py-2.5 border border-gray-200 text-navy rounded-xl text-sm font-medium"
@@ -550,7 +589,7 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
               disabled={saving}
               className="mt-2 w-full py-3 min-h-[44px] text-xs text-gray-400 hover:text-danger transition-colors disabled:opacity-60"
             >
-              Delete inquiry
+              Delete Inquiry
             </button>
           </div>
           )}
@@ -611,7 +650,7 @@ export default function IntakeAdmin() {
   return (
     <div className="page pb-24">
       <PageHeader
-        title="Client Intakes"
+        title="Inquiries"
         action={
           <span className="text-xs text-white opacity-70">
             {intakes.length} total

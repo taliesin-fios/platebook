@@ -284,6 +284,20 @@ async fn b_gets_404_for_every_id_of_a(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
+async fn b_cannot_restore_a_removed_client_of_a(pool: PgPool) {
+    let (a, b, i) = two_chefs(&pool).await;
+    let client = format!("/api/clients/{}", i.client);
+    assert_eq!(a.delete(&client).await.status, StatusCode::OK);
+    let res = b.post(&format!("{client}/restore"), json!({})).await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND, "{}", res.body);
+    // Still removed for A, and A can restore it.
+    assert_eq!(a.get(&client).await.status, StatusCode::NOT_FOUND);
+    let own = a.post(&format!("{client}/restore"), json!({})).await;
+    assert_eq!(own.status, StatusCode::OK, "{}", own.body);
+    assert_eq!(a.get(&client).await.status, StatusCode::OK);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
 async fn a_data_is_intact_after_b_attempts_writes(pool: PgPool) {
     let (a, b, i) = two_chefs(&pool).await;
     b.put(

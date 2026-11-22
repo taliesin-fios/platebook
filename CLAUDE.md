@@ -64,6 +64,7 @@ Every chef business is a row in `accounts`. In server-rs the auth middleware put
 - Email (`server-rs/src/email.rs`, lettre) is per account. Client-facing mail sets `Reply-To` to the chef's business email. With `EMAIL_HOST` empty, mail goes to the log/outbox (dev and tests).
 - PDFs are rendered only on the server with Typst (`server-rs/src/pdf/`, templates in `templates/*.typ`, data passed as JSON, fonts embedded); the client downloads them through `client/src/utils/serverPdf.ts`.
 - Client is TypeScript (strict). API response shapes are generated from the Rust structs (`ts-rs`) into `client/src/types/generated/` and re-exported from `client/src/types/*.ts`; type `apiCall<T>()` / `useApi<T>()` with them. Annotate `i64` fields with `#[ts(type = "number")]`. No `any`.
+- Icon-only buttons (an SVG, emoji or `×`/`+`) need an `aria-label`; the client's `npm run lint` fails without one (`scripts/icon-button-labels.mjs`).
 - Tailwind 4: theme tokens are in the `@theme` block of `client/src/index.css` (there is no `tailwind.config.js`).
 - Every source file (`.ts/.tsx/.js/.mjs/.rs/.typ/.css`, not generated files or shipped migrations) starts with the SPDX + copyright header; `npm run lint` checks it (`scripts/license-headers.mjs`, `--fix` adds it). Keep the Platebook credits (`PoweredBy`, PDF footers, Settings → About, NOTICE).
 - Files use LF line endings (`.gitattributes`). When editing with scripts on Windows, write with `newline=''` so CRLF isn't introduced.
