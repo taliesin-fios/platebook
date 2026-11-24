@@ -1,0 +1,62 @@
+{
+  "_note": "Entirely fictional people and households. Every address uses the reserved example.com domain. Used by the rehearsal testers and by seed.mjs for the repeatable demo.",
+  "week_of": "2026-12-07",
+  "chef": {
+    "business_name": "Juniper Table Kitchen",
+    "chef_name": "Robin Hale",
+    "login_email": "robin.hale@example.com",
+    "password": "rehearsal-only-pass-2026",
+    "business_email": "hello@juniper-table.example.com",
+    "location": "Riverside (fictional)",
+    "timezone": "America/Chicago"
+  },
+  "second_chef_for_isolation_checks": {
+    "business_name": "Other Fork Catering",
+    "login_email": "pat.other@example.com",
+    "password": "rehearsal-only-pass-2026"
+  },
+  "households": [
+    {
+      "name": "Okafor Household",
+      "contact": "Ada Okafor",
+      "email": "ada.okafor@example.com",
+      "people": "2 adults, 2 children (ages 6 and 9)",
+      "serving_size": 4,
+      "allergens": ["Peanuts", "Tree Nuts"],
+      "preferences": "Mild spice; kids like rice bowls; no mushrooms",
+      "schedule": "Every Monday 10:00, recurring",
+      "role_in_week": "Main session: meal-plan PDF and invoice are generated for Mon Dec 7"
+    },
+    {
+      "name": "Lindqvist Household",
+      "contact": "Sven Lindqvist",
+      "email": "sven.lindqvist@example.com",
+      "people": "2 adults",
+      "serving_size": 2,
+      "allergens": ["Gluten"],
+      "dietary": "Vegetarian; celiac (strict gluten-free)",
+      "preferences": "Loves roasted vegetables and chickpeas",
+      "schedule": "Wednesday 13:00, then moved to Thursday 13:00 (schedule change)",
+      "role_in_week": "Schedule change and a date conflict"
+    },
+    {
+      "name": "Castellano Household",
+      "contact": "Lucia Castellano",
+      "email": "lucia.castellano@example.com",
+      "people": "4 adults, 2 teenagers",
+      "serving_size": 6,
+      "allergens": ["Dairy"],
+      "preferences": "Likes it spicy; large portions; dairy-free",
+      "schedule": "Friday 15:00; asks for a repeat booking the following Friday",
+      "role_in_week": "Repeat booking; servings changed after the grocery list was made"
+    }
+  ],
+  "recipes": [
+    { "name": "Chickpea & Spinach Curry", "servings": 4, "ingredients": ["2 cup chickpeas", "1 onion", "3 clove garlic", "1 tbsp olive oil", "4 cup spinach", "1 can coconut milk"] },
+    { "name": "Garlic Lemon Chicken Rice Bowls", "servings": 4, "ingredients": ["1.5 lb chicken thighs", "2 cup rice", "4 clove garlic", "1 onion", "2 tbsp olive oil", "1 lemon"] },
+    { "name": "Roasted Vegetable Tray Bake", "servings": 2, "ingredients": ["2 zucchini", "1 red onion", "2 cup chickpeas", "2 tbsp olive oil", "1 bell pepper"] },
+    { "name": "Spicy Black Bean Chili", "servings": 6, "ingredients": ["3 can black beans", "2 onion", "4 clove garlic", "2 tbsp olive oil", "2 tbsp chili powder", "1 can tomatoes"] },
+    { "name": "Satay Noodles (contains peanuts)", "servings": 4, "ingredients": ["8 oz noodles", "4 tbsp peanut butter", "2 clove garlic", "1 lime"], "purpose": "Deliberate allergy conflict for the Okafor household" }
+  ],
+  "shared_ingredients": ["onion", "garlic", "olive oil", "chickpeas", "rice"]
+}
