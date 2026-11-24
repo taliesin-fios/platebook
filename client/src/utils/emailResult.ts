@@ -8,7 +8,7 @@ import type { EmailSentResponse } from '../types';
  * (`*_email_failed_at`). Others (rate limit, no address, demo) aren't failures
  * of the email itself, so they don't show the "didn't go through" banner.
  */
-const RECORDED_FAILURES = new Set(['EMAIL_NOT_CONFIGURED', 'EMAIL_SEND_FAILED', 'INVALID_EMAIL']);
+const RECORDED_FAILURES = new Set(['EMAIL_NOT_CONFIGURED', 'EMAIL_SEND_FAILED', 'EMAIL_REJECTED', 'INVALID_EMAIL']);
 
 export function isRecordedEmailFailure(code: unknown): boolean {
   return typeof code === 'string' && RECORDED_FAILURES.has(code);

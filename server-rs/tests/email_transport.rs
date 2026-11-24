@@ -89,7 +89,7 @@ async fn a_rejected_recipient_fails_without_retry_and_changes_nothing(pool: PgPo
 
     let res = c.post(&format!("{invoice_url}/email"), json!({})).await;
     assert_eq!(res.status, StatusCode::BAD_GATEWAY, "{}", res.body);
-    assert_eq!(res.body["code"], "EMAIL_SEND_FAILED");
+    assert_eq!(res.body["code"], "EMAIL_REJECTED");
     assert!(
         !res.text.contains("5.1.1"),
         "SMTP detail stays in the log: {}",
@@ -150,13 +150,16 @@ async fn a_silent_mail_server_times_out_instead_of_hanging(pool: PgPool) {
     let (c, _, invoice_url) = chef_with_work(&pool, &app, "Silent Kitchen").await;
     let started = Instant::now();
     let res = c.post(&format!("{invoice_url}/email"), json!({})).await;
-    // Two attempts of 0.5 s plus the 2 s pause before the retry.
+    // One bounded attempt: a timeout isn't retried (the server may have taken
+    // the message and a retry could send it twice).
     assert!(
-        started.elapsed() < Duration::from_secs(10),
+        started.elapsed() < Duration::from_secs(5),
         "{:?}",
         started.elapsed()
     );
     assert_eq!(res.status, StatusCode::BAD_GATEWAY, "{}", res.body);
+    assert_eq!(res.body["code"], "EMAIL_SEND_FAILED");
+    assert_eq!(smtp.connections(), 1, "timeouts aren't retried");
     assert_unsent_invoice(&c.get(&invoice_url).await.body);
 }
 
@@ -220,6 +223,20 @@ async fn link_flows_hide_mail_server_failures_and_never_echo_the_link(pool: PgPo
         assert_eq!(known.body, json!({ "sent": true, "email_available": true }));
     }
 
+    // Let the background sends above (two known-account links) finish.
+    for _ in 0..50 {
+        if smtp.connections() >= 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert_eq!(
+        smtp.connections(),
+        2,
+        "one attempt per real-account request"
+    );
+    assert!(smtp.messages().is_empty(), "all rejected");
+
     // With the server accepting, only the real account gets mail.
     smtp.set_mode(Mode::Accept);
     let before = smtp.connections();
@@ -229,6 +246,8 @@ async fn link_flows_hide_mail_server_failures_and_never_echo_the_link(pool: PgPo
     )
     .send(&app)
     .await;
+    // Mail goes out after the response: allow time for one to (wrongly) start.
+    tokio::time::sleep(Duration::from_millis(500)).await;
     assert_eq!(smtp.connections(), before, "no mail for an unknown address");
     post(
         "/api/auth/forgot-password",
@@ -236,6 +255,12 @@ async fn link_flows_hide_mail_server_failures_and_never_echo_the_link(pool: PgPo
     )
     .send(&app)
     .await;
+    for _ in 0..50 {
+        if !smtp.messages().is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     let mail = smtp.messages();
     assert_eq!(mail.len(), 1);
     assert!(
@@ -252,4 +277,50 @@ async fn captured_mail_is_labelled_captured_not_sent(pool: PgPool) {
     assert_eq!(res.status, StatusCode::OK, "{}", res.body);
     assert_eq!(res.body["delivery"], "captured");
     assert_eq!(state.outbox.messages().len(), 1);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_slow_mail_server_doesnt_slow_the_link_response_for_real_accounts(pool: PgPool) {
+    // Timing must not reveal which addresses have accounts: the email is
+    // sent after the response.
+    let smtp = FakeSmtp::start(Mode::Silent).await;
+    let config = chef_server::config::Config {
+        email_timeout: Duration::from_secs(3),
+        ..smtp.config(test_config())
+    };
+    let (app, _) = app_with(pool.clone(), config);
+    make_account(&pool, "Slow Link Kitchen").await;
+    for email in ["slow.link.kitchen@example.com", "nobody@example.com"] {
+        let started = Instant::now();
+        let res = post("/api/auth/forgot-password", json!({ "email": email }))
+            .send(&app)
+            .await;
+        assert_eq!(res.status, StatusCode::OK);
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "{email}: {:?}",
+            started.elapsed()
+        );
+    }
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_bad_business_email_doesnt_block_the_clients_mail(pool: PgPool) {
+    let smtp = FakeSmtp::start(Mode::Accept).await;
+    let (app, _) = app_with(pool.clone(), smtp.config(test_config()));
+    let (c, _, invoice_url) = chef_with_work(&pool, &app, "Typo Kitchen").await;
+    // Written directly, like old data from before Settings validated it.
+    sqlx::query("UPDATE settings SET email = 'not an address' WHERE account_id = $1")
+        .bind(c.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let res = c.post(&format!("{invoice_url}/email"), json!({})).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    let mail = smtp.messages();
+    assert_eq!(mail.len(), 1);
+    assert!(
+        !mail[0].contains("Reply-To"),
+        "sent without the bad Reply-To"
+    );
 }

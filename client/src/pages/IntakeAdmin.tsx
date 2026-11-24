@@ -312,8 +312,8 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
             onRetry={resendConfirmation} retrying={resending} className="" />
           {intake.chef_alert_failed_at && (
             <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-700">
-              ⚠ We couldn’t email you about this inquiry ({fmtUtcTimestamp(intake.chef_alert_failed_at, "MMM d 'at' h:mm a")}).
-              Check the business email in Settings so you hear about the next one.
+              ⚠ Platebook couldn’t email you about this inquiry ({fmtUtcTimestamp(intake.chef_alert_failed_at, "MMM d 'at' h:mm a")}):
+              the mail server was unavailable or isn’t set up. Check this page for new inquiries until email works.
             </div>
           )}
 

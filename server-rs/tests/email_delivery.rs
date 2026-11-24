@@ -12,6 +12,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use axum::http::StatusCode;
+use chef_server::config::Config;
 use chef_server::db::MIGRATOR;
 use common::*;
 use serde_json::{Value, json};
@@ -228,10 +229,93 @@ async fn a_captured_link_email_never_logs_the_link(pool: PgPool) {
         assert_eq!(res.status, StatusCode::OK);
         assert!(!res.text.contains("token"), "{}", res.text);
     }
+    // Link mail goes out after the response.
+    for _ in 0..50 {
+        if state.outbox.messages().len() >= 2 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
     assert_eq!(state.outbox.messages().len(), 2, "both captured");
     let logged = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
     assert!(
         !logged.contains("token="),
         "a link token was logged:\n{logged}"
     );
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn the_booking_response_says_whether_a_confirmation_will_be_emailed(pool: PgPool) {
+    for (config, expected) in [(test_config(), true), (no_email_config(), false)] {
+        let (app, _) = app_with(pool.clone(), config);
+        let name = if expected {
+            "Mail Kitchen"
+        } else {
+            "Mailless Kitchen"
+        };
+        Chef::new(&pool, &app, name).await;
+        let slug = chef_server::accounts::slugify(name);
+        let with_email = post(
+            "/api/intake",
+            json!({ "slug": slug, "name": "A", "email": "a@example.com", "terms_accepted": true }),
+        )
+        .send(&app)
+        .await;
+        assert_eq!(
+            with_email.status,
+            StatusCode::CREATED,
+            "{}",
+            with_email.body
+        );
+        assert_eq!(with_email.body["confirmation_email"], expected, "{name}");
+        let without = post(
+            "/api/intake",
+            json!({ "slug": slug, "name": "B", "phone": "555-0100", "terms_accepted": true }),
+        )
+        .send(&app)
+        .await;
+        assert_eq!(without.status, StatusCode::CREATED, "{}", without.body);
+        assert_eq!(without.body["confirmation_email"], false);
+    }
+}
+
+/// Settings that would make every send fail count as "no email" up front:
+/// the chef gets the not-configured message and the link pages say so.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn unusable_smtp_settings_count_as_no_email(pool: PgPool) {
+    let partial = Config {
+        email_host: "smtp.example.com".into(),
+        email_user: "user".into(),
+        email_pass: String::new(),
+        email_capture: false,
+        ..test_config()
+    };
+    let bad_from = Config {
+        email_host: "smtp.example.com".into(),
+        email_user: "apikey".into(),
+        email_pass: "secret".into(),
+        email_from: "apikey".into(),
+        email_capture: false,
+        ..test_config()
+    };
+    for (label, config) in [("partial", partial), ("bad from", bad_from)] {
+        let (app, _) = app_with(pool.clone(), config);
+        let (c, _, invoice_url) = chef_with_work(&pool, &app, &format!("Unusable {label}")).await;
+        let res = c.post(&format!("{invoice_url}/email"), json!({})).await;
+        assert_eq!(
+            res.status,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "{label}: {}",
+            res.body
+        );
+        assert_eq!(res.body["code"], "EMAIL_NOT_CONFIGURED", "{label}");
+        assert_eq!(c.get(&invoice_url).await.body["status"], "draft", "{label}");
+        let link = post(
+            "/api/auth/forgot-password",
+            json!({ "email": "x@example.com" }),
+        )
+        .send(&app)
+        .await;
+        assert_eq!(link.body["email_available"], false, "{label}");
+    }
 }

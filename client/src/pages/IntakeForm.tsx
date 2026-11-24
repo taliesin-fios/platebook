@@ -430,7 +430,9 @@ export default function IntakeForm() {
 
           <p className="text-xs text-center text-gray-400">
             Your intake is saved — reference #{result.id}.
-            {result.email && <> Confirmation sent to <strong>{result.email}</strong>.</>}
+            {'confirmation_email' in result && (result.confirmation_email
+              ? <> We’ll email a confirmation to <strong>{result.email}</strong>; if it doesn’t arrive, your chef still has your request.</>
+              : <> No confirmation email will be sent, so keep this reference number.</>)}
           </p>
           <PoweredBy className="mt-8" />
         </div>

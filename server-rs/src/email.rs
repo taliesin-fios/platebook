@@ -50,8 +50,12 @@ pub enum EmailError {
     Address(String),
     #[error("could not build the message: {0}")]
     Build(String),
+    /// A transient SMTP failure (connection, timeout, 4xx): may work later.
     #[error("SMTP error: {0}")]
     Smtp(String),
+    /// A permanent SMTP rejection (5xx: unknown recipient, bad login, …).
+    #[error("SMTP rejected: {0}")]
+    Rejected(String),
     #[error("database error: {0}")]
     Db(#[from] sqlx::Error),
 }
@@ -90,6 +94,13 @@ impl EmailError {
                 "EMAIL_SEND_FAILED",
                 format!(
                     "The mail server didn't accept the {what}, so it was not sent. Try again in a minute.{fallback} if it keeps failing."
+                ),
+            ),
+            EmailError::Rejected(_) => AppError::new(
+                StatusCode::BAD_GATEWAY,
+                "EMAIL_REJECTED",
+                format!(
+                    "The mail server refused the {what}, so it was not sent. Check the email address; if it looks right, the server's mail settings may need attention.{fallback} meanwhile."
                 ),
             ),
             EmailError::Address(_) | EmailError::NoRecipient => AppError::new(
@@ -159,10 +170,10 @@ fn mailbox(addr: &str) -> Result<Mailbox, EmailError> {
 fn transport(config: &Config) -> Result<AsyncSmtpTransport<Tokio1Executor>, EmailError> {
     let mut builder = match config.email_tls {
         EmailTls::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(&config.email_host)
-            .map_err(|e| EmailError::Smtp(e.to_string()))?,
+            .map_err(|_| EmailError::NotConfigured("EMAIL_HOST is not a valid host name"))?,
         EmailTls::Starttls => {
             AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.email_host)
-                .map_err(|e| EmailError::Smtp(e.to_string()))?
+                .map_err(|_| EmailError::NotConfigured("EMAIL_HOST is not a valid host name"))?
         }
         EmailTls::None => {
             AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.email_host)
@@ -182,6 +193,11 @@ fn transport(config: &Config) -> Result<AsyncSmtpTransport<Tokio1Executor>, Emai
 /// Per-account limit on the routes that email a client (`acct.email`).
 pub async fn check_limit(state: &AppState, account_id: i64) -> Result<(), AppError> {
     crate::demo::refuse(state, account_id, "Email")?;
+    // Without a transport the send fails at once (and is recorded); don't
+    // spend the chef's email allowance on it.
+    if !state.config.email_available() {
+        return Ok(());
+    }
     state
         .account_limits
         .email
@@ -232,7 +248,14 @@ pub async fn send(
         .to(mailbox(&email.to)?)
         .subject(email.subject.clone());
     if let Some(r) = email.reply_to.as_deref().filter(|r| !r.is_empty()) {
-        builder = builder.reply_to(mailbox(r)?);
+        // A bad chef Reply-To (their Settings email) shouldn't block the
+        // client's mail; send without it.
+        match mailbox(r) {
+            Ok(m) => builder = builder.reply_to(m),
+            Err(_) => tracing::warn!(
+                "[email] business email is not a valid address; sent without Reply-To"
+            ),
+        }
     }
     let body = MultiPart::alternative_plain_html(email.text.clone(), email.html.clone());
     let message = if email.attachments.is_empty() {
@@ -253,13 +276,15 @@ pub async fn send(
     // One retry after RETRY_DELAY for transient failures (4xx, timeouts,
     // dropped connections). A permanent rejection (5xx) fails straight away.
     // Each attempt is bounded as a whole: lettre's own timeout doesn't cover
-    // a server that accepts the connection and never sends its greeting.
+    // a server that accepts the connection and never sends its greeting. A
+    // timed-out attempt isn't retried: the server may have taken the message
+    // and just been slow to confirm, and a retry would send it twice.
     let transport = transport(config)?;
     let limit = config.email_timeout;
     retry_once(
         RETRY_DELAY,
         |e: &Attempt| match e {
-            Attempt::TimedOut => true,
+            Attempt::TimedOut => false,
             Attempt::Smtp(e) => !e.is_permanent(),
         },
         || {
@@ -275,6 +300,7 @@ pub async fn send(
     .await
     .map_err(|e| match e {
         Attempt::TimedOut => EmailError::Smtp(format!("no answer within {limit:?}")),
+        Attempt::Smtp(e) if e.is_permanent() => EmailError::Rejected(e.to_string()),
         Attempt::Smtp(e) => EmailError::Smtp(e.to_string()),
     })?;
     Ok(Delivery::Smtp)

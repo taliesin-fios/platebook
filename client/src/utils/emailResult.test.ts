@@ -21,6 +21,7 @@ describe('isRecordedEmailFailure', () => {
   it('is true only for sends the server attempted and recorded', () => {
     expect(isRecordedEmailFailure('EMAIL_NOT_CONFIGURED')).toBe(true);
     expect(isRecordedEmailFailure('EMAIL_SEND_FAILED')).toBe(true);
+    expect(isRecordedEmailFailure('EMAIL_REJECTED')).toBe(true);
     expect(isRecordedEmailFailure('NO_EMAIL')).toBe(false);
     expect(isRecordedEmailFailure('RATE_LIMITED')).toBe(false);
     expect(isRecordedEmailFailure(undefined)).toBe(false);

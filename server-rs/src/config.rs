@@ -348,6 +348,13 @@ impl Config {
             if user != pass {
                 return EmailMode::Disabled("EMAIL_USER and EMAIL_PASS must be set together");
             }
+            // EMAIL_FROM falls back to EMAIL_USER, which isn't always an
+            // address (an API key ID, "apikey"): every send would fail.
+            if self.email_from.parse::<lettre::message::Mailbox>().is_err() {
+                return EmailMode::Disabled(
+                    "EMAIL_FROM is not a valid address (set it when EMAIL_USER isn't one)",
+                );
+            }
             return EmailMode::Smtp;
         }
         if user || pass {
@@ -545,6 +552,12 @@ mod tests {
             Disabled(_)
         ));
         assert!(!mail("", "", "", false, true).email_available());
+        // A From address that can't be parsed means no working transport.
+        let bad_from = Config {
+            email_from: "apikey".into(),
+            ..mail("smtp.example.com", "apikey", "secret", false, true)
+        };
+        assert!(matches!(bad_from.email_mode(), Disabled(_)));
     }
 
     #[test]
