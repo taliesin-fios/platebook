@@ -155,7 +155,7 @@ try {
   const afterReject = await api(A, `/api/invoices/${inv.id}`);
   check('rejected send leaves the invoice Draft with no emailed_at', afterReject.status === 'draft' && afterReject.emailed_at === null,
     `status=${afterReject.status} emailed_at=${afterReject.emailed_at}`);
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByRole('alert').first().scrollIntoViewIfNeeded();
   await shot(page, 'invoice-email-rejected', 'Mail server rejects the recipient: the invoice stays Draft, nothing is marked sent, and the banner offers Download PDF or Try again.');
 
   await setSink('accept');
@@ -164,7 +164,7 @@ try {
   const afterOk = await api(A, `/api/invoices/${inv.id}`);
   check('successful send moves the invoice to Sent with emailed_at', afterOk.status === 'sent' && !!afterOk.emailed_at && !afterOk.email_failed_at,
     `status=${afterOk.status}`);
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByText(/^Invoice INV-/).first().scrollIntoViewIfNeeded().catch(() => {});
   await shot(page, 'invoice-sent', 'After the mail server accepts it, the invoice moves to Sent ($326.40 total).');
   const mail2 = await sink('/api/messages');
   const invMail = mail2.find((m) => /invoice/i.test(m.subject));
