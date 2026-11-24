@@ -13,6 +13,7 @@ import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
 import { FINAL_STATUSES, needsFinalConfirm } from '../utils/invoiceStatus';
 import { emailSentMessage, isRecordedEmailFailure } from '../utils/emailResult';
+import { useSingleFlight } from '../hooks/useSingleFlight';
 import type { ClientLink, EmailSentResponse, Invoice, Settings } from '../types';
 
 interface LineItemDraft {
@@ -379,7 +380,9 @@ export default function InvoiceBuilder() {
     }
   };
 
-  const handleEmail = async () => {
+  const sendOnce = useSingleFlight();
+  const handleEmail = () => sendOnce(emailInvoice);
+  const emailInvoice = async () => {
     if (!form.client_email) {
       show('Add a client email address before sending', 'error');
       return;
@@ -433,7 +436,7 @@ export default function InvoiceBuilder() {
           </span>
         }
       />
-      <EmailFailedBanner what="invoice" failedAt={emailFailedAt} onRetry={handleEmail} retrying={emailing} onDownload={handlePrint} />
+      <EmailFailedBanner what="invoice" failedAt={form.status === 'draft' || form.status === 'sent' ? emailFailedAt : null} onRetry={handleEmail} retrying={emailing} onDownload={handlePrint} />
 
       </div>{/* end invoice-no-print (page header) */}
 

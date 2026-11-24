@@ -1,0 +1,9 @@
+# Retest after fixing rehearsal findings D1 (duplicate emails on rapid clicks) and D3 (stale
+# "email failed" banner on a paid invoice). Run against the rehearsal instance (localhost:4310,
+# mail sink :2580) with the rebuilt client. Scripts: five element.click() calls in ONE JavaScript
+# tick (harsher than a human double/quintuple click), then count new messages in the sink.
+meal plan: 5 clicks in one tick -> 1 message(s)      (leg 3 before the fix: 5 messages)
+invoice: 5 clicks in one tick -> 1 message(s)        (leg 3 before the fix: 2 messages)
+paid invoice INV-2026-0001 email_failed_at: 2026-11-24 15:55:07   (stale failure still stored)
+banner on paid invoice: 0                             (leg 3 before the fix: banner + "Try again")
+"Email failed" badges in list: 0
