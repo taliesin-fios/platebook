@@ -14,6 +14,8 @@
  *
  * --keep leaves the environment running afterwards so you can click around
  * (http://localhost:4320, password in fictional-week.json); Ctrl-C stops it.
+ * --seed-only seeds the fictional week and keeps the environment running,
+ * without the scripted run (for trying the owner test card by hand).
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -42,7 +44,10 @@ async function healthy(url) {
 let code = 1;
 if (await healthy('http://localhost:4320/health') && await healthy('http://localhost:4321/health')) {
   const seed = spawnSync(process.execPath, [path.join(here, 'seed.mjs'), 'http://localhost:4320'], { stdio: 'inherit' });
-  if (seed.status === 0) {
+  const seedOnly = process.argv.includes('--seed-only');
+  if (seed.status === 0 && seedOnly) {
+    code = 0;
+  } else if (seed.status === 0) {
     const rec = spawnSync(process.execPath, [path.join(here, 'record.mjs'), '--out', out], { stdio: 'inherit' });
     const retest = spawnSync(process.execPath, [path.join(here, 'retest-rapid-clicks.mjs')], { stdio: 'inherit' });
     code = (rec.status ?? 1) || (retest.status ?? 1);
@@ -51,7 +56,7 @@ if (await healthy('http://localhost:4320/health') && await healthy('http://local
   console.error('[demo] the environment did not come up; see the logs in the temp directory env.mjs printed');
 }
 
-if (process.argv.includes('--keep')) {
+if (process.argv.includes('--keep') || process.argv.includes('--seed-only')) {
   console.log('[demo] environment left running: http://localhost:4320 (Ctrl-C to stop)');
 } else {
   stop();
