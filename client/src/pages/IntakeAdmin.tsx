@@ -14,6 +14,7 @@ import EmailFailedBanner from '../components/EmailFailedBanner';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { emailSentMessage } from '../utils/emailResult';
+import { useSingleFlight } from '../hooks/useSingleFlight';
 import { useAppSettings } from '../App';
 import { bookingUrl } from '../constants';
 import type { ClientLink, EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus, PaymentEventItem } from '../types';
@@ -178,7 +179,9 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
     }
   };
 
-  const resendConfirmation = async () => {
+  const sendOnce = useSingleFlight();
+  const resendConfirmation = () => sendOnce(resendConfirmationNow);
+  const resendConfirmationNow = async () => {
     setResending(true);
     const now = new Date().toISOString();
     try {

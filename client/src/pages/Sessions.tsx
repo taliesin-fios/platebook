@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast';
 import { STATUS_COLORS, marginColor, repeatLabel } from '../constants';
 import { errorMessage } from '../hooks/useApi';
 import { emailSentMessage, errorCode, isRecordedEmailFailure } from '../utils/emailResult';
+import { useSingleFlight } from '../hooks/useSingleFlight';
 import type { EmailSentResponse, SessionListItem } from '../types';
 import { pressable } from '../utils/keyboardActivate';
 
@@ -53,8 +54,12 @@ export default function Sessions() {
   const formatSentDate = (ts: string | null) => fmtUtcTimestamp(ts, 'MMM d');
 
   // Re-send meal plan PDF from the list without navigating into detail
-  const handleResend = async (s: SessionListItem, e: MouseEvent) => {
+  const sendOnce = useSingleFlight();
+  const handleResend = (s: SessionListItem, e: MouseEvent) => {
     e.stopPropagation();
+    return sendOnce(() => resendMealPlan(s));
+  };
+  const resendMealPlan = async (s: SessionListItem) => {
     setSendingId(s.id);
     try {
       // The server renders and attaches the meal plan itself.

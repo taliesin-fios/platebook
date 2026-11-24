@@ -11,6 +11,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { emailSentMessage, errorCode, isRecordedEmailFailure } from '../utils/emailResult';
+import { useSingleFlight } from '../hooks/useSingleFlight';
 import { STATUS_COLORS, calcFeasibility, FEASIBILITY_COLORS, getReheatedInstructions, CATEGORY_BAR_COLORS, marginColor, REPEAT_OPTIONS } from '../constants';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
@@ -169,7 +170,9 @@ export default function SessionDetail() {
     }
   };
 
-  const handleEmailPDF = async () => {
+  const sendOnce = useSingleFlight();
+  const handleEmailPDF = () => sendOnce(emailMealPlan);
+  const emailMealPlan = async () => {
     if (!session) return;
     const clientEmail = session.client_email;
     if (!clientEmail) {
