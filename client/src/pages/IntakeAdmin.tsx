@@ -78,10 +78,10 @@ function IntakeCard({ intake, onSelect }: { intake: Intake; onSelect: (intake: I
           <span>${(intake.booking_fee_amount || 0).toFixed(0)} deposit</span>
         )}
         {intake.confirmation_email_failed_at && (
-          <span className="text-danger font-medium">⚠ Confirmation email failed</span>
+          <span className="text-danger font-medium">⚠ Confirmation email not sent</span>
         )}
         {intake.chef_alert_failed_at && (
-          <span className="text-amber-600 font-medium">⚠ Alert email failed</span>
+          <span className="text-amber-600 font-medium">⚠ Alert email to you not sent</span>
         )}
         {intake.deleted_at && (
           <span className="text-gray-400">🗑 Deleted {fmtUtcTimestamp(intake.deleted_at, 'MMM d', intake.deleted_at)}</span>
