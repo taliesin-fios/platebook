@@ -82,6 +82,9 @@ pub struct ChefAccount {
     /// Public booking-link slug (`/book/:slug`).
     pub slug: String,
     pub onboarding_completed: bool,
+    /// Whether this server can send email at all (a server-wide setting), so
+    /// the app doesn't offer to retry a send that can't work.
+    pub email_available: bool,
     /// Only on the shared demo account (`DEMO_MODE`).
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -134,6 +137,7 @@ fn account_json(state: &AppState, a: &AccountRow) -> ChefAccount {
         email: a.email.clone(),
         slug: a.slug.clone(),
         onboarding_completed: a.onboarding_completed_at.is_some(),
+        email_available: state.config.email_available(),
         demo: state.demo.is_demo(a.id).then(|| DemoInfo {
             reset_hours: state.config.demo.reset_hours,
             next_reset_at: state

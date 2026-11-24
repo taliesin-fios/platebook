@@ -101,7 +101,9 @@ const session = (client, date, time, dishes, extra = {}) => api('POST', '/api/se
 const okafor = await session('Okafor Household', '2026-12-07', '10:00',
   ['Garlic Lemon Chicken Rice Bowls', 'Chickpea & Spinach Curry'], { repeat_every_weeks: 1 });
 const lindqvist = await session('Lindqvist Household', '2026-12-09', '13:00', ['Roasted Vegetable Tray Bake', 'Chickpea & Spinach Curry']);
-await api('PUT', `/api/sessions/${lindqvist.id}`, { session_date: '2026-12-10' }); // schedule change Wed → Thu
+// Schedule change Wed → Thu. Through the API only: the app's screens can't
+// edit a saved session (rehearsal finding; see DEFECTS.md).
+await api('PUT', `/api/sessions/${lindqvist.id}`, { session_date: '2026-12-10' });
 await session('Castellano Household', '2026-12-11', '15:00', ['Spicy Black Bean Chili']);
 await session('Castellano Household', '2026-12-18', '15:00', ['Spicy Black Bean Chili']); // repeat booking
 

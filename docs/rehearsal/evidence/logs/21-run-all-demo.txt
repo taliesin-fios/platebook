@@ -1,0 +1,44 @@
+[env] database platebook_demo; logs in /tmp/platebook-demo
+[env] API with mail sink : http://localhost:4320
+[env] API with NO email  : http://localhost:4321
+[env] mail sink web view : http://127.0.0.1:2590  (POST /mode?set=accept|reject|tempfail|down)
+Seeded http://localhost:4320:
+  chef robin.hale@example.com (password in fictional-week.json)
+  5 recipes, 3 households
+  Okafor session http://localhost:4320/sessions/1 · draft invoice http://localhost:4320/invoices/1
+PASS  dashboard lists the week
+PASS  dashboard shows the Okafor allergen warning (Peanuts, Tree Nuts)
+PASS  garlic aggregated across two dishes (4 + 3 = 7 cloves), on screen and saved — 7 cloves from Garlic Lemon Chicken Rice Bowls: 4 clove + Chickpea & Spinach Curry: 3 clove
+PASS  ticked grocery item is still ticked after reload (saved) — is_checked=1
+PASS  mail server down: error says the meal plan was not sent
+PASS  mail server down: no pdf_emailed_at recorded
+PASS  mail server down: nothing reached the sink
+PASS  meal-plan PDF names the household, both dishes and the allergens — see meal-plan-okafor.txt
+KNOWN DEFECT  meal-plan PDF prints reheating/storage text the chef never entered — e.g. "Warm meatballs separately" on chicken rice bowls; see DEFECTS.md P1-3
+PASS  retry succeeds and says "accepted by the mail server"
+PASS  retry sent exactly one meal-plan email — 1 new
+PASS  mail sink received the meal plan with a PDF attached — Your meal plan — Monday, December 7 · meal-plan-2026-12-07.pdf · Reply-To hello@juniper-table.example.com
+PASS  client mail has the chef business email as Reply-To
+PASS  invoice total = 240.00 + 86.40 = 326.40 — total=326.4
+PASS  rejected by mail server: error says it refused the invoice (check the address)
+PASS  rejected send leaves the invoice Draft with no emailed_at — status=draft emailed_at=null
+PASS  rejected send: nothing reached the sink
+PASS  invoice retry says accepted by the mail server
+PASS  successful send moves the invoice to Sent with emailed_at — status=sent
+PASS  invoice retry sent exactly one email — 1 new
+PASS  mail sink received the invoice PDF — Your invoice from Juniper Table Kitchen — INV-2026-0001
+PASS  no email configured: says email isn’t set up and nothing was sent
+PASS  no email configured: no new "sent" time recorded and nothing reached the sink — pdf_emailed_at unchanged (2026-11-24 16:34:19, from the earlier send on A)
+PASS  no email configured: banner offers Download PDF but no "Try again" that can’t work
+PASS  login link (no-email): same page for a real and an unknown address
+PASS  login link on a no-email server says no link was sent
+PASS  login link (with-email): same page for a real and an unknown address
+PASS  login link with email says the mail server was asked (not "delivered")
+PASS  a login-link email reached the sink for the real account
+PASS  session page has no horizontal scroll at 375 px — overflow=0px
+
+29/29 checks passed. Output: /home/user/platebook/docs/rehearsal/evidence/demo-run
+PASS  meal plan, 5 clicks (one tick) -> 1 message(s)
+PASS  meal plan, 5 clicks (mouse 60 ms apart) -> 1 message(s)
+PASS  invoice, 5 clicks (one tick) -> 1 message(s)
+PASS  invoice, 5 clicks (mouse 60 ms apart) -> 1 message(s)

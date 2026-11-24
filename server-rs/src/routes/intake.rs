@@ -936,6 +936,17 @@ async fn resend_confirmation(
     .fetch_optional(&mut *t.tx)
     .await?;
     let (name, email) = row.ok_or_else(intake_not_found)?;
+    let just_sent: bool = sqlx::query_scalar(&format!(
+        "SELECT {} FROM client_intakes WHERE id = $1",
+        crate::email::recently("confirmation_emailed_at")
+    ))
+    .bind(id)
+    .bind(crate::email::RESEND_WINDOW_SECS)
+    .fetch_one(&mut *t.tx)
+    .await?;
+    if just_sent && crate::email::unavailable(&state).is_none() {
+        return Err(crate::email::just_sent("confirmation").into());
+    }
     let Some(to) = email.filter(|e| !e.is_empty()) else {
         return Err(AppError::new(
             StatusCode::BAD_REQUEST,

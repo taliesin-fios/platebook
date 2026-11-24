@@ -5,7 +5,10 @@
  * A local SMTP mail sink for development and rehearsals. Nothing is relayed:
  * every message is stored as an .eml file and listed on a small web page.
  *
- *   node tools/dev-mail-sink/sink.mjs [--smtp 1025] [--http 1080] [--dir ./mail-sink]
+ *   node tools/dev-mail-sink/sink.mjs [--smtp 1025] [--http 1080] [--dir <tmp>/platebook-mail-sink]
+ *
+ * Stored messages include live sign-in and reset links: keep --dir outside the
+ * repository (the default is the system temp directory).
  *
  * Point Platebook at it with EMAIL_HOST=127.0.0.1 EMAIL_PORT=1025 EMAIL_TLS=none
  * (and no EMAIL_USER/EMAIL_PASS).
@@ -28,6 +31,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 
 const arg = (name, dflt) => {
@@ -36,7 +40,7 @@ const arg = (name, dflt) => {
 };
 const SMTP_PORT = Number(arg('smtp', 1025));
 const HTTP_PORT = Number(arg('http', 1080));
-const DIR = path.resolve(arg('dir', './mail-sink'));
+const DIR = path.resolve(arg('dir', path.join(os.tmpdir(), 'platebook-mail-sink')));
 const MODES = ['accept', 'reject', 'tempfail', 'down'];
 
 fs.mkdirSync(DIR, { recursive: true });

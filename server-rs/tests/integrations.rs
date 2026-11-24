@@ -275,6 +275,12 @@ async fn emails_go_to_the_outbox_with_the_chefs_reply_to(pool: PgPool) {
         c.get(&format!("/api/sessions/{}", s.body["id"])).await.body["pdf_emailed_at"].is_string()
     );
 
+    // Step past the repeat-send window (email::RESEND_WINDOW_SECS).
+    sqlx::query("UPDATE sessions SET pdf_emailed_at = NULL WHERE id = $1")
+        .bind(s.body["id"].as_i64())
+        .execute(&pool)
+        .await
+        .unwrap();
     let no_body = c
         .post(
             &format!("/api/sessions/{}/email-pdf", s.body["id"]),
@@ -331,6 +337,12 @@ async fn client_emails_are_rate_limited_per_account(pool: PgPool) {
     let url = format!("/api/invoices/{}/email", inv.body["id"]);
     for _ in 0..30 {
         assert_eq!(c.post(&url, json!({})).await.status, StatusCode::OK);
+        // Step past the repeat-send window (email::RESEND_WINDOW_SECS).
+        sqlx::query("UPDATE invoices SET emailed_at = NULL WHERE id = $1")
+            .bind(inv.body["id"].as_i64())
+            .execute(&pool)
+            .await
+            .unwrap();
     }
     let limited = c.post(&url, json!({})).await;
     assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);

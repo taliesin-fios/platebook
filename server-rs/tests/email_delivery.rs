@@ -70,6 +70,8 @@ async fn without_email_chef_sends_fail_and_change_nothing_but_the_failure(pool: 
         state.outbox.messages().is_empty(),
         "nothing captured as sent"
     );
+    // The app knows not to offer a retry that can't work.
+    assert_eq!(c.get("/api/auth/me").await.body["email_available"], false);
 }
 
 /// Polls an intake until `done` holds (booking emails run in the background).

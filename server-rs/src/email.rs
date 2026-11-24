@@ -193,17 +193,41 @@ fn transport(config: &Config) -> Result<AsyncSmtpTransport<Tokio1Executor>, Emai
 /// Per-account limit on the routes that email a client (`acct.email`).
 pub async fn check_limit(state: &AppState, account_id: i64) -> Result<(), AppError> {
     crate::demo::refuse(state, account_id, "Email")?;
-    // Without a transport the send fails at once (and is recorded); don't
-    // spend the chef's email allowance on it.
-    if !state.config.email_available() {
-        return Ok(());
-    }
     state
         .account_limits
         .email
         .check(&state.limits_pool, &AccountLimits::key(account_id))
         .await
         .map_err(|e| e.with_code())
+}
+
+/// A send of the same invoice, meal plan or confirmation that succeeded this
+/// recently is refused as an accidental repeat (double clicks, a second tab).
+pub const RESEND_WINDOW_SECS: f64 = 10.0;
+
+/// The response for a repeat inside [`RESEND_WINDOW_SECS`].
+pub fn just_sent(what: &str) -> AppError {
+    AppError::new(
+        StatusCode::CONFLICT,
+        "EMAIL_JUST_SENT",
+        format!(
+            "This {what} was sent a few seconds ago, so it wasn't sent again. Wait a moment if you meant to send another copy."
+        ),
+    )
+}
+
+/// SQL condition: `col` is a successful send inside the repeat window ($2).
+pub fn recently(col: &str) -> String {
+    format!("COALESCE({col} > now() - make_interval(secs => $2), false)")
+}
+
+/// `Some(error)` when this server has no email transport, so a route can
+/// fail fast (and record the failure) before rendering an attachment.
+pub fn unavailable(state: &AppState) -> Option<EmailError> {
+    match state.config.email_mode() {
+        EmailMode::Disabled(reason) => Some(EmailError::NotConfigured(reason)),
+        _ => None,
+    }
 }
 
 /// Core send for `account_id`'s mail (see the module docs for the modes).
@@ -300,10 +324,22 @@ pub async fn send(
     .await
     .map_err(|e| match e {
         Attempt::TimedOut => EmailError::Smtp(format!("no answer within {limit:?}")),
+        // 530/535: the server refused our login, a settings problem, not the
+        // recipient's address.
+        Attempt::Smtp(e) if is_auth_failure(&e) => {
+            tracing::error!(error = %e, "[email] SMTP login refused (check EMAIL_USER / EMAIL_PASS)");
+            EmailError::NotConfigured("the mail server refused the login (EMAIL_USER / EMAIL_PASS)")
+        }
         Attempt::Smtp(e) if e.is_permanent() => EmailError::Rejected(e.to_string()),
         Attempt::Smtp(e) => EmailError::Smtp(e.to_string()),
     })?;
     Ok(Delivery::Smtp)
+}
+
+fn is_auth_failure(e: &lettre::transport::smtp::Error) -> bool {
+    e.status()
+        .map(|code| matches!(code.to_string().as_str(), "530" | "535"))
+        .unwrap_or(false)
 }
 
 /// Why one SMTP attempt failed.
