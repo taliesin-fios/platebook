@@ -15,7 +15,7 @@ and are not in the video.
 
 | | Screenshot | What it shows |
 |---|---|---|
-| 1 | ![](evidence/demo-run/screenshots/01-dashboard-week.png) | The seeded fictional week on the dashboard: four upcoming sessions, the Okafor allergens (Peanuts, Tree Nuts) flagged, and the booking link. |
+| 1 | ![](evidence/demo-run/screenshots/01-dashboard-week.png) | The seeded fictional week on the dashboard: four upcoming sessions and the Okafor allergens (Peanuts, Tree Nuts) flagged. The booking-link card is below the fold. |
 | 2 | ![](evidence/demo-run/screenshots/02-grocery-aggregated.png) | Okafor grocery list: garlic combined from two dishes (4 + 3 = **7 cloves**) and ticked off. The tick was confirmed saved after a reload. |
 | 3 | ![](evidence/demo-run/screenshots/03-mealplan-email-failed.png) | **Mail server down.** The toast says the mail server "couldn't be reached or didn't accept the meal plan, so it was not sent". The banner offers **Download PDF** and **Try again**. Nothing was marked sent and nothing reached the sink (checked through the API and the sink). |
 | 4 | ![](evidence/demo-run/screenshots/04-mealplan-retry-ok.png) | **Mail server restored; Try again.** The toast says "sent to … **(accepted by the mail server)**", not "delivered". The sink received exactly one message with the PDF, Reply-To set to the chef's business email. |
@@ -44,8 +44,8 @@ and are not in the video.
 | ![](evidence/chef-leg2/screenshots/44-castellano-chili-6-servings-grocery.png) | **Defect P1-2.** 6-serving chili for Castellano: "black beans — 4 1/2 cans" where the recipe (written for 6) needs 3. Every line is 1.5× too much. |
 | ![](evidence/chef-leg2/screenshots/49-okafor-grocery-final-7-cloves-two-ticks.png) | 4-serving list: shared ingredients merged correctly, two items ticked and still ticked after reload. |
 | ![](evidence/chef-leg3/screenshots/04-okafor-meal-plan-pdf-page1-1.png) | **Defect P1-3.** The meal-plan PDF tells the client "Warm meatballs separately…" for chicken rice bowls and marks dishes FREEZE with a "use by" date the chef never entered. |
-| ![](evidence/chef-leg3/screenshots/38-invoice-paid-after-reload.png) | Manual payment recorded: Paid, still Paid after reload (there is no field for the method). |
-| ![](evidence/chef-leg3/screenshots/42-client-invoice-view-no-login.png) | What the client sees from the invoice link with no login: amount and "How to pay". The signed link itself is not shown. |
+| ![](evidence/chef-leg3/screenshots/38-invoice-paid-after-reload.png) | Manual payment recorded: Paid, still Paid after reload (there is no field for the method). This was **before** fix E2, so it also shows the stale "invoice email wasn't sent… Try again" banner on a paid invoice. That banner is now hidden, and the server refuses to email a paid invoice. |
+| ![](evidence/chef-leg3/screenshots/45-client-view-unpaid-draft-castellano.png) | What the client sees from the invoice link with no login, for an unpaid invoice: the amount and a "How to pay" section. The signed link itself is not shown. Screenshot 42 shows the paid version. |
 | ![](evidence/chef-leg3/screenshots/53-375-after-undo.png) | Deleted client restored with Undo (375 px). |
 | ![](evidence/chef-leg3/screenshots/59-pat-invoice.png) | **Isolation.** A second chef ("Other Fork Catering") opening Robin's invoice URL gets "Invoice not found" and an empty list. |
 | ![](evidence/chef-leg3/screenshots/63-pat-intake-999-shows-juniper-form.png) | **Defect P1-1.** `/intake/999` (an id that doesn't exist), opened by the second chef, shows *Juniper Table Kitchen's* booking form, which belongs to account #1. |

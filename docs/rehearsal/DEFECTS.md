@@ -17,8 +17,8 @@ Missing features and friction are listed separately at the end.
 |---|---|---|---|
 | E1 | Rapid clicks sent duplicate emails: meal plan 5×, invoice 2× | The browser ignores clicks while a send runs. The server refuses a repeat of a successful send within 10 s (`EMAIL_JUST_SENT`). | chef-leg3 D1; logs/21 (4/4 rounds, one message each) |
 | E2 | A paid invoice kept "email failed" and Try again, which would re-send "Amount due" | Banner and badge show only for Draft or Sent. The server refuses to email paid or void invoices (`INVOICE_CLOSED`). | chef-leg3 D3; cargo `a_paid_or_void_invoice_is_never_emailed` |
-| E3 | An unreachable server was reported as "didn't accept" | Now "couldn't be reached or didn't accept" | chef-leg3 M1 |
-| E4 | Inquiry badges said "Confirmation email failed" when email was off on purpose | Now "…not sent". On a no-email server the banners drop Try again. | chef-leg2 M1; demo check 23 |
+| E3 | An unreachable server was reported as "didn't accept" | Now "couldn't be reached or didn't accept" | chef-leg3 M1 (finding); demo check 5 at `dec3af1` (fix) |
+| E4 | Inquiry badges said "Confirmation email failed" when email was off on purpose | Now "…not sent". On a no-email server the banners drop Try again. | chef-leg2 M1; demo check 23 (meal-plan banner). The inquiry banner uses the same component but wasn't run. |
 | E5 | Booking page said "Confirmation sent to …" before the outcome was known | "We'll email…" or "No confirmation email will be sent" | review finding; cargo `the_booking_response_says…` |
 
 ## P1
@@ -75,7 +75,7 @@ Evidence: chef-leg2 F1 (re-rated from friction); observer audit.
 | P2-2 | No double-booking warning when creating a session; only the Calendar shows the conflict afterwards | Create two sessions at the same date and time | chef-leg2 F7, screenshots 35–38 |
 | P2-3 | The first grocery list is an unsaved preview that can't be ticked until Regenerate is pressed | New session → Grocery → tick | chef-leg2 D1 |
 | P2-4 | Deleting a client leaves their upcoming sessions active; the dialog mentions only past sessions | Delete a client that has a future session and let Undo expire | chef-leg3 D4, screenshot 54 |
-| P2-5 | Clients can be deleted only by swiping on touch; the hidden buttons still take keyboard focus | Desktop → Clients | chef-leg3 D5 |
+| P2-5 | Clients can be deleted only by swiping on touch. The hidden buttons are probably still keyboard-focusable (inferred from the code, untested); the tester reported that Tab skipped them. | Desktop → Clients | chef-leg3 D5 |
 | P2-6 | The dashboard counts never-sent Draft invoices as outstanding | Create a draft invoice | chef-leg3 M4 |
 | P2-7 | Response time is hard-coded and inconsistent: the page says "within 1 business day", the email says "1–2 business days" (`email.rs` hard-codes the text, which breaks the CLAUDE.md branding rule) | Submit a booking | customer notes; customer screenshot 11 |
 | P2-8 | Accessibility: unlabelled Settings and booking-form fields; allergen and diet chips don't announce they're selected (no `aria-pressed`) | Accessibility tree of `/settings` and `/book/<slug>` | chef-leg1 D3; customer D1–D2 |
@@ -96,7 +96,7 @@ Evidence: chef-leg2 F1 (re-rated from friction); observer audit.
 - An inquiry shows "Booked" before any session exists.
 - The grocery and meal-plan PDF footers show the session date as if it were the date prepared.
 - Client emails greet "Hi Okafor Household (Ada Okafor)".
-- The signup business-name field isn't marked as required, and the slug comes from the email address and can't be changed.
+- The signup business-name field isn't marked as required. When it's left blank, the slug comes from the email address, and the slug can't be changed later.
 - Every ingredient defaults to the Produce aisle, and every recipe to the "Couples" category.
 
 ## Email: known limits (not defects of the fix, but worth knowing)

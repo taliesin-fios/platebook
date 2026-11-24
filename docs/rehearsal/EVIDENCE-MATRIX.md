@@ -18,13 +18,13 @@ Evidence paths are relative to `docs/rehearsal/evidence/`. "cargo:" means a test
 | A6 | `EMAIL_CAPTURE` in production, or together with `EMAIL_HOST` | Server refuses to start | Refused | Pass | config.rs `email_settings_that_would_mislead_are_refused_at_startup` |
 | A7 | Mail server unreachable (refused connection) | 502, "couldn't be reached or didn't accept", nothing marked sent, banner with Download PDF and Try again | As expected; no `pdf_emailed_at`; sink count unchanged | Pass | demo checks 5–7; demo-run/screenshots/03; chef-leg3 matrix (a) |
 | A8 | Permanent rejection (550) | 502 `EMAIL_REJECTED` "check the address", no retry, Draft kept | As expected; one connection; sink unchanged | Pass | cargo: `a_rejected_recipient…`; demo checks 14–16; demo-run/screenshots/05; chef-leg3 (c) |
-| A9 | Temporary failure (451) | Retried once, then succeeds or fails truthfully | Retried once, then success | Pass | cargo: `a_transient_failure_is_retried_once`; chef-leg3 (d) |
+| A9 | Temporary failure (451) | Retried once, then succeeds or fails truthfully | cargo: retried once, then success. Browser (leg 3 (d), sink left in tempfail): truthful failure after about 2.1 s (502), sink unchanged | Pass | cargo: `a_transient_failure_is_retried_once`; chef-leg3 (d) |
 | A10 | Server never answers | Fails within the timeout, not retried | Unfixed code: **242 s hang**; fixed: under 5 s, one connection | Fixed | logs/03-red-smtp-timeout.txt; cargo: `a_silent_mail_server_times_out…` |
 | A11 | SMTP login refused (535) | Reads as a settings problem | 503 `EMAIL_NOT_CONFIGURED` | Pass | cargo: `a_refused_smtp_login…` |
 | A12 | Successful receipt by the mail sink | 200 `delivery: "smtp"`; toast says "accepted by the mail server"; one message with the PDF; Reply-To is the chef's business email | As expected | Pass | demo checks 9–12, 17–20; demo-run/screenshots/04, 06 |
 | A13 | Retry after recovery | Failure cleared, state advances once | Invoice Draft → Sent; failure cleared | Pass | demo checks 17–19; cargo: `retry_after_the_mail_server_recovers…` |
-| A14 | Repeated clicks (5 in one tick) | One send | Leg 3, before the fix: meal plan 5, invoice 2. After: 1 and 1 | Fixed | chef-leg3/notes.md D1; logs/21-run-all-demo.txt |
-| A15 | Repeated clicks (5 real mouse clicks, 60 ms apart) | One send | Browser guard alone: 5 sent. After the server-side 10 s window: 1 and 1 | Fixed | logs/20 (correction), logs/21; cargo: `a_repeat_send_seconds_later…` |
+| A14 | Repeated clicks (5 in one tick) | One send | After the fix: 1 and 1 | Fixed | logs/20, logs/21-run-all-demo.txt |
+| A15 | Repeated clicks (5 real mouse clicks, 60 ms apart) | One send | Leg 3, before any fix: meal plan 5, invoice 2. With the browser guard alone: meal plan 5 again (recorded only in commit `dec3af1`'s message; no log saved). After the server-side 10 s window: 1 and 1 | Fixed | chef-leg3/notes.md D1; commit `dec3af1`; logs/21; cargo: `a_repeat_send_seconds_later…` |
 | A16 | Paid invoice | Not offered for retry; can't be emailed | Leg 3: stale banner with Try again. Now hidden in the UI; API returns 409 `INVOICE_CLOSED` | Fixed | chef-leg3 D3; logs/20; cargo: `a_paid_or_void_invoice_is_never_emailed` |
 | A17 | No-email server banner | Download PDF, no Try again that can't work | As expected; no new `pdf_emailed_at`; sink unchanged | Pass | demo checks 21–23; demo-run/screenshots/07 |
 | A18 | Magic link and reset: real vs unknown address | Identical page and response; only the real account gets mail | Identical on both servers; one "login link" message for the real account only | Pass | demo checks 24–28; chef-leg3 (f); cargo: `link_flows_hide…`, `…respond_uniformly` |
@@ -39,14 +39,14 @@ Evidence paths are relative to `docs/rehearsal/evidence/`. "cargo:" means a test
 | # | Scenario | Expected | Observed | Result | Evidence |
 |---|---|---|---|---|---|
 | B1 | Chef signup with mistakes | Clear errors, then recovery | Short password and duplicate email rejected clearly; an empty business name was accepted | Pass (friction) | chef-leg1 notes #1–3; screenshots 01–03 |
-| B2 | Onboarding | Done; booking link shown | Done; link `/book/robin-hale` (taken from the email, can't be changed) | Pass (friction) | chef-leg1 screenshots 04–09 |
+| B2 | Onboarding | Done; booking link shown | Done; link `/book/robin-hale` (taken from the email because the business name was blank at signup; can't be changed) | Pass (friction) | chef-leg1 screenshots 04–09 |
 | B3 | Five recipes with shared ingredients | Saved; still there after reload | Saved; still there after reload | Pass | chef-leg1 screenshots 17–22 |
 | B4 | Saved 6-serving quantities | Correct for the recipe's base servings | Always 1.5 × the base amount | Fail (P1-2) | chef-leg1 D1; screenshot 26 |
 | B5 | Customer booking with incomplete input and a bad email | Inline errors | "Your name is required", "Enter a valid email", and others | Pass | customer screenshots 01–02 |
 | B6 | Double-click on submit | One request | One POST, one reference number, one email | Pass | customer notes (Okafor) |
 | B7 | Customer edits through the confirmation link | Saved after reload | 10:00 → 10:30 and a note saved | Pass | customer screenshots 05–07 |
 | B8 | Repeat booking request (Castellano) | — | Only possible in free-text notes; done outside Platebook by email | Missing feature | customer notes; screenshot 12 |
-| B9 | Chef finds new inquiries | Visible in the app | No Inquiries item in the nav or on the dashboard; reached only through the alert email link | Fail (P1-5) | chef-leg2 F1; observer audit |
+| B9 | Chef finds new inquiries | Visible in the app | No Inquiries item in the nav or on the dashboard; reached only through the alert email or the Guide's link | Fail (P1-5) | chef-leg2 F1; observer audit |
 | B10 | Convert to client, including a double convert | One client; allergies carried over | One client; allergies and diet carried over; cuisines dropped | Pass (defect P3) | chef-leg2 screenshots 07–11 |
 | B11 | Invalid client edits | Rejected | Empty name blocked; adults = -1 saved | Partial | chef-leg2 screenshots 13–14 |
 | B12 | Weekly recurring session | Recurs | Stored "Every week"; next session never generated or observed | Partial | chef-leg2 #16 |
@@ -58,7 +58,7 @@ Evidence paths are relative to `docs/rehearsal/evidence/`. "cargo:" means a test
 | B18 | Cooking-time feasibility | A meaningful signal | "GREEN" shown for recipes with 0-minute times; the total drops when a dish is added | Fail (P3) | chef-leg2 D6; screenshot 41 |
 | B19 | Grocery aggregation (Okafor, 4 servings) | Shared items merged with correct totals | garlic 7 cloves, onion 2, olive oil 3 tbsp; all 9 items correct | Pass | chef-leg2 grocery table; screenshot 49; demo check 3 |
 | B20 | Grocery quantities at 6 (or 2) servings | Scaled from base servings | Chili 4½ cans instead of 3; tray bake half of what's needed | Fail (P1-2) | chef-leg2 D2; screenshots 44–45 |
-| B21 | Grocery tick-off persists | Ticks still there after reload | Yes, but only after pressing Regenerate once | Partial (P2) | chef-leg2 D1; screenshot 43; demo check 4 |
+| B21 | Grocery tick-off persists | Ticks still there after reload | Yes, but only after pressing Regenerate once | Partial (P2) | chef-leg2 D1; screenshot 43; demo check 4 (runs after the seed's API regenerate, so it never meets the unsaved preview) |
 | B22 | Change after the list is generated | List updates or warns | Session can't be changed; a recipe edit left the list silently stale; Regenerate warned, then cleared ticks | Partial | chef-leg2 screenshots 46–48 |
 | B23 | Grocery export (copy and PDF) | Matches the screen | Matches | Pass | chef-leg2 okafor-grocery-copied.txt, okafor-grocery-pdf.txt |
 | B24 | Meal-plan PDF contents | Household, dishes, servings, allergens; no invented content | All correct, but includes invented reheating, FREEZE, "use by" and yogurt/cucumber text | Fail (P1-3) | chef-leg3 okafor-meal-plan-pdf.txt; demo-run/meal-plan-okafor.txt |
@@ -71,7 +71,7 @@ Evidence paths are relative to `docs/rehearsal/evidence/`. "cargo:" means a test
 | B31 | Delete client without Undo | Upcoming sessions handled | Upcoming session stays on the calendar; dialog mentions only past sessions | Fail (P2) | chef-leg3 D4; screenshot 54 |
 | B32 | Delete a client on desktop | Possible | Swipe gesture only | Fail (P2) | chef-leg3 D5 |
 | B33 | Cross-account reads (Pat → Robin's records) | Not found | Session, client, invoice, recipe and inquiry: none of Robin's data; Pat's lists empty | Pass | chef-leg3 isolation table; screenshots 56–64 |
-| B34 | `/intake/<anything>` | Not found | Shows account #1's booking form; submitting would send the data to account #1 (observer, from the code) | Fail (P1-1) | chef-leg3 D6; screenshot 63; observer audit |
+| B34 | `/intake/<anything>` | Not found | Shows account #1's booking form; submitting would send the data to account #1 (observer, from the code) | Fail (P1-1) | chef-leg3 D6; chef-leg3/screenshots/63-pat-intake-999-shows-juniper-form.png; observer audit |
 | B35 | Cross-account writes | Refused | Not tried in the browser; covered by existing tenancy test suites | Untested here | server-rs/tests/tenancy.rs, tests/http/tenancy.test.js |
 | B36 | Phone width 375 px (emulated) | No horizontal scroll; usable | No horizontal scroll; toasts cover the bottom action bar | Pass (friction) | customer screenshots 08–11; chef-leg3 screenshots 64–71; demo check 29 |
 | B37 | Reload persistence | Work still there | Yes, in every leg | Pass | all notes |

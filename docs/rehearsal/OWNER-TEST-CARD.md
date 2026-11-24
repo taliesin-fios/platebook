@@ -7,6 +7,9 @@ This card is for testing locally. Nothing in it reaches a real inbox or takes a 
 ```bash
 npm run install:all
 npm --prefix client run build
+# The scripted demo also needs Playwright with Chromium, and pdftotext:
+npm install --no-save playwright && npx playwright install chromium
+sudo apt-get install -y poppler-utils      # macOS: brew install poppler
 (cd server-rs && SQLX_OFFLINE=true cargo build)
 # Postgres running; a user that may create databases:
 export ADMIN_DATABASE_URL=postgres://postgres:<password>@localhost:5432/postgres
@@ -62,13 +65,13 @@ curl -X POST 'http://127.0.0.1:2590/mode?set=accept'   # back to normal
 
 | # | Do | Pass if |
 |---|---|---|
-| F1 | `set=down`, then email the Okafor meal plan | The message says it **was not sent**. A red banner offers **Download PDF** and **Try again**. After a reload the banner is still there and "Last sent" hasn't changed. :2590 has no new message. |
+| F1 | `set=down`, then email the Okafor meal plan | The message says it **was not sent**. A red banner offers **Download PDF** and **Try again**. After a reload the banner is still there and no "Last sent" line appears. :2590 has no new message. |
 | F2 | `set=accept`, then press **Try again** in the banner | "…(accepted by the mail server)". Exactly **one** new message arrives at :2590. The banner is gone. |
-| F3 | Click **✉️ Email** five times quickly | One message at :2590. A second send within 10 seconds says "was sent a few seconds ago, so it wasn't sent again". |
+| F3 | Wait more than 10 seconds after F2, then click **✉️ Email** five times quickly | One message at :2590. A second send within 10 seconds says "was sent a few seconds ago, so it wasn't sent again". |
 | F4 | Open the same session on **:4321**, then Email | "Email isn't set up on this Platebook server…". The banner offers **Download PDF only**, with no Try again. Nothing arrives at :2590. |
 | F5 | On :4321, sign out and use "Email me a sign-in link" for `robin.hale@example.com`, then for `nobody@example.com` | Both pages are identical and say no link was sent. Nothing arrives at :2590. |
 | F6 | On :4320, do the same as F5 | Both pages say "we've asked the mail server…" and are otherwise identical. Only Robin's address gets a "login link" message at :2590. |
-| F7 | `set=reject`, then email a Draft invoice | "refused… check the email address". After a reload the status is still **Draft**. |
+| F7 | Create a Draft invoice first (Castellano session → Create Invoice, add a priced line, Save). Then `set=reject` and email it. | "refused… check the email address". After a reload the status is still **Draft**. |
 | F8 | Sign up a second chef in a private window. Paste one of Robin's `/sessions/<id>` or `/invoices/<id>` URLs | Not found, and none of Robin's data appears. (The session page may show a loading skeleton forever; that's defect P2-11.) |
 
 Remember to run `set=accept` when you're done. Press Ctrl-C in the `run-all` terminal to stop

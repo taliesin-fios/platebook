@@ -81,12 +81,12 @@ rehearsal fixes → `0955db4` demo run recorded at `dec3af1`. Rehearsal tooling 
 |---|---|---|
 | Regression tests written first | `cargo test --test email_delivery` on the unfixed code | 4/4 **failed for the expected reason** (`evidence/logs/01-red-email-regression.txt`). The log leak (`02-…`) and the 242 s hang (`03-…`) were shown failing too. |
 | Rust format and lint | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` | clean |
-| Rust tests | `cargo test` | **274 passed**, 0 failed, 1 ignored (already ignored before this work). Baseline before the work: 250 passed. |
+| Rust tests | `cargo test` | **274 passed**, 0 failed, 1 ignored (already ignored before this work) — `evidence/logs/10-cargo-test.txt`. Baseline before the work: 250 passed (seen in the session output; not saved as a log). |
 | Email tests (new) | `email_delivery.rs` (7), `email_transport.rs` (14, fake SMTP: accept, 550, 451+retry, refused, silent/timeout, 535, recovery, repeat clicks, paid/void, link timing) | all pass |
 | HTTP suites | `npm run test:http` | 85/85 |
 | SQLite migrator | `npm run test:migrate` | 6/6 + end-to-end passed (fixture updated for `email_available`) |
-| Client | `npm --prefix client run lint` / `test` / `build` | 0 errors, 20 warnings (the same 20 as before); 172 tests; build clean, no chunk warning |
-| License headers | `node scripts/license-headers.mjs` | 191 files OK |
+| Client | `npm --prefix client run lint` / `test` / `build` | 0 errors, 20 warnings (the same 20 as before; the before-count is from the session output); 172 tests; build clean, no chunk warning — `evidence/logs/13-client-and-headers.txt` |
+| License headers | `node scripts/license-headers.mjs` | 191 files OK — `evidence/logs/13-client-and-headers.txt` |
 | Browser demo | `node docs/rehearsal/demo/run-all.mjs` | **29/29** outcome checks, **4/4** rapid-click rounds, 1 known defect reported (`evidence/demo-run/results.json`, `evidence/logs/21-run-all-demo.txt`) |
 | Independent review | two passes by a separate reviewer agent | every material finding fixed (see §4) |
 
@@ -107,8 +107,27 @@ configured. The roles:
 - **Customer**: three households booking through the public link.
 - **Skeptical observer**: audited the evidence.
 
-The testers worked from goals, not click paths. They were told not to read the source code, and
-disclosed the two places they needed help. The fictional week is in `demo/fictional-week.json`:
+The testers worked from goals, not click paths, and were told not to read the source code. They
+disclosed three places where they needed help:
+
+- **Leg 2 broke the no-source rule.** To confirm that sessions can't be rescheduled, it read
+  `client/src/App.tsx` and `SessionDetail.tsx`.
+- **Leg 3** found the hidden client Delete buttons through the accessibility tree.
+- **Leg 3** guessed the payment-method workflow (it put Zelle in the internal notes).
+
+**Limits of this method:**
+
+- **Priming.** Later legs read earlier legs' notes; for example, leg 1 asked leg 2 to check the
+  Castellano grocery quantities.
+- **Not a human's view.** The agents read pages through the DOM and accessibility tree, not by eye.
+  That is how hidden buttons and missing labels surfaced, and it differs from what a human sees.
+- **API checks.** Testers made read-only API calls with their session cookie, to confirm saved state
+  after a UI step.
+- **Not independent retests.** The rapid-click retests (`evidence/logs/20`,
+  `demo/retest-rapid-clicks.mjs`) were run by the engineer who wrote the fix.
+- **AI reviewers.** The skeptical observer and the code reviewer are AI agents too.
+- **Shared database.** Two servers shared one database, one with email and one without. A few
+  findings come from that setup rather than from a single real server: leg 2 M1, leg 3 M3 and M5. The fictional week is in `demo/fictional-week.json`:
 
 - **Okafor**: four people, peanut and tree-nut allergy, weekly.
 - **Lindqvist**: two people, vegetarian and celiac, moved from Wednesday to Thursday.
