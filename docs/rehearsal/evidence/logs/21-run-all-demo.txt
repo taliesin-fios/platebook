@@ -28,7 +28,7 @@ PASS  successful send moves the invoice to Sent with emailed_at — status=sent
 PASS  invoice retry sent exactly one email — 1 new
 PASS  mail sink received the invoice PDF — Your invoice from Juniper Table Kitchen — INV-2026-0001
 PASS  no email configured: says email isn’t set up and nothing was sent
-PASS  no email configured: no new "sent" time recorded and nothing reached the sink — pdf_emailed_at unchanged (2026-11-24 16:34:19, from the earlier send on A)
+PASS  no email configured: no new "sent" time recorded and nothing reached the sink — pdf_emailed_at unchanged (2026-11-24 16:37:03, from the earlier send on A)
 PASS  no email configured: banner offers Download PDF but no "Try again" that can’t work
 PASS  login link (no-email): same page for a real and an unknown address
 PASS  login link on a no-email server says no link was sent
