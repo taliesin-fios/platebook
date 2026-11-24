@@ -1,6 +1,6 @@
 {
-  "ran_at": "2026-11-24T16:34:35.113Z",
-  "commit": "0a40d19",
+  "ran_at": "2026-11-24T16:37:18.229Z",
+  "commit": "dec3af1",
   "seeded_through": "API (seed.mjs)",
   "A": "http://localhost:4320",
   "B": "http://localhost:4321",
@@ -113,7 +113,7 @@
     {
       "name": "no email configured: no new \"sent\" time recorded and nothing reached the sink",
       "ok": true,
-      "detail": "pdf_emailed_at unchanged (2026-11-24 16:34:19, from the earlier send on A)"
+      "detail": "pdf_emailed_at unchanged (2026-11-24 16:37:03, from the earlier send on A)"
     },
     {
       "name": "no email configured: banner offers Download PDF but no \"Try again\" that can’t work",
