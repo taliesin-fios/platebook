@@ -842,6 +842,9 @@ pub struct EmailSentResponse {
     #[ts(type = "true")]
     pub success: bool,
     pub sent_to: String,
+    /// `smtp`: accepted by the mail server (not proof it reached an inbox).
+    /// `captured`: kept in the local test outbox, not sent.
+    pub delivery: email::Delivery,
 }
 
 async fn email_pdf(
@@ -912,12 +915,13 @@ async fn email_pdf(
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
-    sent.map_err(|e| {
+    let delivery = sent.map_err(|e| {
         tracing::error!(error = %e, "[sessions] email-pdf");
-        AppError::internal_bare(e)
+        e.to_app_error("meal plan", true)
     })?;
     Ok(Json(EmailSentResponse {
         success: true,
         sent_to: to,
+        delivery,
     }))
 }

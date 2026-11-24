@@ -263,7 +263,7 @@ async fn emails_go_to_the_outbox_with_the_chefs_reply_to(pool: PgPool) {
         .await;
     assert_eq!(
         sent.body,
-        json!({ "success": true, "sent_to": "jo@example.com" })
+        json!({ "success": true, "sent_to": "jo@example.com", "delivery": "captured" })
     );
     let plan = state.outbox.messages().into_iter().last().unwrap();
     assert_eq!(plan.subject, "Your meal plan — Sunday, March 15");
@@ -1420,19 +1420,9 @@ async fn failed_emails_are_recorded_and_cleared_by_a_retry(pool: PgPool) {
 
     // SMTP down: both sends fail, and the failure is recorded.
     let failed = c.post(&format!("{session_url}/email-pdf"), json!({})).await;
-    assert_eq!(
-        failed.status,
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "{}",
-        failed.body
-    );
+    assert_eq!(failed.status, StatusCode::BAD_GATEWAY, "{}", failed.body);
     let failed = c.post(&format!("{invoice_url}/email"), json!({})).await;
-    assert_eq!(
-        failed.status,
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "{}",
-        failed.body
-    );
+    assert_eq!(failed.status, StatusCode::BAD_GATEWAY, "{}", failed.body);
     let session = c.get(&session_url).await.body;
     assert!(session["pdf_email_failed_at"].is_string(), "{session}");
     assert!(session["pdf_emailed_at"].is_null());
@@ -1514,12 +1504,7 @@ async fn failed_booking_emails_are_recorded_and_the_confirmation_can_be_resent(p
     let retry = c
         .post(&format!("{url}/resend-confirmation"), json!({}))
         .await;
-    assert_eq!(
-        retry.status,
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "{}",
-        retry.body
-    );
+    assert_eq!(retry.status, StatusCode::BAD_GATEWAY, "{}", retry.body);
     assert!(c.get(&url).await.body["confirmation_email_failed_at"].is_string());
 
     // With mail working, the resend goes to the client with their edit link

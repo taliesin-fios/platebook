@@ -13,6 +13,7 @@ import PageHeader from '../components/PageHeader';
 import EmailFailedBanner from '../components/EmailFailedBanner';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
+import { emailSentMessage } from '../utils/emailResult';
 import { useAppSettings } from '../App';
 import { bookingUrl } from '../constants';
 import type { ClientLink, EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus, PaymentEventItem } from '../types';
@@ -185,9 +186,9 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
       const patch = { confirmation_emailed_at: now, confirmation_email_failed_at: null };
       setIntake(prev => ({ ...prev, ...patch }));
       onEmailChange(intake.id, patch);
-      show(`Confirmation sent to ${res.sent_to}`, 'success');
+      show(emailSentMessage('Confirmation', res), 'success', 5000);
     } catch (err) {
-      show(errorMessage(err) || 'Could not send the confirmation', 'error');
+      show(errorMessage(err) || 'The confirmation was not sent', 'error', 8000);
       // Not every error is a failed send (rate limit, no address): show what the server recorded.
       try {
         const fresh = await apiCall<Intake>(`/api/intake/${intake.id}`);

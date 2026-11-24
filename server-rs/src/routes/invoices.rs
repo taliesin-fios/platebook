@@ -925,13 +925,14 @@ async fn email_invoice(
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
-    sent.map_err(|e| {
+    let delivery = sent.map_err(|e| {
         tracing::error!(error = %e, "[invoices] email");
-        AppError::internal_bare(e)
+        e.to_app_error("invoice", true)
     })?;
     Ok(Json(EmailSentResponse {
         success: true,
         sent_to: to,
+        delivery,
     }))
 }
 

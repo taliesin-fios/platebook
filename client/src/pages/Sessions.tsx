@@ -9,6 +9,7 @@ import { SkeletonList } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { STATUS_COLORS, marginColor, repeatLabel } from '../constants';
 import { errorMessage } from '../hooks/useApi';
+import { emailSentMessage, isRecordedEmailFailure } from '../utils/emailResult';
 import type { EmailSentResponse, SessionListItem } from '../types';
 import { pressable } from '../utils/keyboardActivate';
 
@@ -60,8 +61,8 @@ export default function Sessions() {
       const res = await fetch(`/api/sessions/${s.id}/email-pdf`, { method: 'POST' });
       const data: EmailSentResponse & { error?: string; code?: string } = await res.json();
       if (!res.ok) {
-        // The server records a failed send (not a missing address)
-        if (data.code !== 'NO_EMAIL') {
+        // The server records a failed send (not a missing address or a rate limit)
+        if (isRecordedEmailFailure(data.code)) {
           setSessions(prev => prev.map(x =>
             x.id === s.id ? { ...x, pdf_email_failed_at: new Date().toISOString() } : x
           ));
@@ -73,12 +74,12 @@ export default function Sessions() {
       setSessions(prev => prev.map(x =>
         x.id === s.id ? { ...x, pdf_emailed_at: new Date().toISOString(), pdf_email_failed_at: null } : x
       ));
-      show(`Meal plan sent to ${data.sent_to}`, 'success', 4000);
+      show(emailSentMessage('Meal plan', data), 'success', 5000);
     } catch (err) {
       if (errorMessage(err)?.includes('NO_EMAIL') || errorMessage(err)?.includes('no email')) {
         show('No email on file for this client — add one in the client profile', 'error', 4000);
       } else {
-        show(errorMessage(err) || 'Could not send meal plan', 'error', 4000);
+        show(errorMessage(err) || 'The meal plan was not sent', 'error', 8000);
       }
     } finally {
       setSendingId(null);

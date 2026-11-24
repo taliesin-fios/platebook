@@ -1,0 +1,7 @@
+# First run of server-rs/tests/email_transport.rs (after the mode fix, before the attempt timeout):
+test a_silent_mail_server_times_out_instead_of_hanging has been running for over 60 seconds
+test a_silent_mail_server_times_out_instead_of_hanging ... FAILED
+thread 'a_silent_mail_server_times_out_instead_of_hanging' panicked at tests/email_transport.rs:147:5:
+242.119969095s
+# Cause: lettre's builder .timeout() did not bound a server that accepts TCP and never greets.
+# Fix: each SMTP attempt wrapped in tokio::time::timeout(EMAIL_TIMEOUT_SECS) in email::send.
