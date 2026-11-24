@@ -27,7 +27,7 @@ it does not show that anyone enjoys using the product.
 | "Recurring sessions" | **Not exercised** | The setting saves; generating the next session was never observed. | B12 |
 | "Cooking-time feasibility" | **Not supported** | Shows GREEN for recipes with no times entered. | B18, DEFECTS P3 |
 | "Reschedule in a tap" | **Not supported** | Saved sessions can't be edited in the app. | DEFECTS P1-4 |
-| "Your data is isolated from other chefs" | **Supported for this test**, with one exception | "Each chef's records are private to their account." Fix P1-1 first: `/intake/<id>` can send a customer's details to account #1. | B33–B35, DEFECTS P1-1 |
+| "Your data is isolated from other chefs" | **Supported for read attempts in this test**; writes are covered by the automated tenancy tests | Don't claim it until P1-1 is fixed: `/intake/<id>` can send a customer's details to account #1. After that: "Each chef's records are private to their account." | B33–B35, DEFECTS P1-1 |
 | "Export all your data" | **Supported** (full JSON) | "Export everything as JSON." There is no import or restore, and CSV covers costs only. | B29 |
 | "Works on your phone" | **Partly supported** | "Responsive layout." Only a 375 px browser emulation was tested; no physical phone. | B36 |
 | "Accessible" | **Not supported** | Unlabelled fields; selection chips don't announce their state. | DEFECTS P2-8 |

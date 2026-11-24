@@ -89,7 +89,7 @@ try {
   const dash = await page.locator('body').innerText();
   check('dashboard lists the week', /Okafor Household/.test(dash) && /Lindqvist Household/.test(dash) && /Castellano Household/.test(dash));
   check('dashboard shows the Okafor allergen warning (Peanuts, Tree Nuts)', /Allergens:\s*Peanuts\s*Tree Nuts/.test(dash));
-  await shot(page, 'dashboard-week', 'Dashboard after seeding the fictional week: four upcoming sessions, allergens flagged on the Okafor booking, and the booking link.');
+  await shot(page, 'dashboard-week', 'Dashboard after seeding the fictional week: four upcoming sessions and the allergens flagged on the Okafor booking.');
 
   // 2. Grocery list: aggregated quantities, tick-off survives reload
   const sessions = await api(A, '/api/sessions');
