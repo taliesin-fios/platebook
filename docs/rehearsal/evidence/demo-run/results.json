@@ -1,0 +1,154 @@
+{
+  "ran_at": "2026-11-24T15:50:40.814Z",
+  "A": "http://localhost:4320",
+  "B": "http://localhost:4321",
+  "results": [
+    {
+      "name": "dashboard lists the week",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dashboard flags Okafor allergens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "garlic aggregated across two dishes (4 + 3 cloves)",
+      "ok": true,
+      "detail": "garlic — 7 cloves"
+    },
+    {
+      "name": "ticked grocery item is still ticked after reload (saved)",
+      "ok": true,
+      "detail": "is_checked=1"
+    },
+    {
+      "name": "mail server down: error says the meal plan was not sent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "mail server down: no pdf_emailed_at recorded",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "meal-plan PDF names the household, both dishes and the allergens",
+      "ok": true,
+      "detail": "see meal-plan-okafor.txt"
+    },
+    {
+      "name": "retry succeeds and says \"accepted by the mail server\"",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "mail sink received the meal plan with a PDF attached",
+      "ok": true,
+      "detail": "Your meal plan — Monday, December 7 · meal-plan-2026-12-07.pdf · Reply-To hello@juniper-table.example.com"
+    },
+    {
+      "name": "client mail has the chef business email as Reply-To",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "invoice total = 240.00 + 86.40 = 326.40",
+      "ok": true,
+      "detail": "total=326.4"
+    },
+    {
+      "name": "rejected by mail server: error says it refused the invoice (check the address)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "rejected send leaves the invoice Draft with no emailed_at",
+      "ok": true,
+      "detail": "status=draft emailed_at=null"
+    },
+    {
+      "name": "invoice retry says accepted by the mail server",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "successful send moves the invoice to Sent with emailed_at",
+      "ok": true,
+      "detail": "status=sent"
+    },
+    {
+      "name": "mail sink received the invoice PDF",
+      "ok": true,
+      "detail": "Your invoice from Juniper Table Kitchen — INV-2026-0001"
+    },
+    {
+      "name": "no email configured: says email isn’t set up and nothing was sent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "login link on a no-email server says no link was sent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "login link with email says the mail server was asked (not \"delivered\")",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a login-link email reached the sink for the real account",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "session page has no horizontal scroll at 375 px",
+      "ok": true,
+      "detail": "overflow=0px"
+    }
+  ],
+  "captions": [
+    {
+      "file": "01-dashboard-week.png",
+      "caption": "Dashboard after seeding the fictional week: four upcoming sessions, allergens flagged on the Okafor booking, and the booking link."
+    },
+    {
+      "file": "02-grocery-aggregated.png",
+      "caption": "Okafor grocery list: garlic combined from two dishes (4 + 3 = 7 cloves) and ticked off; the tick survived a page reload."
+    },
+    {
+      "file": "03-mealplan-email-failed.png",
+      "caption": "Mail server down: the meal-plan send fails, the banner says it wasn’t sent and offers Download PDF or Try again. Nothing is marked sent."
+    },
+    {
+      "file": "04-mealplan-retry-ok.png",
+      "caption": "Mail server restored: “Try again” sends the meal plan; the toast says the mail server accepted it (Platebook can’t confirm inbox delivery)."
+    },
+    {
+      "file": "05-invoice-email-rejected.png",
+      "caption": "Mail server rejects the recipient: the invoice stays Draft, nothing is marked sent, and the banner offers Download PDF or Try again."
+    },
+    {
+      "file": "06-invoice-sent.png",
+      "caption": "After the mail server accepts it, the invoice moves to Sent ($326.40 total)."
+    },
+    {
+      "file": "07-no-email-server.png",
+      "caption": "Same account on a server with no SMTP settings: the send is refused with a plain explanation and the PDF alternative; nothing is recorded as sent."
+    },
+    {
+      "file": "08-signin-link-no-email.png",
+      "caption": "Sign-in link requested on a server without email: the page says no link was sent and suggests the password instead (same answer for every address)."
+    },
+    {
+      "file": "09-signin-link-with-email.png",
+      "caption": "Sign-in link requested on a server with email: “we’ve asked the mail server to send it” — no claim of delivery, same answer for unknown addresses."
+    },
+    {
+      "file": "10-phone-session.png",
+      "caption": "Session page at 375 px wide (browser emulation, not a physical phone)."
+    }
+  ]
+}
