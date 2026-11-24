@@ -464,19 +464,27 @@ async fn send_link(
     };
     let token = auth::sign_one_time(&who, purpose, ttl, &state.config.jwt_secret);
     let client_url = &state.config.client_url;
-    let (url, result) = if purpose == "magic-login" {
-        let url = format!("{client_url}/api/auth/verify?token={token}");
-        let r = email::send_magic_link(state, account.id, &account.email, &url).await;
-        (url, r)
+    let magic = purpose == "magic-login";
+    let url = if magic {
+        format!("{client_url}/api/auth/verify?token={token}")
     } else {
-        let url = format!("{client_url}/reset?token={token}");
-        let r = email::send_password_reset(state, account.id, &account.email, &url).await;
-        (url, r)
+        format!("{client_url}/reset?token={token}")
     };
-    // The same response either way: a failed send must not reveal that the
-    // account exists. The error never includes the link.
-    if let Err(err) = result {
-        tracing::error!(error = %err, purpose, "[auth] sending link failed");
+    // Sent in the background, so neither the response nor its timing (SMTP
+    // can take seconds, with a retry) reveals that the account exists. The
+    // logged error never includes the link.
+    {
+        let (state, url, purpose) = (state.clone(), url.clone(), purpose.to_string());
+        tokio::spawn(async move {
+            let result = if magic {
+                email::send_magic_link(&state, account.id, &account.email, &url).await
+            } else {
+                email::send_password_reset(&state, account.id, &account.email, &url).await
+            };
+            if let Err(err) = result {
+                tracing::error!(error = %err, purpose, "[auth] sending link failed");
+            }
+        });
     }
 
     // SEC7: dev link only when explicitly opted in; never in production.

@@ -1,5 +1,4 @@
 # tests 6
 # pass 6
 # fail 0
-ok   a failed run leaves the target untouched
 migrate e2e passed

@@ -261,6 +261,10 @@ pub struct IntakeSubmitted {
     pub edit_token: String,
     pub edit_url: String,
     pub message: String,
+    /// Whether a confirmation email will be attempted (the intake has an
+    /// address and the server can send mail). Sent after this response, so
+    /// it is never a promise that one arrived.
+    pub confirmation_email: bool,
 }
 
 /// POST /api/intake/:id/convert.
@@ -488,6 +492,9 @@ async fn submit(
     // outcome is recorded on the intake, so a failure shows on the chef's
     // intake screens instead of only in the log.
     let intake_id = res.intake.id;
+    let confirmation_email = res.intake.email.as_deref().is_some_and(|e| !e.is_empty())
+        && state.config.email_available()
+        && !state.demo.is_demo(account.id);
     if let Some(email) = res.intake.email.clone().filter(|e| !e.is_empty()) {
         let (state, name, url, account_id) = (
             state.clone(),
@@ -544,6 +551,7 @@ async fn submit(
             intake: res,
             edit_token: token,
             edit_url,
+            confirmation_email,
             message: "Intake submitted successfully. Your chef will be in touch soon.".into(),
         }),
     ))

@@ -1,6 +1,3 @@
-[http] building server-rs
-[http] creating database chef_http_26987
-[http] server-rs up at http://127.0.0.1:34629; running 3 suites
 # tests 85
 # pass 85
 # fail 0
