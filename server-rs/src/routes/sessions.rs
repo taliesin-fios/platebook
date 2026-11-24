@@ -856,6 +856,17 @@ async fn email_pdf(
         .await
         .map_err(|e| e.restyle(crate::error::ErrorStyle::Db))?;
     email::check_limit(&state, t.account.id).await?;
+    let just_sent: Option<bool> = sqlx::query_scalar(&format!(
+        "SELECT {} FROM sessions WHERE id = $1",
+        email::recently("pdf_emailed_at")
+    ))
+    .bind(id)
+    .bind(email::RESEND_WINDOW_SECS)
+    .fetch_optional(&mut *t.tx)
+    .await?;
+    if just_sent == Some(true) && email::unavailable(&state).is_none() {
+        return Err(email::just_sent("meal plan").into());
+    }
     let Some(session) = session_with_details(&mut t.tx, id).await? else {
         return Err(AppError::bare(StatusCode::NOT_FOUND, "Session not found").into());
     };
@@ -882,24 +893,29 @@ async fn email_pdf(
     let account_id = t.account.id;
     // Don't hold the transaction across rendering and SMTP (which may retry).
     t.tx.commit().await?;
-    let pdf = pdf::render_blocking(
-        Template::MealPlan,
-        docs::meal_plan(&session, &settings, &conflicts),
-        vec![],
-    )
-    .await?;
-    let sent = email::send_meal_plan_pdf(
-        &state,
-        email::MealPlan {
-            account_id,
-            client_name: &name,
-            client_email: &to,
-            session_date: session.session.session_date,
-            pdf,
-            serving_size: session.session.serving_size,
-        },
-    )
-    .await;
+    // No transport: fail (and record it) without rendering a PDF nobody gets.
+    let sent = if let Some(err) = email::unavailable(&state) {
+        Err(err)
+    } else {
+        let pdf = pdf::render_blocking(
+            Template::MealPlan,
+            docs::meal_plan(&session, &settings, &conflicts),
+            vec![],
+        )
+        .await?;
+        email::send_meal_plan_pdf(
+            &state,
+            email::MealPlan {
+                account_id,
+                client_name: &name,
+                client_email: &to,
+                session_date: session.session.session_date,
+                pdf,
+                serving_size: session.session.serving_size,
+            },
+        )
+        .await
+    };
 
     // Remember the outcome, so the session page can show a failure (and offer
     // a retry) after the chef has left it.

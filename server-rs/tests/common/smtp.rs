@@ -22,6 +22,8 @@ pub enum Mode {
     TransientThenAccept(usize),
     /// Accept the TCP connection and never send a greeting.
     Silent,
+    /// `535 5.7.8` at MAIL FROM: the server refuses our login.
+    AuthFailed,
 }
 
 #[derive(Clone)]
@@ -93,6 +95,8 @@ impl FakeSmtp {
             let cmd = line.to_ascii_uppercase();
             let reply: &[u8] = if cmd.starts_with("EHLO") || cmd.starts_with("HELO") {
                 b"250-fake.test\r\n250 8BITMIME\r\n"
+            } else if cmd.starts_with("MAIL FROM") && matches!(mode, Mode::AuthFailed) {
+                b"535 5.7.8 Authentication credentials invalid\r\n"
             } else if cmd.starts_with("MAIL FROM")
                 || cmd.starts_with("RSET")
                 || cmd.starts_with("NOOP")

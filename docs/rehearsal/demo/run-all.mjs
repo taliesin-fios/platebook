@@ -4,7 +4,8 @@
 /**
  * One command for the repeatable demo: a fresh isolated environment
  * (database platebook_demo, ports 4320/4321, sink 2535/2590), the fictional
- * week seeded, the scripted browser walkthrough recorded, then everything
+ * week seeded, the scripted browser walkthrough recorded, the rapid-click
+ * retest run, then everything
  * stopped. Exit code 0 only if every outcome check passed.
  *
  *   npm --prefix client run build && (cd server-rs && SQLX_OFFLINE=true cargo build)
@@ -43,7 +44,8 @@ if (await healthy('http://localhost:4320/health') && await healthy('http://local
   const seed = spawnSync(process.execPath, [path.join(here, 'seed.mjs'), 'http://localhost:4320'], { stdio: 'inherit' });
   if (seed.status === 0) {
     const rec = spawnSync(process.execPath, [path.join(here, 'record.mjs'), '--out', out], { stdio: 'inherit' });
-    code = rec.status ?? 1;
+    const retest = spawnSync(process.execPath, [path.join(here, 'retest-rapid-clicks.mjs')], { stdio: 'inherit' });
+    code = (rec.status ?? 1) || (retest.status ?? 1);
   }
 } else {
   console.error('[demo] the environment did not come up; see the logs in the temp directory env.mjs printed');

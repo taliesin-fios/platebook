@@ -1,5 +1,7 @@
 {
-  "ran_at": "2026-11-24T15:50:40.814Z",
+  "ran_at": "2026-11-24T16:34:35.113Z",
+  "commit": "0a40d19",
+  "seeded_through": "API (seed.mjs)",
   "A": "http://localhost:4320",
   "B": "http://localhost:4321",
   "results": [
@@ -9,14 +11,14 @@
       "detail": ""
     },
     {
-      "name": "dashboard flags Okafor allergens",
+      "name": "dashboard shows the Okafor allergen warning (Peanuts, Tree Nuts)",
       "ok": true,
       "detail": ""
     },
     {
-      "name": "garlic aggregated across two dishes (4 + 3 cloves)",
+      "name": "garlic aggregated across two dishes (4 + 3 = 7 cloves), on screen and saved",
       "ok": true,
-      "detail": "garlic — 7 cloves"
+      "detail": "7 cloves from Garlic Lemon Chicken Rice Bowls: 4 clove + Chickpea & Spinach Curry: 3 clove"
     },
     {
       "name": "ticked grocery item is still ticked after reload (saved)",
@@ -34,6 +36,11 @@
       "detail": ""
     },
     {
+      "name": "mail server down: nothing reached the sink",
+      "ok": true,
+      "detail": ""
+    },
+    {
       "name": "meal-plan PDF names the household, both dishes and the allergens",
       "ok": true,
       "detail": "see meal-plan-okafor.txt"
@@ -42,6 +49,11 @@
       "name": "retry succeeds and says \"accepted by the mail server\"",
       "ok": true,
       "detail": ""
+    },
+    {
+      "name": "retry sent exactly one meal-plan email",
+      "ok": true,
+      "detail": "1 new"
     },
     {
       "name": "mail sink received the meal plan with a PDF attached",
@@ -69,6 +81,11 @@
       "detail": "status=draft emailed_at=null"
     },
     {
+      "name": "rejected send: nothing reached the sink",
+      "ok": true,
+      "detail": ""
+    },
+    {
       "name": "invoice retry says accepted by the mail server",
       "ok": true,
       "detail": ""
@@ -77,6 +94,11 @@
       "name": "successful send moves the invoice to Sent with emailed_at",
       "ok": true,
       "detail": "status=sent"
+    },
+    {
+      "name": "invoice retry sent exactly one email",
+      "ok": true,
+      "detail": "1 new"
     },
     {
       "name": "mail sink received the invoice PDF",
@@ -89,7 +111,27 @@
       "detail": ""
     },
     {
+      "name": "no email configured: no new \"sent\" time recorded and nothing reached the sink",
+      "ok": true,
+      "detail": "pdf_emailed_at unchanged (2026-11-24 16:34:19, from the earlier send on A)"
+    },
+    {
+      "name": "no email configured: banner offers Download PDF but no \"Try again\" that can’t work",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "login link (no-email): same page for a real and an unknown address",
+      "ok": true,
+      "detail": ""
+    },
+    {
       "name": "login link on a no-email server says no link was sent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "login link (with-email): same page for a real and an unknown address",
       "ok": true,
       "detail": ""
     },
@@ -107,6 +149,13 @@
       "name": "session page has no horizontal scroll at 375 px",
       "ok": true,
       "detail": "overflow=0px"
+    }
+  ],
+  "known_defects": [
+    {
+      "name": "meal-plan PDF prints reheating/storage text the chef never entered",
+      "still_present": true,
+      "detail": "e.g. \"Warm meatballs separately\" on chicken rice bowls; see DEFECTS.md P1-3"
     }
   ],
   "captions": [

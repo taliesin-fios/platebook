@@ -877,7 +877,28 @@ async fn email_invoice(
 ) -> BareResult<Json<EmailSentResponse>> {
     let id = guard(&mut t, &raw_id).await?;
     email::check_limit(&state, t.account.id).await?;
+    let just_sent: bool = sqlx::query_scalar(&format!(
+        "SELECT {} FROM invoices WHERE id = $1",
+        email::recently("emailed_at")
+    ))
+    .bind(id)
+    .bind(email::RESEND_WINDOW_SECS)
+    .fetch_one(&mut *t.tx)
+    .await?;
+    if just_sent && email::unavailable(&state).is_none() {
+        return Err(email::just_sent("invoice").into());
+    }
     let inv = invoice_or_404(&mut t.tx, id).await?;
+    // A paid or void invoice says "amount due": never email it (a stale tab
+    // or an old failure banner could otherwise send one).
+    if matches!(inv.invoice.status.as_deref(), Some("paid" | "void")) {
+        return Err(AppError::new(
+            StatusCode::CONFLICT,
+            "INVOICE_CLOSED",
+            "This invoice is paid or void, so it can't be emailed. Download the PDF if the client needs a copy.",
+        )
+        .into());
+    }
     let Some(to) = inv.invoice.client_email.clone().filter(|e| !e.is_empty()) else {
         return Err(AppError::new(
             StatusCode::BAD_REQUEST,
@@ -891,23 +912,28 @@ async fn email_invoice(
     let account_id = t.account.id;
     // Don't hold the transaction across rendering and SMTP (which may retry).
     t.tx.commit().await?;
-    let (data, logo) = docs::invoice(&inv, &settings);
-    let pdf = pdf::render_blocking(Template::Invoice, data, logo.into_iter().collect()).await?;
-    let sent = email::send_invoice_pdf(
-        &state,
-        email::InvoiceMail {
-            account_id,
-            client_name: inv.invoice.client_name.as_deref().unwrap_or("there"),
-            client_email: &to,
-            invoice_number: inv.invoice.invoice_number.as_deref(),
-            invoice_total: inv.invoice.total,
-            due_date: inv.invoice.due_date,
-            pdf,
-            business_name: inv.invoice.business_name.as_deref(),
-            pay_url: pay_url(&state, &inv.invoice),
-        },
-    )
-    .await;
+    // No transport: fail (and record it) without rendering a PDF nobody gets.
+    let sent = if let Some(err) = email::unavailable(&state) {
+        Err(err)
+    } else {
+        let (data, logo) = docs::invoice(&inv, &settings);
+        let pdf = pdf::render_blocking(Template::Invoice, data, logo.into_iter().collect()).await?;
+        email::send_invoice_pdf(
+            &state,
+            email::InvoiceMail {
+                account_id,
+                client_name: inv.invoice.client_name.as_deref().unwrap_or("there"),
+                client_email: &to,
+                invoice_number: inv.invoice.invoice_number.as_deref(),
+                invoice_total: inv.invoice.total,
+                due_date: inv.invoice.due_date,
+                pdf,
+                business_name: inv.invoice.business_name.as_deref(),
+                pay_url: pay_url(&state, &inv.invoice),
+            },
+        )
+        .await
+    };
 
     // Remember the outcome (see sessions::email_pdf). A successful send also
     // advances draft → sent, as before.

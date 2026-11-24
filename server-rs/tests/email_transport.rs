@@ -324,3 +324,56 @@ async fn a_bad_business_email_doesnt_block_the_clients_mail(pool: PgPool) {
         "sent without the bad Reply-To"
     );
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_refused_smtp_login_reads_as_a_settings_problem(pool: PgPool) {
+    let smtp = FakeSmtp::start(Mode::AuthFailed).await;
+    let (app, _) = app_with(pool.clone(), smtp.config(test_config()));
+    let (c, _, invoice_url) = chef_with_work(&pool, &app, "Login Kitchen").await;
+    let res = c.post(&format!("{invoice_url}/email"), json!({})).await;
+    // Not "check the client's address": the server's own login was refused.
+    assert_eq!(res.status, StatusCode::SERVICE_UNAVAILABLE, "{}", res.body);
+    assert_eq!(res.body["code"], "EMAIL_NOT_CONFIGURED");
+    assert_unsent_invoice(&c.get(&invoice_url).await.body);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_paid_or_void_invoice_is_never_emailed(pool: PgPool) {
+    let smtp = FakeSmtp::start(Mode::Accept).await;
+    let (app, _) = app_with(pool.clone(), smtp.config(test_config()));
+    for status in ["paid", "void"] {
+        let (c, _, invoice_url) =
+            chef_with_work(&pool, &app, &format!("Closed {status} Kitchen")).await;
+        let res = c.put(&invoice_url, json!({ "status": status })).await;
+        assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+        let res = c.post(&format!("{invoice_url}/email"), json!({})).await;
+        assert_eq!(res.status, StatusCode::CONFLICT, "{status}: {}", res.body);
+        assert_eq!(res.body["code"], "INVOICE_CLOSED");
+    }
+    assert!(
+        smtp.messages().is_empty(),
+        "no \"amount due\" mail for a closed invoice"
+    );
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_repeat_send_seconds_later_is_refused_as_accidental(pool: PgPool) {
+    // The rehearsal's real mouse clicks 60 ms apart each started a new send
+    // once the previous one had finished; the browser guard can't see that.
+    let smtp = FakeSmtp::start(Mode::Accept).await;
+    let (app, _) = app_with(pool.clone(), smtp.config(test_config()));
+    let (c, session_url, invoice_url) = chef_with_work(&pool, &app, "Repeat Kitchen").await;
+    for (url, what) in [
+        (format!("{invoice_url}/email"), "invoice"),
+        (format!("{session_url}/email-pdf"), "meal plan"),
+    ] {
+        let first = c.post(&url, json!({})).await;
+        assert_eq!(first.status, StatusCode::OK, "{}", first.body);
+        let again = c.post(&url, json!({})).await;
+        assert_eq!(again.status, StatusCode::CONFLICT, "{what}: {}", again.body);
+        assert_eq!(again.body["code"], "EMAIL_JUST_SENT");
+    }
+    assert_eq!(smtp.messages().len(), 2, "one message per item");
+    // A repeat doesn't record a failure either.
+    assert!(c.get(&invoice_url).await.body["email_failed_at"].is_null());
+}
