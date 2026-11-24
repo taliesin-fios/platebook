@@ -10,7 +10,7 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| 1 | Release `v0.4.0`: a release PR that bumps the versions and turns `[Unreleased]` in `CHANGELOG.md` into `[0.4.0]`, with an upgrade note for migration 0012 (`signup_invites`, additive). It covers invite-only sign-up, the public demo, the first-run tour and in-app guide, allergen checks on sessions and meal plans, Undo for deleted clients, and the usability and accessibility fixes merged since 0.3.0. Tag `v0.4.0` on `main` once it's merged; the tag also runs the image release with the updated Docker actions for the first time. | S | Next |
+| — | Nothing is waiting to ship: `v0.4.0` is released. The next milestone is the first item under Later, the client portal. | — | — |
 
 ## Later: features, ordered by what chefs ask for
 
@@ -28,6 +28,7 @@ Sizes are rough: **S** is under a day, **M** is a few days, **L** is a week or m
 
 ## Done
 
+- **v0.4.0 (released 2026-11-24, tag `v0.4.0`):** invite-only sign-up (migration 0012), a public demo account that resets itself, a first-run tour and in-app guide, server-side allergen checks that block conflicting sessions and an honest meal-plan PDF, Undo for deleted clients, keyboard and screen-reader fixes, and a welcome page and README that present Platebook as self-hosted software.
 - **P&L / tax export (in v0.3.0):** a monthly Profit & Loss card on the Costs page with CSV export. Cash basis, no mileage yet.
 - **v0.3.0 (released 2026-11-04, tag `v0.3.0` on `22f9406`):** clients pay the booking deposit online from their booking page and invoices from their invoice link (Stripe), with working return pages, retries that can't double-charge, the webhook marking them paid, and copyable client links for the chef.
 - **v0.2.0 (released 2026-11-02, tag `v0.2.0` on `7c27e62`):** failed booking emails (the client's confirmation and the chef's new-booking alert) are remembered and shown on the Client Intakes page, with **Try again** for the confirmation. A client's booking link no longer exposes the chef's private notes. Inquiries can be deleted and restored without losing their history, and each shows its payment history. The deletion rule for every table is in `ARCHITECTURE.md`. The dashboard's Collected (MTD) tile shows a trend against the same days of last month.
