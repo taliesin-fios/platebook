@@ -93,7 +93,7 @@ impl EmailError {
                 StatusCode::BAD_GATEWAY,
                 "EMAIL_SEND_FAILED",
                 format!(
-                    "The mail server didn't accept the {what}, so it was not sent. Try again in a minute.{fallback} if it keeps failing."
+                    "The mail server couldn't be reached or didn't accept the {what}, so it was not sent. Try again in a minute.{fallback} if it keeps failing."
                 ),
             ),
             EmailError::Rejected(_) => AppError::new(

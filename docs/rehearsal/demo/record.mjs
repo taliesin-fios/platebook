@@ -100,7 +100,7 @@ try {
   await page.getByRole('button', { name: 'Overview', exact: true }).click();
   await setSink('down');
   await page.getByRole('button', { name: /✉️ Email/ }).first().click();
-  const downMsg = await toast(page, /mail server didn.t accept the meal plan/i);
+  const downMsg = await toast(page, /mail server couldn.t be reached or didn.t accept the meal plan, so it was not sent/i);
   check('mail server down: error says the meal plan was not sent', downMsg);
   await page.getByText(/meal plan email wasn.t sent/i).waitFor({ timeout: 15000 });
   const s1 = await api(A, `/api/sessions/${okafor.id}`);
