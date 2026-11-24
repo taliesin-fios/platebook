@@ -114,8 +114,14 @@ pub struct SignupStatus {
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
 pub struct LinkSentResponse {
+    /// The request was handled. Always true, whether or not the account
+    /// exists (so the response doesn't reveal it).
     #[ts(type = "true")]
     pub sent: bool,
+    /// Whether this server has any email transport. A server-wide setting,
+    /// the same for every address, so it reveals nothing about accounts.
+    /// When false, no link was or could be emailed.
+    pub email_available: bool,
     /// Only in development, when email isn't configured and ALLOW_DEV_LINK=true.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -426,13 +432,20 @@ async fn send_link(
     ttl: Duration,
 ) -> AppResult<Response> {
     let email = norm_email(&body.str("email"));
+    let email_available = state.config.email_available();
     let sent = || {
         Json(LinkSentResponse {
             sent: true,
+            email_available,
             dev_link: None,
         })
         .into_response()
     };
+    // No transport: nothing to send, so don't look the account up or mint a
+    // token (unless the dev-only link echo is on).
+    if !email_available && !state.config.expose_dev_link() {
+        return Ok(sent());
+    }
 
     // No sign-in or reset links for the demo account.
     let account = if email.is_empty() || email == DEMO_EMAIL {
@@ -460,6 +473,8 @@ async fn send_link(
         let r = email::send_password_reset(state, account.id, &account.email, &url).await;
         (url, r)
     };
+    // The same response either way: a failed send must not reveal that the
+    // account exists. The error never includes the link.
     if let Err(err) = result {
         tracing::error!(error = %err, purpose, "[auth] sending link failed");
     }
@@ -468,6 +483,7 @@ async fn send_link(
     if state.config.expose_dev_link() {
         return Ok(Json(LinkSentResponse {
             sent: true,
+            email_available,
             dev_link: Some(url),
         })
         .into_response());

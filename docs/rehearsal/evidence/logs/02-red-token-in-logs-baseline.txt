@@ -1,0 +1,8 @@
+test a_captured_link_email_never_logs_the_link ... FAILED
+thread 'a_captured_link_email_never_logs_the_link' (15725) panicked at tests/log_leak.rs:61:5:
+http://localhost:5174/api/auth/verify?token=<REDACTED>
+http://localhost:5174/reset?token=<REDACTED>
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s
+# Above: run against an unmodified checkout of 3cbe45e (git worktree), test copied from
+# server-rs/tests/email_delivery.rs::a_captured_link_email_never_logs_the_link.
+# Tokens in this file were replaced with <REDACTED> before saving.

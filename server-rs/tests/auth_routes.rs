@@ -516,7 +516,11 @@ async fn forgot_password_and_request_link_respond_uniformly(pool: PgPool) {
         for email in ["ghost@example.com", "real.kitchen@example.com"] {
             let res = post(path, json!({ "email": email })).send(&app).await;
             assert_eq!(res.status, StatusCode::OK);
-            assert_eq!(res.body, json!({ "sent": true }), "{path} {email}");
+            assert_eq!(
+                res.body,
+                json!({ "sent": true, "email_available": true }),
+                "{path} {email}"
+            );
         }
     }
 }

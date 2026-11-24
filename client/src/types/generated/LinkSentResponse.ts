@@ -3,7 +3,18 @@
 /**
  * POST /api/auth/request-link and /api/auth/forgot-password.
  */
-export type LinkSentResponse = { sent: true, 
+export type LinkSentResponse = { 
+/**
+ * The request was handled. Always true, whether or not the account
+ * exists (so the response doesn't reveal it).
+ */
+sent: true, 
+/**
+ * Whether this server has any email transport. A server-wide setting,
+ * the same for every address, so it reveals nothing about accounts.
+ * When false, no link was or could be emailed.
+ */
+email_available: boolean, 
 /**
  * Only in development, when email isn't configured and ALLOW_DEV_LINK=true.
  */

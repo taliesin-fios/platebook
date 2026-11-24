@@ -16,6 +16,7 @@ export type { SessionDetail } from './generated/SessionDetail';
 export type { CompletedSession } from './generated/CompletedSession';
 export type { FromTemplateResponse } from './generated/FromTemplateResponse';
 export type { EmailSentResponse } from './generated/EmailSentResponse';
+export type { Delivery } from './generated/Delivery';
 export type { GeneratedGroceryItem } from './generated/GeneratedGroceryItem';
 export type { GroceryItemRow } from './generated/GroceryItemRow';
 export type { GroceryListResponse } from './generated/GroceryListResponse';

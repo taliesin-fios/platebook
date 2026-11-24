@@ -64,7 +64,7 @@ With nginx, proxy to `http://127.0.0.1:3000`, set `proxy_set_header X-Forwarded-
 
 ## Email
 
-Without `EMAIL_HOST`, emails are written to the app log instead of sent. Without email, sign-in links, password resets and the optional session reminders can't reach anyone. Set `EMAIL_HOST`, `EMAIL_PORT` (587 for STARTTLS), `EMAIL_USER`, `EMAIL_PASS` and `EMAIL_FROM` from your mail provider.
+Without `EMAIL_HOST` the server has no email: invoice, meal-plan and booking-confirmation sends fail with a message telling the chef to download the PDF instead, nothing is marked as sent, reminders wait, and sign-in links and password resets can't be sent (the pages say so). The startup log says when email isn't configured. `EMAIL_USER` and `EMAIL_PASS` go together; a partial setup counts as no email. Set `EMAIL_HOST`, `EMAIL_PORT` (587 for STARTTLS), `EMAIL_USER`, `EMAIL_PASS` and `EMAIL_FROM` from your mail provider.
 
 Client emails use the chef's business email (Settings) as `Reply-To`. To keep mail out of spam, send from a domain whose SPF, DKIM and DMARC records include your mail provider.
 

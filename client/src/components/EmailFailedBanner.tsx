@@ -9,12 +9,14 @@ import { fmtUtcTimestamp } from '../utils/dateUtils';
  * `confirmation_email_failed_at` and clears it on the next successful send),
  * so the chef sees it even after leaving the page.
  */
-export default function EmailFailedBanner({ what, failedAt, onRetry, retrying, className = 'mx-4 mt-3' }: {
+export default function EmailFailedBanner({ what, failedAt, onRetry, retrying, onDownload, className = 'mx-4 mt-3' }: {
   /** e.g. "meal plan", "invoice" */
   what: string;
   failedAt: string | null | undefined;
   onRetry: () => void;
   retrying: boolean;
+  /** Offers the PDF instead, for the chef to send themselves. */
+  onDownload?: () => void;
   /** Spacing around the banner (defaults to page margins). */
   className?: string;
 }) {
@@ -22,13 +24,23 @@ export default function EmailFailedBanner({ what, failedAt, onRetry, retrying, c
   return (
     <div role="alert" className={`${className} flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700`}>
       <span className="flex-1">
-        ⚠ The {what} email didn’t go through ({fmtUtcTimestamp(failedAt, "MMM d 'at' h:mm a")}).
+        ⚠ The {what} email wasn’t sent ({fmtUtcTimestamp(failedAt, "MMM d 'at' h:mm a")}).
+        {onDownload && ' You can download the PDF and send it yourself.'}
       </span>
-      <button type="button" onClick={onRetry} disabled={retrying}
-        className="shrink-0 rounded-lg bg-white px-3 py-1.5 font-semibold text-red-700 border border-red-200 disabled:opacity-60"
-        style={{ minHeight: 'auto' }}>
-        {retrying ? 'Sending…' : 'Try again'}
-      </button>
+      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        {onDownload && (
+          <button type="button" onClick={onDownload}
+            className="rounded-lg bg-white px-3 py-1.5 font-semibold text-red-700 border border-red-200"
+            style={{ minHeight: 'auto' }}>
+            Download PDF
+          </button>
+        )}
+        <button type="button" onClick={onRetry} disabled={retrying}
+          className="rounded-lg bg-white px-3 py-1.5 font-semibold text-red-700 border border-red-200 disabled:opacity-60"
+          style={{ minHeight: 'auto' }}>
+          {retrying ? 'Sending…' : 'Try again'}
+        </button>
+      </div>
     </div>
   );
 }
