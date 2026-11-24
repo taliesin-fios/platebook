@@ -1,8 +1,1 @@
-id,contact_label,relationship,segment,channel,draft_used,personalised_text_link,owner_approved_date,sent_date,response,response_date,demo_date,demo_outcome,pilot_invited,account_created,sessions_planned_wk1,sessions_planned_wk2,sessions_planned_wk3,sessions_planned_wk4,repeat_use,feedback_summary,top_blocker_or_request,would_keep_using,owner_time_min,support_time_min,next_step,notes
-W1,[owner fills: initials only],known chef,solo in-home / meal-prep chef,direct message or email,Draft A (warm),,,,,,,,,,,,,,,,,,,,,
-W2,[owner fills: initials only],known chef,solo in-home / meal-prep chef,direct message or email,Draft A (warm),,,,,,,,,,,,,,,,,,,,,
-W3,[owner fills: initials only],known chef,solo in-home / meal-prep chef,direct message or email,Draft A (warm),,,,,,,,,,,,,,,,,,,,,
-P1,[owner fills: initials only],professional contact (not a chef buyer),connector: instructor / association chapter / chef-staffing,email or LinkedIn message,Draft B (permission),,,,,,,,,,,,,,,,,,,,,
-P2,[owner fills: initials only],professional contact (not a chef buyer),connector,email or LinkedIn message,Draft B (permission),,,,,,,,,,,,,,,,,,,,,
-C1,r/selfhosted weekly New Project Megathread,community (self-hosters; not qualified chef buyers),self-hosters / developers,top-level comment in that week's megathread,Draft C (community),,,,,,,,,,,,,,,,,,,,,
-C2,GitHub Discussions (own repo),owned channel,anyone landing on the repo,new Discussion (Announcements or Ideas),Draft C adapted,,,,,,,,,,,,,,,,,,,,,
+sheet,id,contact_label,segment,channel,draft,approved_date,sent_date,response,demo_date,demo_outcome,top_blocker,next_step,owner_min,pilot_week,sessions_planned,would_keep_using,support_min,notes
