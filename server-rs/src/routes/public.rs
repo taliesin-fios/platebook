@@ -23,7 +23,7 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/{slug}/settings", get(by_slug))
 }
 
-/// GET /api/public/:slug/settings and the legacy GET /api/settings/public.
+/// GET /api/public/:slug/settings.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow, TS)]
 #[ts(export)]
 pub struct PublicProfile {

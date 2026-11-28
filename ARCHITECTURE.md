@@ -132,7 +132,7 @@ The client `AuthGate` (App.tsx) sends signed-out visitors to `/welcome` (or `/lo
 ### Client Intake Flow (Public)
 
 ```
-1. Client visits /book/<slug> (public; legacy /intake/new = account #1)
+1. Client visits /book/<slug> (public; the slug is the only way a submission picks its chef)
 2. POST /api/intake { slug, … } — stored under that chef's account; emails chef + client
 3. Server returns { id, edit_token } — HMAC-signed, 30-day expiry
 4. Client can edit via /intake/:id?token=... (PUT /api/intake/:id — token verified server-side).
@@ -233,9 +233,8 @@ Public (no cookie required; `req.account` is still set when signed in):
 | POST | `/api/auth/demo` (signs in to the shared demo account; 404 unless `DEMO_MODE=true`; rate-limited like login) |
 | GET | `/api/auth/verify`, `/api/auth/signup` (`{ open, invite_only, demo }`: may an account be created now, per `SIGNUP_MODE` (`?invite=` checks an invite link), and is there a demo) |
 | GET | `/api/public/:slug/settings` |
-| GET | `/api/settings/public` (legacy: account #1) |
-| POST | `/api/intake` |
-| GET, PUT | `/api/intake/:id` (owner's session **or** HMAC token) |
+| POST | `/api/intake` (`slug` required: it is the only thing that picks the chef) |
+| GET, PUT | `/api/intake/:id` (owner's session **or** HMAC token bound to that id; another account's session gets nothing) |
 | POST | `/api/intake/:id/checkout` (owner's session **or** HMAC token; opens a Stripe Checkout for the deposit; rate-limited per IP) |
 | GET | `/api/invoices/:id/public` (invoice-link token only: the invoice as the client sees it) |
 | POST | `/api/invoices/:id/checkout` (invoice-link token only; opens a Stripe Checkout for the invoice; rate-limited per IP) |

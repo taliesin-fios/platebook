@@ -567,6 +567,114 @@ async fn intake_lands_with_the_slug_owner_and_tokens_dont_cross(pool: PgPool) {
     );
 }
 
+/// DEFECTS P1-1: `/intake/<anything>` used to open account #1's booking form,
+/// and a submission without a slug landed in account #1. Now an intake is
+/// reachable only with its own signed token (or its owner's session), and
+/// nothing falls back to account #1.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn intake_ids_are_useless_without_their_own_token_and_nothing_defaults_to_account_1(
+    pool: PgPool,
+) {
+    let (a, b, i) = two_chefs(&pool).await;
+    assert_eq!(a.id, 1, "A must be account #1, the old fallback target");
+    let intakes = || async {
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM client_intakes")
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    };
+    let before = intakes().await;
+
+    // B's own intake and its genuine token.
+    let beta = post(
+        "/api/intake",
+        json!({ "slug": "beta-kitchen", "name": "Beta Lead", "terms_accepted": true }),
+    )
+    .send(&b.app)
+    .await;
+    assert_eq!(beta.status, StatusCode::CREATED);
+    let b_token = beta.body["edit_token"].as_str().unwrap().to_string();
+    let b_id = beta.body["id"].as_i64().unwrap();
+
+    // Loading: A's id (and guesses around it) with no token, B's real token,
+    // or a junk token never returns A's intake.
+    for target in [
+        i.intake.to_string(),
+        (b_id + 1).to_string(),
+        "999".to_string(),
+        "abc".to_string(),
+    ] {
+        let bare = get(format!("/api/intake/{target}")).send(&b.app).await;
+        assert_eq!(bare.status, StatusCode::UNAUTHORIZED, "{target}: no token");
+        for token in [b_token.as_str(), "0.0000"] {
+            let r = get(format!("/api/intake/{target}?token={token}"))
+                .send(&b.app)
+                .await;
+            // 403 for a numeric id with a bad token; a non-numeric id never
+            // reaches the route (401 from the auth middleware). Never data.
+            let refused = [StatusCode::FORBIDDEN, StatusCode::UNAUTHORIZED];
+            assert!(
+                refused.contains(&r.status),
+                "{target} with {token}: {}",
+                r.status
+            );
+            assert!(!r.text.contains("Lead"), "{target}: {}", r.text);
+            // Signed in as B doesn't help either.
+            let signed_in = b.get(&format!("/api/intake/{target}?token={token}")).await;
+            assert!(
+                refused.contains(&signed_in.status),
+                "{target}: {}",
+                signed_in.status
+            );
+            assert!(
+                !signed_in.text.contains("Lead"),
+                "{target}: {}",
+                signed_in.text
+            );
+        }
+    }
+
+    // Submitting to A's intake: an edit or a deposit checkout with B's token.
+    let edit = b
+        .put(
+            &format!("/api/intake/{}?token={b_token}", i.intake),
+            json!({ "name": "Hijacked", "allergens": ["peanuts"] }),
+        )
+        .await;
+    assert_eq!(edit.status, StatusCode::FORBIDDEN);
+    let checkout = b
+        .post(
+            &format!("/api/intake/{}/checkout?token={b_token}", i.intake),
+            json!({}),
+        )
+        .await;
+    assert_eq!(checkout.status, StatusCode::FORBIDDEN);
+    let a_rows = a.get("/api/intake").await.body;
+    assert_eq!(a_rows.as_array().unwrap().len(), 1);
+    assert_eq!(a_rows[0]["name"], "Lead");
+
+    // A new submission without a slug (what /intake/new and /intake/<id>
+    // without a token used to send) is refused, not given to account #1.
+    let orphan = post(
+        "/api/intake",
+        json!({ "name": "Okafor Household", "allergens": ["peanuts"], "terms_accepted": true }),
+    )
+    .send(&b.app)
+    .await;
+    assert_eq!(orphan.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        intakes().await,
+        before + 1,
+        "only B's own submission was stored"
+    );
+    assert_eq!(a.get("/api/intake").await.body.as_array().unwrap().len(), 1);
+
+    // Account #1's booking profile is no longer served to anyone without a slug.
+    let legacy = get("/api/settings/public").send(&b.app).await;
+    assert_ne!(legacy.status, StatusCode::OK);
+    assert!(!legacy.text.contains("Alpha"), "{}", legacy.text);
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn database_backstop_when_a_query_forgets_its_filter(pool: PgPool) {
     // Routes filter by account explicitly; RLS is the backstop. Run the

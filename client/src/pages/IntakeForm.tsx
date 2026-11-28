@@ -3,8 +3,10 @@
 
 /**
  * IntakeForm — Public-facing client intake form
- * Route: /intake/new    — new submission (no auth required)
+ * Route: /book/:slug    — new submission for that chef (no auth required)
  * Route: /intake/:id    — edit existing intake (requires ?token= HMAC)
+ * Route: /intake/new    — old link with no chef in it: says the link isn't
+ *                         active (a form here used to go to account #1)
  *
  * On submit → creates or updates intake record, shows confirmation.
  */
@@ -168,14 +170,21 @@ export default function IntakeForm() {
   const [searchParams] = useSearchParams();
   const editToken = searchParams.get('token');
   const isEditMode = !!editId && !!editToken;
+  // A form only opens for a known chef (/book/:slug) or with an edit token.
+  // Anything else (/intake/new, /intake/42 without its token) names no chef,
+  // so it shows an error instead of a form that would go to someone else.
+  const linkError = !slug && !isEditMode
+    ? (editId
+      ? 'This link is incomplete. Please use the full link from your confirmation email.'
+      : 'This booking link isn’t active. Please ask your chef for their booking link.')
+    : null;
 
   const [step, setStep] = useState<'loading' | 'form' | 'success' | 'error'>('loading');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [result, setResult] = useState<IntakeSubmitResponse | ClientIntakeDetail | null>(null);
   // The chef's public profile: name, logo and booking policy. Comes from the
-  // /book/:slug link, from the intake itself in edit mode, or (legacy
-  // /intake/new links) from the original account.
+  // /book/:slug link, or from the intake itself in edit mode.
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const bizName = profile?.business_name || '';
   const depositCents = Number(profile?.deposit_cents) || 0;
@@ -218,25 +227,24 @@ export default function IntakeForm() {
   useEffect(() => { if (bizName) document.title = bizName; }, [bizName]);
 
   const loadProfile = (chefSlug: string | null | undefined) => {
-    const url = chefSlug ? `/api/public/${encodeURIComponent(chefSlug)}/settings` : '/api/settings/public';
-    return fetch(url).then(r => {
+    if (!chefSlug) return Promise.reject(new Error('not_found'));
+    return fetch(`/api/public/${encodeURIComponent(chefSlug)}/settings`).then(r => {
       if (!r.ok) throw new Error('not_found');
       return r.json();
     }).then(setProfile);
   };
 
   useEffect(() => {
-    if (isEditMode) return; // loaded from the intake's chef_slug below
+    if (isEditMode || !slug) return; // edit mode: loaded from the intake's chef_slug below
     loadProfile(slug).catch(() => {
-      if (slug) {
-        setErrors({ _global: 'This booking link isn’t active. Please check the link with your chef.' });
-        setStep('error');
-      }
+      setErrors({ _global: 'This booking link isn’t active. Please check the link with your chef.' });
+      setStep('error');
     });
   }, [slug, isEditMode]);
 
   // In edit mode, fetch the existing intake and prefill the form
   useEffect(() => {
+    if (linkError) { setErrors({ _global: linkError }); setStep('error'); return; }
     if (!isEditMode) { setStep('form'); return; }
     fetch(`/api/intake/${editId}?token=${editToken}`)
       .then(r => {
@@ -282,7 +290,7 @@ export default function IntakeForm() {
         setStep('error');
         setErrors({ _global: err.message === 'expired' ? 'This edit link is invalid or has expired.' : 'Could not load your intake form.' });
       });
-  }, [editId, editToken, isEditMode]);
+  }, [editId, editToken, isEditMode, linkError]);
 
   const [form, setForm] = useState<IntakeFormData>({
     // Contact
@@ -393,8 +401,8 @@ export default function IntakeForm() {
             Unable to load
           </h1>
           <p className="text-gray-600 text-sm mb-6">{errors._global || 'This link may be invalid or expired.'}</p>
-          {isEditMode && (
-            <a href={profile?.slug ? `/book/${profile.slug}` : '/intake/new'} className="inline-block px-6 py-3 rounded-xl text-white font-semibold text-sm"
+          {isEditMode && profile?.slug && (
+            <a href={`/book/${profile.slug}`} className="inline-block px-6 py-3 rounded-xl text-white font-semibold text-sm"
               style={{ background: '#5E7F57' }}>Submit a New Request →</a>
           )}
         </div>

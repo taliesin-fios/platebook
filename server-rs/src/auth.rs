@@ -373,11 +373,6 @@ pub fn is_public_route(method: &Method, path: &str) -> bool {
         return true;
     }
 
-    // SEC6: legacy public settings (account #1 only — pre-multi-tenant intake links)
-    if method == Method::GET && path == "/api/settings/public" {
-        return true;
-    }
-
     false
 }
 
@@ -485,7 +480,8 @@ mod tests {
         assert!(!is_public_route(&get, "/api/intake/42/payments"));
         assert!(!is_public_route(&get, "/api/intake/abc"));
         assert!(is_public_route(&post, "/api/payments/webhook"));
-        assert!(is_public_route(&get, "/api/settings/public"));
+        // Removed: it served account #1's booking profile to any visitor.
+        assert!(!is_public_route(&get, "/api/settings/public"));
         assert!(!is_public_route(&get, "/api/settings"));
         assert!(!is_public_route(&get, "/api/clients"));
     }
