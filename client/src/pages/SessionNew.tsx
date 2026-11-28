@@ -10,7 +10,7 @@ import type { DayAndTime } from '../utils/sessionDefaults';
 import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
-import { calcFeasibility, FEASIBILITY_COLORS, marginColor, REPEAT_OPTIONS, repeatLabel } from '../constants';
+import { calcFeasibility, clampServings, FEASIBILITY_COLORS, marginColor, MAX_SERVINGS, MIN_SERVINGS, REPEAT_OPTIONS, repeatLabel } from '../constants';
 import { StarDisplay } from '../components/StarRating';
 import type {
   ClientListItem, FromTemplateResponse, Id, MenuSuggestion, Recipe, SessionDetail, SessionListItem, SessionStatus, Settings,
@@ -96,13 +96,16 @@ export default function SessionNew() {
       fetch('/api/settings').then(r => r.ok ? r.json() : {}),
       fetch('/api/ai/status').then(r => r.ok ? r.json() : {}),
     ]).then(([cl, rc, st, ai]: [unknown, unknown, Partial<Settings> | null, { configured?: boolean } | null]) => {
-      setClients(Array.isArray(cl) ? cl : []);
+      const clientList: ClientListItem[] = Array.isArray(cl) ? cl : [];
+      setClients(clientList);
       setRecipes(Array.isArray(rc) ? rc : []);
       setSettings(st || {});
       setAiStatus(ai?.configured || false);
+      // A client opened from their page brings their household size.
+      const preselected = clientList.find(c => String(c.id) === params.get('client_id'));
       setSession(prev => ({
         ...prev,
-        serving_size: st?.default_serving_size || 4,
+        serving_size: clampServings(preselected?.serving_size || st?.default_serving_size || 4),
         session_window_hours: st?.default_session_window || 3.0,
         service_fee: st?.default_service_fee || 0,
       }));
@@ -295,7 +298,15 @@ export default function SessionNew() {
               <div className="section-header">Select Client</div>
               <select
                 value={session.client_id}
-                onChange={e => setSession(prev => ({ ...prev, client_id: e.target.value }))}
+                onChange={e => {
+                  const picked = clients.find(c => String(c.id) === e.target.value);
+                  setSession(prev => ({
+                    ...prev,
+                    client_id: e.target.value,
+                    // Their household size, when their record has one.
+                    ...(picked?.serving_size ? { serving_size: clampServings(picked.serving_size) } : {}),
+                  }));
+                }}
               >
                 <option value="">— Choose a client —</option>
                 {clients.map(c => (
@@ -380,17 +391,25 @@ export default function SessionNew() {
                 <input type="time" value={session.session_time} onChange={e => setSession(prev => ({ ...prev, session_time: e.target.value }))} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Serving Size</label>
-                <div className="flex rounded-xl overflow-hidden border border-gray-200">
-                  {[4, 6].map(n => (
-                    <button key={n} onClick={() => setSession(prev => ({ ...prev, serving_size: n }))}
-                      className={`flex-1 py-3 text-sm font-medium ${session.serving_size === n ? 'bg-navy text-white' : 'bg-white text-gray-600'}`}
-                      style={{ minHeight: '44px' }}
-                    >
-                      {n} servings
-                    </button>
-                  ))}
+                <label htmlFor="session-servings" className="block text-sm font-medium text-gray-700 mb-1.5">Servings</label>
+                <div className="flex items-center gap-2">
+                  <button type="button" aria-label="Fewer servings"
+                    disabled={session.serving_size <= MIN_SERVINGS}
+                    onClick={() => setSession(prev => ({ ...prev, serving_size: clampServings(prev.serving_size - 1) }))}
+                    className="w-11 h-11 rounded-xl border border-gray-200 bg-white text-lg font-medium text-navy disabled:opacity-40">−</button>
+                  <input id="session-servings" type="number" inputMode="numeric" min={MIN_SERVINGS} max={MAX_SERVINGS}
+                    value={session.serving_size}
+                    onChange={e => {
+                      const n = parseInt(e.target.value, 10);
+                      if (!isNaN(n)) setSession(prev => ({ ...prev, serving_size: clampServings(n) }));
+                    }}
+                    className="w-20 text-center" />
+                  <button type="button" aria-label="More servings"
+                    disabled={session.serving_size >= MAX_SERVINGS}
+                    onClick={() => setSession(prev => ({ ...prev, serving_size: clampServings(prev.serving_size + 1) }))}
+                    className="w-11 h-11 rounded-xl border border-gray-200 bg-white text-lg font-medium text-navy disabled:opacity-40">+</button>
                 </div>
+                <p className="text-xs text-gray-500 mt-1.5">Grocery amounts scale from each recipe’s own servings to this number.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Session Window (hours)</label>

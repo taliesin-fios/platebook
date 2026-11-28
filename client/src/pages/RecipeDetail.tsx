@@ -2,13 +2,13 @@
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
 import { useState, useEffect, type ChangeEvent, type FocusEvent, type KeyboardEvent } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import PageHeader from '../components/PageHeader';
 import StarRating, { StarDisplay } from '../components/StarRating';
 import { useToast } from '../components/Toast';
 import { apiCall } from '../hooks/useApi';
 import { STORE_SECTIONS, detectAllergens } from '../constants';
-import { scaleQty, deriveQty6 } from '../utils/quantityScale';
+import { scaleQty } from '../utils/quantityScale';
 import type { NumInput } from '../utils/numbers';
 import type { RecipeDetail as RecipeDetailData } from '../types';
 
@@ -59,6 +59,9 @@ const FitBadge = ({ fit }: { fit: string | null }) => (
 
 export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
   const { id } = useParams();
+  // Opened from a session (?servings=N): show the amounts for that session.
+  const [searchParams] = useSearchParams();
+  const requestedServings = parseInt(searchParams.get('servings') || '', 10);
   const navigate = useNavigate();
   const { show } = useToast();
   // /recipes/new has no :id param (its own route), so a missing id is new too.
@@ -85,7 +88,7 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
         .then(r => r.ok ? r.json() : Promise.reject(new Error(String(r.status))))
         .then((d: RecipeDetailData) => {
           setRecipe(d);
-          setViewServings(d.servings_base || 4);
+          setViewServings(requestedServings >= 1 && requestedServings <= 200 ? requestedServings : (d.servings_base || 4));
           setForm({
             ...d,
             key_overlap_ingredients: d.key_overlap_ingredients || [],
@@ -124,16 +127,13 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
   const updateIngredient = (idx: number, field: 'name' | 'qty_4_serving' | 'qty_6_serving' | 'store_section', val: string) => {
     setForm(prev => ({
       ...prev,
-      ingredients: prev.ingredients.map((ing, i) => i === idx ? { ...ing, [field]: val } : ing),
+      // The amount is for the recipe's base servings and everything scales
+      // from it. Editing it drops the old fixed "6 servings" amount, which
+      // would otherwise linger as a fallback.
+      ingredients: prev.ingredients.map((ing, i) => i !== idx ? ing
+        : field === 'qty_4_serving' ? { ...ing, qty_4_serving: val, qty_6_serving: null }
+        : { ...ing, [field]: val }),
     }));
-  };
-
-  // Auto-fill qty_6_serving from qty_4_serving when user leaves the base field
-  const autoFill6 = (idx: number) => {
-    const ing = form.ingredients[idx];
-    if (ing.qty_4_serving && !ing.qty_6_serving) {
-      updateIngredient(idx, 'qty_6_serving', deriveQty6(ing.qty_4_serving));
-    }
   };
 
   const addIngredient = () => {
@@ -397,7 +397,7 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
               </div>
             )}
             {editing && (
-              <span className="text-xs text-gray-400">base = {form.servings_base || 4} servings</span>
+              <span className="text-xs text-gray-400">Enter amounts for {form.servings_base || 4} servings; sessions scale them to their own size.</span>
             )}
           </div>
 
@@ -464,9 +464,8 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
                     <tr className="border-b border-gray-200">
                       <th className="text-left py-2 text-gray-500 font-medium">Ingredient</th>
                       <th className="text-center py-2 text-gray-500 font-medium">
-                        Qty ({form.servings_base || 4})
+                        Qty for {form.servings_base || 4}
                       </th>
-                      <th className="text-center py-2 text-gray-500 font-medium">Qty (6)</th>
                       <th className="text-left py-2 text-gray-500 font-medium">Section</th>
                       <th className="w-6" />
                     </tr>
@@ -487,17 +486,7 @@ export default function RecipeDetail({ edit: editMode }: { edit?: boolean }) {
                           <input
                             value={ing.qty_4_serving || ''}
                             onChange={e => updateIngredient(i, 'qty_4_serving', e.target.value)}
-                            onBlur={() => autoFill6(i)}
                             placeholder="e.g. 2 cups"
-                            className="text-xs p-1 text-center w-20"
-                            style={{ minHeight: '32px' }}
-                          />
-                        </td>
-                        <td className="py-1.5 px-1">
-                          <input
-                            value={ing.qty_6_serving || ''}
-                            onChange={e => updateIngredient(i, 'qty_6_serving', e.target.value)}
-                            placeholder="auto"
                             className="text-xs p-1 text-center w-20"
                             style={{ minHeight: '32px' }}
                           />

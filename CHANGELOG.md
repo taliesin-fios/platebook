@@ -7,6 +7,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Sessions serve any household size, and amounts scale correctly** (rehearsal defect P1-2). The session wizard offered only 4 or 6 servings; the grocery list took a recipe's "4-serving" amount below 5 servings and its "6-serving" column (always 1.5× the base) at 5 or more, ignoring the recipe's own servings. So a 6-serving chili came out at 4 1/2 cans for 6, a 2-person household couldn't be booked, and 8 servings got the 6-serving amounts. Now:
+  - The wizard has a servings stepper (1 to 50), filled in from the client's household size when their record has one. The server accepts 1–50 on create and update (`400 VALIDATION_ERROR` otherwise; 0 and negative numbers were accepted before).
+  - The grocery list scales every ingredient from its recipe's base servings to the session's (`servings / servings_base`), as the Planner already did, and merges across dishes after scaling. An amount that isn't a plain number ("2-3 cloves") is shown as written with "(as written for N)" when it couldn't be scaled; "to taste" stays as is.
+  - The recipe editor has one amount column, "Qty for N" (the recipe's servings). The second "Qty (6)" column is gone; an older recipe's 6-serving amount is used only when its base amount is empty.
+  - A dish on the session page opens its recipe scaled to that session's servings (`/recipes/:id?servings=N`).
+  - Grocery lists already saved keep their amounts until **Regenerate**. No migration.
+
 ## [0.4.0] — 2026-11-24
 
 **Upgrading from 0.3.0:** on start, the server applies one migration, `0012_signup_invites.sql`. It only adds a new table, so it's safe on a database with data, but take a backup first as usual. Nothing changes unless you set the new options: `SIGNUP_MODE=invite` (invite links made with `chef-server invite create`) and `DEMO_MODE=true` (a public demo account that resets itself; don't use it on a server that holds real chefs' data without `SIGNUP_MODE=first`, `invite` or `closed`). Two API changes can affect scripts that call the API directly: creating or changing a session whose dishes contain an allergen the client lists now returns `409 ALLERGEN_CONFLICT` unless the request has `allergen_acknowledged: true`, and `POST`/`PUT /api/clients` refuse `allergens`, `dietary_styles`, `liked_proteins` or `equipment` that aren't a list (`400 VALIDATION_ERROR`). The app's own screens already handle both.

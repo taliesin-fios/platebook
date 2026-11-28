@@ -97,6 +97,10 @@ static MIXED: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(\d+)\s+(\d+)/(\d+)\s*(.*)").expect("regex"));
 static FRAC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d+)/(\d+)\s*(.*)").expect("regex"));
 static NUM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d+\.?\d*)\s*(.*)").expect("regex"));
+/// "2-3 cloves", "1.5–2 cups": a range of plain numbers.
+static RANGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*(.*)$").expect("regex")
+});
 
 /// DI12/DI13: "1 1/2 cups" → (1.5, "cups"). `None` for non-numeric amounts.
 fn parse_qty_simple(s: Option<&str>) -> Option<(Qty, String)> {
@@ -156,16 +160,102 @@ fn shown_total(value: f64, raw_unit: &str) -> String {
 struct Dish {
     recipe_name: String,
     recipe_id: i64,
+    servings_base: Option<i32>,
 }
 
-/// Port of `generateGroceryList(db, sessionId, servingSize)`.
+/// Servings when neither the session nor the recipe says.
+const DEFAULT_SERVINGS: i32 = 4;
+
+/// One ingredient's amount for a session, from [`scaled_qty`].
+#[derive(Debug, PartialEq)]
+pub struct ScaledQty {
+    /// For the "Dish: amount" source line: the recipe's own wording when no
+    /// scaling was needed, else the scaled amount.
+    pub source: String,
+    /// The list's total for this one dish ("1 1/2 tbsp"), before merging.
+    pub total: String,
+    /// The scaled numeric amount and its unit, when it is a number.
+    pub parsed: Option<(f64, String)>,
+}
+
+/// One ingredient's amount for `servings`: the recipe's base amount
+/// (`qty_4_serving`, written for `base` servings; the column name predates
+/// per-recipe bases) times `servings / base`. Falls back to the old 6-serving
+/// column, read as `1.5 × base`, only when the base amount is empty.
+/// A range ("2-3 cloves") scales at both ends. Any other amount that isn't a
+/// number ("a handful", "1 bunch or so") comes back as written, marked when
+/// the session's size differs from the recipe's, since it couldn't be scaled.
+pub fn scaled_qty(
+    qty_base: Option<&str>,
+    qty_6: Option<&str>,
+    base: i32,
+    servings: i32,
+) -> Option<ScaledQty> {
+    let base = if base > 0 { base } else { DEFAULT_SERVINGS };
+    let (qty, written_for) = match qty_base.filter(|q| !q.trim().is_empty()) {
+        Some(q) => (q, f64::from(base)),
+        None => (
+            qty_6.filter(|q| !q.trim().is_empty())?,
+            f64::from(base) * 1.5,
+        ),
+    };
+    let factor = f64::from(servings) / written_for;
+    let unscaled = (factor - 1.0).abs() < 1e-9;
+    // A range scales at both ends ("2-3 cloves" for half → "1-1 1/2 cloves").
+    // It isn't summed with other amounts, so it carries no parsed value.
+    if let Some(c) = RANGE.captures(qty.trim()) {
+        let shown = match (c[1].parse::<f64>(), c[2].parse::<f64>()) {
+            (Ok(lo), Ok(hi)) if !unscaled => format!(
+                "{}-{}",
+                format_qty(lo * factor, ""),
+                shown_total(hi * factor, c[3].trim())
+            ),
+            _ => qty.to_string(),
+        };
+        return Some(ScaledQty {
+            source: shown.clone(),
+            total: shown,
+            parsed: None,
+        });
+    }
+    Some(match parse_qty_simple(Some(qty)) {
+        Some((q, unit)) => {
+            let value = q.value * factor;
+            let total = shown_total(value, &unit);
+            ScaledQty {
+                source: if unscaled {
+                    qty.to_string()
+                } else {
+                    total.clone()
+                },
+                total,
+                parsed: Some((value, unit)),
+            }
+        }
+        None => {
+            let shown = if unscaled || TO_TASTE.is_match(qty.trim()) {
+                qty.to_string()
+            } else {
+                format!("{} (as written for {written_for})", qty.trim())
+            };
+            ScaledQty {
+                source: shown.clone(),
+                total: shown,
+                parsed: None,
+            }
+        }
+    })
+}
+
+/// Port of `generateGroceryList(db, sessionId, servingSize)`: every recipe
+/// scaled from its own base servings to the session's serving size.
 pub async fn generate_grocery_list(
     conn: &mut PgConnection,
     session_id: i64,
     serving_size: Option<i32>,
 ) -> Result<Vec<GeneratedGroceryItem>, sqlx::Error> {
     let dishes = sqlx::query_as::<_, Dish>(
-        "SELECT r.name AS recipe_name, r.id AS recipe_id
+        "SELECT r.name AS recipe_name, r.id AS recipe_id, r.servings_base
          FROM session_dishes sd JOIN recipes r ON r.id = sd.recipe_id
          WHERE sd.session_id = $1 ORDER BY sd.sort_order, sd.id",
     )
@@ -176,7 +266,7 @@ pub async fn generate_grocery_list(
     // Insertion-ordered map, like the JS object it replaces.
     let mut order: Vec<String> = Vec::new();
     let mut map: HashMap<String, Acc> = HashMap::new();
-    let large = serving_size.is_some_and(|s| s >= 5);
+    let servings = serving_size.filter(|s| *s > 0).unwrap_or(DEFAULT_SERVINGS);
 
     for dish in &dishes {
         let ingredients = sqlx::query_as::<_, Ingredient>(
@@ -208,13 +298,17 @@ pub async fn generate_grocery_list(
         }
 
         for ing in ingredients {
-            let qty = if large {
-                ing.qty_6_serving
-            } else {
-                ing.qty_4_serving
-            }
-            .filter(|q| !q.is_empty());
-            let parsed = parse_qty_simple(qty.as_deref());
+            let scaled = scaled_qty(
+                ing.qty_4_serving.as_deref(),
+                ing.qty_6_serving.as_deref(),
+                dish.servings_base.unwrap_or(DEFAULT_SERVINGS),
+                servings,
+            );
+            let qty = scaled.as_ref().map(|s| s.total.clone());
+            let parsed = scaled
+                .as_ref()
+                .and_then(|s| s.parsed.clone())
+                .map(|(value, unit)| (Qty { value }, unit));
             // DI13: dedup on name + unit so "butter (cups)" and "butter (tbsp)" stay apart,
             // while "cup" and "cups" (or "tbsp" and "Tablespoons") merge.
             let unit = parsed
@@ -222,7 +316,9 @@ pub async fn generate_grocery_list(
                 .map(|(_, u)| normalize_unit(u))
                 .unwrap_or_default();
             let key = format!("{}|{unit}", normalize_name(&ing.name));
-            let shown = qty.clone().unwrap_or_else(|| "?".into());
+            let shown = scaled
+                .as_ref()
+                .map_or_else(|| "?".to_string(), |s| s.source.clone());
             let source = format!("{}: {shown}", dish.recipe_name);
 
             match map.get_mut(&key) {
@@ -233,10 +329,7 @@ pub async fn generate_grocery_list(
                         Acc {
                             item: GeneratedGroceryItem {
                                 ingredient_name: ing.name.clone(),
-                                total_quantity: match &parsed {
-                                    Some((q, u)) => shown_total(q.value, u),
-                                    None => qty.clone().unwrap_or_else(|| "—".into()),
-                                },
+                                total_quantity: qty.clone().unwrap_or_else(|| "—".into()),
                                 store_section: ing
                                     .store_section
                                     .clone()
@@ -424,6 +517,46 @@ async fn toggle(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scales_from_the_recipe_base_to_any_serving_count() {
+        let total = |q, base, n| scaled_qty(Some(q), None, base, n).unwrap().total;
+        assert_eq!(total("2 cups", 4, 1), "1/2 cup");
+        assert_eq!(total("2 cups", 4, 2), "1 cup");
+        assert_eq!(total("2 cups", 4, 3), "1 1/2 cups");
+        assert_eq!(total("2 cups", 4, 5), "2 1/2 cups");
+        assert_eq!(total("3 can", 6, 6), "3 cans");
+        assert_eq!(total("3 can", 6, 2), "1 can");
+        assert_eq!(total("1 tbsp", 2, 3), "1 1/2 tbsp");
+        // No base on the recipe: 4, as the schema's default.
+        assert_eq!(total("2 cups", 0, 2), "1 cup");
+        // Unscaled: the source line keeps the recipe's wording.
+        let same = scaled_qty(Some("1.5 Tablespoons"), None, 4, 4).unwrap();
+        assert_eq!(same.source, "1.5 Tablespoons");
+        assert_eq!(same.total, "1 1/2 tbsp");
+        // Not a number: as written, marked when it couldn't be scaled.
+        assert_eq!(total("to taste", 4, 2), "to taste");
+        assert_eq!(total("2-3 cloves", 4, 2), "1-1 1/2 cloves");
+        assert_eq!(total("2-3 cloves", 4, 6), "3-4 1/2 cloves");
+        assert_eq!(total("2-3 cloves", 4, 4), "2-3 cloves");
+        assert_eq!(
+            total("some parsley", 4, 2),
+            "some parsley (as written for 4)"
+        );
+        assert_eq!(total("some parsley", 4, 4), "some parsley");
+        assert!(scaled_qty(None, None, 4, 2).is_none());
+        assert!(scaled_qty(Some("  "), None, 4, 2).is_none());
+    }
+
+    #[test]
+    fn old_six_serving_amount_is_only_a_fallback() {
+        // Base amount wins over the old fixed 6-serving column.
+        let both = scaled_qty(Some("2 cups"), Some("9 cups"), 4, 6).unwrap();
+        assert_eq!(both.total, "3 cups");
+        // Only the 6-serving column: read as written for 1.5 × base.
+        let only6 = scaled_qty(None, Some("3 cups"), 4, 2).unwrap();
+        assert_eq!(only6.total, "1 cup");
+    }
 
     #[test]
     fn parses_quantities_like_node() {
