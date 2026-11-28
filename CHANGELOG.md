@@ -7,6 +7,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **A chef can delete their account and all its data.** Settings → Data Management → **Delete My Account…** explains what goes (account, settings, clients, recipes, sessions, grocery lists, invoices, inquiries, payment records; booking, invoice and edit links stop working), suggests exporting first, and needs the account email typed back plus the password when the account has one. New route `DELETE /api/auth/account` (`{ confirm_email, password }`): `400 CONFIRMATION_MISMATCH`, `403 WRONG_PASSWORD`, `403 DEMO_DISABLED` for the shared demo; limited to 10 tries per 15 minutes per account. Everything is removed in one transaction and the session cookie is cleared; the email can sign up again as a new, empty account. Copies in database backups are not touched. No migration.
+
 ### Fixed
 - **Email no longer reports sends that didn't happen.** Without SMTP settings the server used to keep mail in an in-memory outbox and report success: invoices became **Sent** with an emailed time, meal plans and booking confirmations showed "sent", reminders were marked sent, and the sign-in and reset pages said a link was on its way. Now:
   - Without `EMAIL_HOST` (or with `EMAIL_USER` but no `EMAIL_PASS`, or a `EMAIL_FROM` that isn't an address) the server has no email. Sends fail with `503 EMAIL_NOT_CONFIGURED` and a message offering the PDF download; nothing is marked sent; reminders wait; the startup log says email isn't configured.

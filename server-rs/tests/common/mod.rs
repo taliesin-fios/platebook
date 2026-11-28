@@ -94,6 +94,12 @@ pub fn delete(uri: impl Into<String>) -> Req {
     Req::new("DELETE", uri)
 }
 
+pub fn delete_json(uri: impl Into<String>, body: Value) -> Req {
+    let mut r = Req::new("DELETE", uri);
+    r.body = Some(body);
+    r
+}
+
 impl Req {
     fn new(method: &'static str, uri: impl Into<String>) -> Self {
         Req {

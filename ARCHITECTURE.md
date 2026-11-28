@@ -189,6 +189,8 @@ draft ──→ sent ──→ paid
 | `session_templates` | Removed | No |
 | `payment_events` | Never deleted (append-only audit log). Deposit events point at an intake, invoice events at an invoice | Yes |
 
+**Deleting the whole account** (`DELETE /api/auth/account`, Settings → Data Management) is the exception to all of the above: the chef types their account email back (and their password, if the account has one), and one transaction removes every row the account owns from every table above, children included, plus its `settings`, its `acct:<id>` rate-limit rows and the `accounts` row. An invite it used keeps its record with `used_by_account_id` cleared. Nothing is kept, apart from copies in database backups until they expire. The demo account can't be deleted (`403 DEMO_DISABLED`). `accounts::delete_account` runs the data deletion under the account's own tenant (RLS), then `RESET ROLE` for the `accounts` row, which `chef_app` may not delete.
+
 List columns (`allergens`, `dietary_styles`, `liked_proteins`, `equipment`, `recipe_ids`, …) are `JSONB`. Flags are `BOOLEAN` (sent as `0`/`1` in JSON), dates `DATE`, timestamps `TIMESTAMPTZ`, dollar amounts `NUMERIC(12,2)`. The full SQLite → Postgres mapping is in [`server-rs/README.md`](server-rs/README.md#schema-differences-from-sqlite).
 
 ---

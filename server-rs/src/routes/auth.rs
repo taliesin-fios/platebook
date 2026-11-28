@@ -13,6 +13,7 @@
 //! POST /api/auth/demo           — sign in to the shared demo account (DEMO_MODE)
 //! GET  /api/auth/me              — current account (protected)
 //! POST /api/auth/logout          — clear session cookie
+//! DELETE /api/auth/account       — delete this account and all its data (confirm_email, password)
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -66,6 +67,7 @@ pub fn router() -> Router<AppState> {
         .route("/demo", post(demo_login))
         .route("/me", get(me))
         .route("/logout", post(logout))
+        .route("/account", axum::routing::delete(delete_account))
 }
 
 fn norm_email(v: &str) -> String {
@@ -676,6 +678,69 @@ async fn me(State(state): State<AppState>, account: Account) -> AppResult<Respon
             Ok(res)
         }
     }
+}
+
+// ── DELETE /api/auth/account ─────────────────────────────────────────────────
+/// Deletes the signed-in chef's account and all its data, for good. The body
+/// confirms it: `confirm_email` must be the account's email, and `password`
+/// its password when it has one (accounts that only use sign-in links have
+/// none). It checks a password, so it shares login's limit (10 per 15
+/// minutes), keyed by account rather than IP: a stolen session cookie can't
+/// be used to guess the password, and nobody else's logins are affected.
+async fn delete_account(
+    State(state): State<AppState>,
+    account: Account,
+    body: JsonBody,
+) -> Response {
+    let key = crate::rate_limit::AccountLimits::key(account.id);
+    if let Err(limited) = state.limits.login.check(&state.limits_pool, &key).await {
+        return limited.into_response();
+    }
+    delete_account_inner(&state, account, body)
+        .await
+        .unwrap_or_else(IntoResponse::into_response)
+}
+
+async fn delete_account_inner(
+    state: &AppState,
+    account: Account,
+    body: JsonBody,
+) -> AppResult<Response> {
+    if state.demo.is_demo(account.id) {
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            "DEMO_DISABLED",
+            "The demo account can't be deleted. It resets itself.",
+        ));
+    }
+    let mut conn = state.pool.acquire().await?;
+    let row = accounts::get_account(&mut conn, account.id)
+        .await?
+        .ok_or_else(|| AppError::unauthorized("Account not found"))?;
+    drop(conn);
+    let typed = body.trimmed_or_none("confirm_email").unwrap_or_default();
+    if !typed.eq_ignore_ascii_case(row.email.trim()) {
+        return Err(AppError::new(
+            StatusCode::BAD_REQUEST,
+            "CONFIRMATION_MISMATCH",
+            "Type your account email exactly to confirm.",
+        ));
+    }
+    if row.password_hash.is_some() {
+        let password = body.text_or_none("password").unwrap_or_default();
+        if !verify_password(password, row.password_hash.clone()).await {
+            return Err(AppError::new(
+                StatusCode::FORBIDDEN,
+                "WRONG_PASSWORD",
+                "That password isn't right.",
+            ));
+        }
+    }
+    accounts::delete_account(&state.pool, account.id).await?;
+    tracing::info!(account_id = account.id, "account deleted by its owner");
+    let mut res = Json(json!({ "success": true })).into_response();
+    res.headers_mut().append(header::SET_COOKIE, clear_cookie());
+    Ok(res)
 }
 
 // ── POST /api/auth/logout ────────────────────────────────────────────────────
