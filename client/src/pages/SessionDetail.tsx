@@ -630,8 +630,12 @@ export default function SessionDetail() {
                   {session.dishes.map(d => (
                     <div key={d.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
                       <div>
-                        <div className="text-sm font-medium text-navy">{d.name}</div>
-                        <div className="text-xs text-gray-500">{d.category} · {(d.prep_time_min || 0) + (d.cook_time_min || 0)} min</div>
+                        <button type="button" className="text-sm font-medium text-navy text-left underline-offset-2 hover:underline"
+                          style={{ minHeight: 'auto' }}
+                          onClick={() => navigate(`/recipes/${d.id}?servings=${session.serving_size || 4}`)}>
+                          {d.name}
+                        </button>
+                        <div className="text-xs text-gray-500">{d.category} · {(d.prep_time_min || 0) + (d.cook_time_min || 0)} min · amounts for {session.serving_size || 4}</div>
                       </div>
                     </div>
                   ))}

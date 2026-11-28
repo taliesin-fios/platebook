@@ -198,8 +198,10 @@ async fn grocery_pdf_generated_and_stored(pool: PgPool) {
             "Use the blue containers",
             "Produce",
             "Ground beef",
-            "Coconut milk — 2 can",
-            "Beef Lasagna: 1.5 lb",
+            // Serves 6 from 4-serving recipes: 1.5 × the base amounts (the
+            // fixture's old "6-serving" column said 2 cans, which is ignored).
+            "Coconut milk — 1 1/2 cans",
+            "Beef Lasagna: 1 1/2 lb",
             "Prepared Sunday, March 15, 2026",
         ],
     );
