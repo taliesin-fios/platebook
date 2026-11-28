@@ -182,6 +182,17 @@ async fn demo_sends_no_email_and_saves_no_ai_key(pool: PgPool) {
     assert_eq!(ai.status, StatusCode::FORBIDDEN);
     assert_eq!(ai.body["code"], "DEMO_DISABLED");
 
+    // Visitors can't delete the shared demo account.
+    let gone = common::delete_json(
+        "/api/auth/account",
+        json!({ "confirm_email": chef_server::demo::DEMO_EMAIL }),
+    )
+    .cookie(&cookie)
+    .send(&app)
+    .await;
+    assert_eq!(gone.status, StatusCode::FORBIDDEN);
+    assert_eq!(gone.body["code"], "DEMO_DISABLED");
+
     // A booking-page inquiry to the demo gets no confirmation email either.
     let slug: String = get("/api/auth/me").cookie(&cookie).send(&app).await.body["slug"]
         .as_str()
@@ -199,7 +210,26 @@ async fn demo_sends_no_email_and_saves_no_ai_key(pool: PgPool) {
     .send(&app)
     .await;
     assert_eq!(intake.status, StatusCode::CREATED, "{}", intake.text);
+    assert_eq!(
+        intake.body["confirmation_email"], false,
+        "no promise of mail"
+    );
+    // The emails run in the background: give them time, then check that the
+    // demo neither sent nor recorded anything (no false "sent", no failure).
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
     assert!(state.outbox.messages().is_empty());
+    let seen = get(format!("/api/intake/{}", intake.body["id"]))
+        .cookie(&cookie)
+        .send(&app)
+        .await
+        .body;
+    for key in [
+        "confirmation_emailed_at",
+        "confirmation_email_failed_at",
+        "chef_alert_failed_at",
+    ] {
+        assert!(seen[key].is_null(), "{key}: {seen}");
+    }
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

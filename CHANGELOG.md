@@ -7,13 +7,36 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **A chef can delete their account and all its data.** Settings → Data Management → **Delete My Account…** explains what goes (account, settings, clients, recipes, sessions, grocery lists, invoices, inquiries, payment records; booking, invoice and edit links stop working), suggests exporting first, and needs the account email typed back plus the password when the account has one. New route `DELETE /api/auth/account` (`{ confirm_email, password }`): `400 CONFIRMATION_MISMATCH`, `403 WRONG_PASSWORD`, `403 DEMO_DISABLED` for the shared demo; limited to 10 tries per 15 minutes per account. Everything is removed in one transaction and the session cookie is cleared; the email can sign up again as a new, empty account. Copies in database backups are not touched. No migration.
+
 ### Fixed
+- **Email no longer reports sends that didn't happen.** Without SMTP settings the server used to keep mail in an in-memory outbox and report success: invoices became **Sent** with an emailed time, meal plans and booking confirmations showed "sent", reminders were marked sent, and the sign-in and reset pages said a link was on its way. Now:
+  - Without `EMAIL_HOST` (or with `EMAIL_USER` but no `EMAIL_PASS`, or a `EMAIL_FROM` that isn't an address) the server has no email. Sends fail with `503 EMAIL_NOT_CONFIGURED` and a message offering the PDF download; nothing is marked sent; reminders wait; the startup log says email isn't configured.
+  - A mail-server failure returns `502 EMAIL_SEND_FAILED` (transient: try again) or `EMAIL_REJECTED` (permanent: check the address). The invoice stays as it was, and the failure banner offers **Download PDF** next to **Try again**.
+  - A successful send says the mail server **accepted** it (`delivery: "smtp"` in the response). Platebook can't confirm inbox delivery and no longer implies it.
+  - Bookings still save when their emails fail. The booking page says "We'll email a confirmation" only when one will be attempted (`confirmation_email` in the response), instead of "Confirmation sent".
+  - `request-link` / `forgot-password` return `email_available` (a server-wide setting, the same for every address). They send the email after responding, so neither the response nor its timing shows whether an account exists. The pages say so when no email can be sent.
+  - Message bodies are no longer logged. Dev logs used to include live sign-in and reset links.
+  - Each SMTP attempt is bounded by `EMAIL_TIMEOUT_SECS` (default 20). A server that never answered could hold a request for minutes. A timed-out attempt isn't retried, since the server may already have the message.
+  - New settings: `EMAIL_TLS` (`starttls` | `tls` | `none` for a local mail sink), `EMAIL_TIMEOUT_SECS`, and `EMAIL_CAPTURE=true` (dev/test only) to keep mail in memory, labelled "captured", never "sent". Captured mail still sets the sent timestamps in a dev database.
+  - Repeated clicks on an Email button send once (the button now ignores clicks while a send is running). A paid or void invoice can't be emailed (`409 INVOICE_CLOSED`) and shows no "Try again". On a server with no email, failure banners offer only the PDF download (`/api/auth/me` has `email_available`). A refused SMTP login reads as a settings problem, not as a bad client address.
+  - **Upgrade notes:** `EMAIL_HOST` with no login now means SMTP without authentication (a relay or sink), not "email off". A plain-text relay needs `EMAIL_TLS=none`, which is refused in production when a login is set. `EMAIL_CAPTURE` is refused with `NODE_ENV=production` or alongside `EMAIL_HOST`. Installs with host, user and password set behave as before. No migration.
+- `tools/dev-mail-sink/` is a zero-dependency local SMTP sink with a web view and accept/reject/tempfail/down modes, for development and rehearsals.
 - **Sessions serve any household size, and amounts scale correctly** (rehearsal defect P1-2). The session wizard offered only 4 or 6 servings; the grocery list took a recipe's "4-serving" amount below 5 servings and its "6-serving" column (always 1.5× the base) at 5 or more, ignoring the recipe's own servings. So a 6-serving chili came out at 4 1/2 cans for 6, a 2-person household couldn't be booked, and 8 servings got the 6-serving amounts. Now:
   - The wizard has a servings stepper (1 to 50), filled in from the client's household size when their record has one. The server accepts 1–50 on create and update (`400 VALIDATION_ERROR` otherwise; 0 and negative numbers were accepted before).
   - The grocery list scales every ingredient from its recipe's base servings to the session's (`servings / servings_base`), as the Planner already did, and merges across dishes after scaling. A range scales at both ends ("2-3 cloves" for 2 from a 4-serving recipe is "1-1 1/2 cloves"; before, it printed "2 -3 cloves"). Any other amount that isn't a number ("some") is shown as written with "(as written for N)", since it couldn't be scaled; "to taste" stays as is.
   - The recipe editor has one amount column, "Qty for N" (the recipe's servings). The second "Qty (6)" column is gone; an older recipe's 6-serving amount is used only when its base amount is empty.
   - A dish on the session page opens its recipe scaled to that session's servings (`/recipes/:id?servings=N`).
   - Grocery lists already saved keep their amounts until **Regenerate**. No migration.
+
+### Security
+- **A booking link with no chef in it no longer goes to account #1** (rehearsal defect P1-1). On a server with several chefs, `/intake/<anything>` without its edit token, and old `/intake/new` links, opened the first account's booking form, and a submission from it (household, allergies and all) landed in that account. Now:
+  - The form opens only from a chef's `/book/<slug>` link, or from a client's own edit link with its token. Anything else says the link isn't active or is incomplete, and shows no form.
+  - `POST /api/intake` requires `slug` (`404` without one); there is no default account.
+  - `GET /api/settings/public` (account #1's public profile) is removed from the API and the public-route allowlist.
+  - Reading, editing or paying for an intake still needs that intake's own HMAC token (or its owner's session); another account's token or session gets `403`/`401`. New cross-account tests cover loading and submitting with another account's id.
+  - **Upgrade note:** links of the form `/intake/new` stop working; chefs share `/book/<slug>` (Settings → Booking link). Client edit links already sent keep working. No migration.
 
 ## [0.4.0] — 2026-11-24
 

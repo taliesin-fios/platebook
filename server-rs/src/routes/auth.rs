@@ -13,6 +13,7 @@
 //! POST /api/auth/demo           — sign in to the shared demo account (DEMO_MODE)
 //! GET  /api/auth/me              — current account (protected)
 //! POST /api/auth/logout          — clear session cookie
+//! DELETE /api/auth/account       — delete this account and all its data (confirm_email, password)
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -66,6 +67,7 @@ pub fn router() -> Router<AppState> {
         .route("/demo", post(demo_login))
         .route("/me", get(me))
         .route("/logout", post(logout))
+        .route("/account", axum::routing::delete(delete_account))
 }
 
 fn norm_email(v: &str) -> String {
@@ -82,6 +84,9 @@ pub struct ChefAccount {
     /// Public booking-link slug (`/book/:slug`).
     pub slug: String,
     pub onboarding_completed: bool,
+    /// Whether this server can send email at all (a server-wide setting), so
+    /// the app doesn't offer to retry a send that can't work.
+    pub email_available: bool,
     /// Only on the shared demo account (`DEMO_MODE`).
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -114,8 +119,14 @@ pub struct SignupStatus {
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
 pub struct LinkSentResponse {
+    /// The request was handled. Always true, whether or not the account
+    /// exists (so the response doesn't reveal it).
     #[ts(type = "true")]
     pub sent: bool,
+    /// Whether this server has any email transport. A server-wide setting,
+    /// the same for every address, so it reveals nothing about accounts.
+    /// When false, no link was or could be emailed.
+    pub email_available: bool,
     /// Only in development, when email isn't configured and ALLOW_DEV_LINK=true.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -128,6 +139,7 @@ fn account_json(state: &AppState, a: &AccountRow) -> ChefAccount {
         email: a.email.clone(),
         slug: a.slug.clone(),
         onboarding_completed: a.onboarding_completed_at.is_some(),
+        email_available: state.config.email_available(),
         demo: state.demo.is_demo(a.id).then(|| DemoInfo {
             reset_hours: state.config.demo.reset_hours,
             next_reset_at: state
@@ -426,13 +438,20 @@ async fn send_link(
     ttl: Duration,
 ) -> AppResult<Response> {
     let email = norm_email(&body.str("email"));
+    let email_available = state.config.email_available();
     let sent = || {
         Json(LinkSentResponse {
             sent: true,
+            email_available,
             dev_link: None,
         })
         .into_response()
     };
+    // No transport: nothing to send, so don't look the account up or mint a
+    // token (unless the dev-only link echo is on).
+    if !email_available && !state.config.expose_dev_link() {
+        return Ok(sent());
+    }
 
     // No sign-in or reset links for the demo account.
     let account = if email.is_empty() || email == DEMO_EMAIL {
@@ -451,23 +470,34 @@ async fn send_link(
     };
     let token = auth::sign_one_time(&who, purpose, ttl, &state.config.jwt_secret);
     let client_url = &state.config.client_url;
-    let (url, result) = if purpose == "magic-login" {
-        let url = format!("{client_url}/api/auth/verify?token={token}");
-        let r = email::send_magic_link(state, account.id, &account.email, &url).await;
-        (url, r)
+    let magic = purpose == "magic-login";
+    let url = if magic {
+        format!("{client_url}/api/auth/verify?token={token}")
     } else {
-        let url = format!("{client_url}/reset?token={token}");
-        let r = email::send_password_reset(state, account.id, &account.email, &url).await;
-        (url, r)
+        format!("{client_url}/reset?token={token}")
     };
-    if let Err(err) = result {
-        tracing::error!(error = %err, purpose, "[auth] sending link failed");
+    // Sent in the background, so neither the response nor its timing (SMTP
+    // can take seconds, with a retry) reveals that the account exists. The
+    // logged error never includes the link.
+    {
+        let (state, url, purpose) = (state.clone(), url.clone(), purpose.to_string());
+        tokio::spawn(async move {
+            let result = if magic {
+                email::send_magic_link(&state, account.id, &account.email, &url).await
+            } else {
+                email::send_password_reset(&state, account.id, &account.email, &url).await
+            };
+            if let Err(err) = result {
+                tracing::error!(error = %err, purpose, "[auth] sending link failed");
+            }
+        });
     }
 
     // SEC7: dev link only when explicitly opted in; never in production.
     if state.config.expose_dev_link() {
         return Ok(Json(LinkSentResponse {
             sent: true,
+            email_available,
             dev_link: Some(url),
         })
         .into_response());
@@ -648,6 +678,69 @@ async fn me(State(state): State<AppState>, account: Account) -> AppResult<Respon
             Ok(res)
         }
     }
+}
+
+// ── DELETE /api/auth/account ─────────────────────────────────────────────────
+/// Deletes the signed-in chef's account and all its data, for good. The body
+/// confirms it: `confirm_email` must be the account's email, and `password`
+/// its password when it has one (accounts that only use sign-in links have
+/// none). It checks a password, so it shares login's limit (10 per 15
+/// minutes), keyed by account rather than IP: a stolen session cookie can't
+/// be used to guess the password, and nobody else's logins are affected.
+async fn delete_account(
+    State(state): State<AppState>,
+    account: Account,
+    body: JsonBody,
+) -> Response {
+    let key = crate::rate_limit::AccountLimits::key(account.id);
+    if let Err(limited) = state.limits.login.check(&state.limits_pool, &key).await {
+        return limited.into_response();
+    }
+    delete_account_inner(&state, account, body)
+        .await
+        .unwrap_or_else(IntoResponse::into_response)
+}
+
+async fn delete_account_inner(
+    state: &AppState,
+    account: Account,
+    body: JsonBody,
+) -> AppResult<Response> {
+    if state.demo.is_demo(account.id) {
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            "DEMO_DISABLED",
+            "The demo account can't be deleted. It resets itself.",
+        ));
+    }
+    let mut conn = state.pool.acquire().await?;
+    let row = accounts::get_account(&mut conn, account.id)
+        .await?
+        .ok_or_else(|| AppError::unauthorized("Account not found"))?;
+    drop(conn);
+    let typed = body.trimmed_or_none("confirm_email").unwrap_or_default();
+    if !typed.eq_ignore_ascii_case(row.email.trim()) {
+        return Err(AppError::new(
+            StatusCode::BAD_REQUEST,
+            "CONFIRMATION_MISMATCH",
+            "Type your account email exactly to confirm.",
+        ));
+    }
+    if row.password_hash.is_some() {
+        let password = body.text_or_none("password").unwrap_or_default();
+        if !verify_password(password, row.password_hash.clone()).await {
+            return Err(AppError::new(
+                StatusCode::FORBIDDEN,
+                "WRONG_PASSWORD",
+                "That password isn't right.",
+            ));
+        }
+    }
+    accounts::delete_account(&state.pool, account.id).await?;
+    tracing::info!(account_id = account.id, "account deleted by its owner");
+    let mut res = Json(json!({ "success": true })).into_response();
+    res.headers_mut().append(header::SET_COOKIE, clear_cookie());
+    Ok(res)
 }
 
 // ── POST /api/auth/logout ────────────────────────────────────────────────────

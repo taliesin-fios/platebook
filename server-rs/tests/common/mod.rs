@@ -6,6 +6,8 @@
 
 #![allow(dead_code)]
 
+pub mod smtp;
+
 use std::net::SocketAddr;
 
 use axum::Router;
@@ -90,6 +92,12 @@ pub fn put(uri: impl Into<String>, body: Value) -> Req {
 
 pub fn delete(uri: impl Into<String>) -> Req {
     Req::new("DELETE", uri)
+}
+
+pub fn delete_json(uri: impl Into<String>, body: Value) -> Req {
+    let mut r = Req::new("DELETE", uri);
+    r.body = Some(body);
+    r
 }
 
 impl Req {
@@ -221,5 +229,14 @@ impl Chef {
             set.spawn(async move { req.send(&app).await });
         }
         set.join_all().await
+    }
+}
+
+/// A server with no email transport at all: no SMTP settings and no explicit
+/// local capture. Every send must fail, never pretend to succeed.
+pub fn no_email_config() -> Config {
+    Config {
+        email_capture: false,
+        ..test_config()
     }
 }

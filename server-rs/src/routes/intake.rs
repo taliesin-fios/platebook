@@ -4,8 +4,9 @@
 //! Port of `server/routes/intake.js` — client intake forms.
 //!
 //! Public (no auth):
-//!   POST /api/intake              — submit ({ slug } picks the chef; omitted = account #1,
-//!                                   for pre-account /intake/new links)
+//!   POST /api/intake              — submit ({ slug } picks the chef; required: a
+//!                                   submission without one is refused, never
+//!                                   routed to another account)
 //!   GET  /api/intake/:id?token=   — read with the HMAC edit token
 //!   PUT  /api/intake/:id?token=   — client-editable fields via the token
 //!   POST /api/intake/:id/checkout?token= — pay the booking deposit online (Stripe)
@@ -67,8 +68,6 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/client-link", get(client_link))
         .route("/{id}/restore", post(restore))
 }
-
-const LEGACY_ACCOUNT_ID: i64 = 1;
 
 /// An intake plus the owning chef's booking slug.
 #[derive(Debug, Serialize, TS)]
@@ -261,6 +260,10 @@ pub struct IntakeSubmitted {
     pub edit_token: String,
     pub edit_url: String,
     pub message: String,
+    /// Whether a confirmation email will be attempted (the intake has an
+    /// address and the server can send mail). Sent after this response, so
+    /// it is never a promise that one arrived.
+    pub confirmation_email: bool,
 }
 
 /// POST /api/intake/:id/convert.
@@ -405,12 +408,16 @@ async fn submit(
         .check(&state.limits_pool, &ip)
         .await
         .map_err(|e| e.with_code())?;
-    let mut conn = state.pool.acquire().await?;
+    // The chef comes only from the booking link's slug. There is no default
+    // account: a form opened from a bad or old link must not hand a
+    // household's details (allergies included) to whoever is account #1.
     let account = match body.text_or_none("slug") {
-        Some(slug) => accounts::get_account_by_slug(&mut conn, &slug).await?,
-        None => accounts::get_account(&mut conn, LEGACY_ACCOUNT_ID).await?,
+        Some(slug) => {
+            let mut conn = state.pool.acquire().await?;
+            accounts::get_account_by_slug(&mut conn, &slug).await?
+        }
+        None => None,
     };
-    drop(conn);
     let Some(account) = account else {
         return Err(AppError::not_found_msg("This booking link is no longer active").into());
     };
@@ -488,6 +495,9 @@ async fn submit(
     // outcome is recorded on the intake, so a failure shows on the chef's
     // intake screens instead of only in the log.
     let intake_id = res.intake.id;
+    let confirmation_email = res.intake.email.as_deref().is_some_and(|e| !e.is_empty())
+        && state.config.email_available()
+        && !state.demo.is_demo(account.id);
     if let Some(email) = res.intake.email.clone().filter(|e| !e.is_empty()) {
         let (state, name, url, account_id) = (
             state.clone(),
@@ -499,8 +509,11 @@ async fn submit(
             let sent =
                 crate::email::send_intake_confirmation(&state, account_id, &name, &email, &url)
                     .await;
-            if let Err(e) = &sent {
-                tracing::error!(error = %e, "[intake] Client confirmation email failed");
+            match &sent {
+                // The demo sends nothing and claims nothing.
+                Err(crate::email::EmailError::Demo) => return,
+                Err(e) => tracing::error!(error = %e, "[intake] Client confirmation email failed"),
+                Ok(_) => {}
             }
             if let Err(e) = record_confirmation(&state, account_id, intake_id, sent.is_ok()).await {
                 tracing::error!(error = %e, "[intake] Could not record the confirmation email");
@@ -525,6 +538,7 @@ async fn submit(
                 "/intake",
             )
             .await
+                && !matches!(e, crate::email::EmailError::Demo)
             {
                 tracing::error!(error = %e, "[intake] Chef notification email failed");
                 if let Err(e) = record_chef_alert_failure(&state, account_id, intake_id).await {
@@ -540,6 +554,7 @@ async fn submit(
             intake: res,
             edit_token: token,
             edit_url,
+            confirmation_email,
             message: "Intake submitted successfully. Your chef will be in touch soon.".into(),
         }),
     ))
@@ -924,6 +939,17 @@ async fn resend_confirmation(
     .fetch_optional(&mut *t.tx)
     .await?;
     let (name, email) = row.ok_or_else(intake_not_found)?;
+    let just_sent: bool = sqlx::query_scalar(&format!(
+        "SELECT {} FROM client_intakes WHERE id = $1",
+        crate::email::recently("confirmation_emailed_at")
+    ))
+    .bind(id)
+    .bind(crate::email::RESEND_WINDOW_SECS)
+    .fetch_one(&mut *t.tx)
+    .await?;
+    if just_sent && crate::email::unavailable(&state).is_none() {
+        return Err(crate::email::just_sent("confirmation").into());
+    }
     let Some(to) = email.filter(|e| !e.is_empty()) else {
         return Err(AppError::new(
             StatusCode::BAD_REQUEST,
@@ -940,13 +966,14 @@ async fn resend_confirmation(
     let url = format!("/intake/{id}?token={token}");
     let sent = crate::email::send_intake_confirmation(&state, account_id, &name, &to, &url).await;
     record_confirmation(&state, account_id, id, sent.is_ok()).await?;
-    sent.map_err(|e| {
+    let delivery = sent.map_err(|e| {
         tracing::error!(error = %e, "[intake] resend-confirmation");
-        AppError::internal_bare(e)
+        e.to_app_error("booking confirmation", false)
     })?;
     Ok(Json(EmailSentResponse {
         success: true,
         sent_to: to,
+        delivery,
     }))
 }
 

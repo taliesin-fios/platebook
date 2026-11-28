@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import PageHeader from '../components/PageHeader';
 import ConfirmModal from '../components/ConfirmModal';
 import AiSettings from '../components/AiSettings';
+import DeleteAccount from '../components/DeleteAccount';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { SettingsContext, useAuth } from '../App';
@@ -24,7 +25,7 @@ export default function Settings() {
   const { show } = useToast();
   const navigate = useNavigate();
   const { refreshSettings } = useContext(SettingsContext);
-  const { logout } = useAuth();
+  const { chef, logout } = useAuth();
   const [settings,     setSettings]     = useState<SettingsData | null>(null);
   const [deposit,      setDeposit]      = useState('0');
   const [clearConfirm, setClearConfirm] = useState(false);
@@ -376,6 +377,8 @@ export default function Settings() {
               <span>Clear Sample Data</span>
               <span>⚠</span>
             </button>
+            {/* The shared demo account resets itself and can't be deleted. */}
+            {chef && !chef.demo && <DeleteAccount email={chef.email} />}
           </div>
         </div>
 

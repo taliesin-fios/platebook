@@ -15,7 +15,7 @@
 | Auth | Accounts: email + password (bcrypt) or magic link → httpOnly JWT cookie `{ accountId, email }` |
 | AI | Per-account provider (`llm.rs`, reqwest): Anthropic Messages API or OpenAI-style Chat Completions; keys encrypted at rest (`ai_keys.rs`) |
 | PDF | Typst, rendered on the server (`server-rs/src/pdf/`); the client only downloads them |
-| Email | lettre (SMTP); logged when `EMAIL_HOST` is empty |
+| Email | lettre (SMTP); without `EMAIL_HOST`, sends fail (no fake success); `EMAIL_CAPTURE=true` keeps mail in memory in dev/tests |
 | Payments | Mode-gated: `manual` (default) / `stripe` / `disabled` |
 | Deploy | Docker image (`server-rs/Dockerfile`); self-hosting with `docker-compose.selfhost.yml` (`docs/SELF_HOSTING.md`) |
 | Data migration | `tools/migrate-sqlite/`: one-time copy of the old Express server's SQLite file into Postgres |
@@ -132,7 +132,7 @@ The client `AuthGate` (App.tsx) sends signed-out visitors to `/welcome` (or `/lo
 ### Client Intake Flow (Public)
 
 ```
-1. Client visits /book/<slug> (public; legacy /intake/new = account #1)
+1. Client visits /book/<slug> (public; the slug is the only way a submission picks its chef)
 2. POST /api/intake { slug, … } — stored under that chef's account; emails chef + client
 3. Server returns { id, edit_token } — HMAC-signed, 30-day expiry
 4. Client can edit via /intake/:id?token=... (PUT /api/intake/:id — token verified server-side).
@@ -189,6 +189,8 @@ draft ──→ sent ──→ paid
 | `session_templates` | Removed | No |
 | `payment_events` | Never deleted (append-only audit log). Deposit events point at an intake, invoice events at an invoice | Yes |
 
+**Deleting the whole account** (`DELETE /api/auth/account`, Settings → Data Management) is the exception to all of the above: the chef types their account email back (and their password, if the account has one), and one transaction removes every row the account owns from every table above, children included, plus its `settings`, its `acct:<id>` rate-limit rows and the `accounts` row. An invite it used keeps its record with `used_by_account_id` cleared. Nothing is kept, apart from copies in database backups until they expire. The demo account can't be deleted (`403 DEMO_DISABLED`). `accounts::delete_account` runs the data deletion under the account's own tenant (RLS), then `RESET ROLE` for the `accounts` row, which `chef_app` may not delete.
+
 List columns (`allergens`, `dietary_styles`, `liked_proteins`, `equipment`, `recipe_ids`, …) are `JSONB`. Flags are `BOOLEAN` (sent as `0`/`1` in JSON), dates `DATE`, timestamps `TIMESTAMPTZ`, dollar amounts `NUMERIC(12,2)`. The full SQLite → Postgres mapping is in [`server-rs/README.md`](server-rs/README.md#schema-differences-from-sqlite).
 
 ---
@@ -233,9 +235,8 @@ Public (no cookie required; `req.account` is still set when signed in):
 | POST | `/api/auth/demo` (signs in to the shared demo account; 404 unless `DEMO_MODE=true`; rate-limited like login) |
 | GET | `/api/auth/verify`, `/api/auth/signup` (`{ open, invite_only, demo }`: may an account be created now, per `SIGNUP_MODE` (`?invite=` checks an invite link), and is there a demo) |
 | GET | `/api/public/:slug/settings` |
-| GET | `/api/settings/public` (legacy: account #1) |
-| POST | `/api/intake` |
-| GET, PUT | `/api/intake/:id` (owner's session **or** HMAC token) |
+| POST | `/api/intake` (`slug` required: it is the only thing that picks the chef) |
+| GET, PUT | `/api/intake/:id` (owner's session **or** HMAC token bound to that id; another account's session gets nothing) |
 | POST | `/api/intake/:id/checkout` (owner's session **or** HMAC token; opens a Stripe Checkout for the deposit; rate-limited per IP) |
 | GET | `/api/invoices/:id/public` (invoice-link token only: the invoice as the client sees it) |
 | POST | `/api/invoices/:id/checkout` (invoice-link token only; opens a Stripe Checkout for the invoice; rate-limited per IP) |

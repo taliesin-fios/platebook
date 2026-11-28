@@ -96,7 +96,8 @@ describe('bookingUrl', () => {
     expect(bookingUrl('sunday-suppers', 'https://app.test')).toBe('https://app.test/book/sunday-suppers');
   });
   it('falls back to the legacy intake link without a slug', () => {
-    expect(bookingUrl(null, 'https://app.test')).toBe('https://app.test/intake/new');
+    // No slug yet: no link (the old /intake/new fallback went to account #1).
+    expect(bookingUrl(null, 'https://app.test')).toBe('');
   });
 });
 

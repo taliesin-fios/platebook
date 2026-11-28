@@ -275,9 +275,9 @@ export const MAX_SERVINGS = 50;
 export const clampServings = (n: number): number =>
   Math.min(MAX_SERVINGS, Math.max(MIN_SERVINGS, Math.round(Number.isFinite(n) ? n : MIN_SERVINGS)));
 
-/** Public booking link a chef shares with prospective clients. */
+/** Public booking link a chef shares with prospective clients ('' until the slug is known). */
 export const bookingUrl = (slug: string | null | undefined, origin: string = window.location.origin): string =>
-  slug ? `${origin}/book/${slug}` : `${origin}/intake/new`;
+  slug ? `${origin}/book/${slug}` : '';
 
 /** Dollars (string/number) ⇄ integer cents for the deposit field. */
 export const dollarsToCents = (v: unknown): number => {
