@@ -182,43 +182,6 @@ export const EQUIPMENT_OPTIONS = [
   'Dutch Oven', 'Large Sheet Pans', 'Cast Iron Skillet'
 ];
 
-export const REHEAT_INSTRUCTIONS: Record<string, string> = {
-  default: 'Stovetop, medium-low heat, stir occasionally, 5–8 min',
-  stew: 'Stovetop, medium-low heat, stir occasionally, 5–8 min',
-  curry: 'Stovetop, medium-low, splash of water if needed, 5–8 min',
-  pasta: 'Oven 325°F covered 20 min, or microwave covered 2–3 min',
-  meatballs: 'Stovetop, medium-low, 5–8 min, or microwave 2 min',
-  bowl: 'Warm meatballs separately, serve over cold grain',
-};
-
-export const getReheatedInstructions = (recipeName = ''): string => {
-  const name = recipeName.toLowerCase();
-  if (name.includes('curry') || name.includes('massaman') || name.includes('panang')) return REHEAT_INSTRUCTIONS.curry;
-  if (name.includes('ziti') || name.includes('lasagna') || name.includes('casserole') || name.includes('gratin')) return REHEAT_INSTRUCTIONS.pasta;
-  if (name.includes('meatball') || name.includes('meatballs')) return REHEAT_INSTRUCTIONS.meatballs;
-  if (name.includes('bowl')) return REHEAT_INSTRUCTIONS.bowl;
-  return REHEAT_INSTRUCTIONS.stew;
-};
-
-/**
- * Returns the reheat category for color-coding in the client PDF.
- * Categories: 'stovetop' | 'oven' | 'cold'
- */
-export const getReheatedCategory = (recipeName = ''): 'stovetop' | 'oven' | 'cold' => {
-  const name = recipeName.toLowerCase();
-  // Cold / no-heat dishes
-  if (name.includes('salad') || name.includes('sashimi') || name.includes('ceviche') ||
-      name.includes('gazpacho') || name.includes('crudo') || name.includes('tartare') ||
-      name.includes('carpaccio')) return 'cold';
-  // Oven dishes
-  if (name.includes('lasagna') || name.includes('ziti') || name.includes('casserole') ||
-      name.includes('gratin') || name.includes('bake') || name.includes('roast') ||
-      name.includes('frittata') || name.includes('quiche') || name.includes('enchilada') ||
-      name.includes('pot pie')) return 'oven';
-  // Everything else defaults to stovetop
-  return 'stovetop';
-};
-
 export const CATEGORY_COLORS: Record<string, string> = {
   Couples: 'bg-navy text-white',
   Families: 'bg-green-dark text-white',

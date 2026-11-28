@@ -38,7 +38,6 @@
    - [Changing Allergen Keywords](#changing-allergen-keywords)
    - [Adjusting Feasibility Thresholds](#adjusting-feasibility-thresholds)
    - [Editing Store Sections](#editing-store-sections)
-   - [Customizing Reheat Instructions](#customizing-reheat-instructions)
    - [Modifying Session Templates](#modifying-session-templates)
    - [Database Customization](#database-customization)
 10. [Data Management & Backup](#10-data-management--backup)
@@ -350,8 +349,6 @@ Each session card shows: client name, date, time, status badge, dish count, serv
 - Margin color: green (≥60%), amber (≥40%), red (<40%)
 
 #### Tab 5: Delivery
-- Reheat instructions per dish (auto-selected based on dish name)
-- Storage guidance for the client
 - PDF export buttons
 
 ---
@@ -530,7 +527,7 @@ There are two PDFs you can generate for each session:
 
 **Client Leave-Behind PDF:**
 - Professional one-page summary for the client
-- Includes: all dishes with reheat instructions, use-by date (4 days from session date), storage guidance, allergen notice (if applicable), your business name and session date
+- Includes: the session's dishes, servings, allergies on file and which dishes contain them, your business name and the session date. It doesn't add reheating, freezing, "use by" or storage advice; tell your client those yourself (for example in the email or on the containers)
 - Download from: Session Detail → Overview tab → "Generate Client PDF"
 
 **Grocery List PDF:**
@@ -794,34 +791,6 @@ export const STORE_SECTIONS = [
 ```
 
 Add, remove, or rename sections to match how your store is laid out. Also update the `STORE_SECTION_ORDER` array in `client/src/utils/pdfGen.ts` to keep PDF export ordering consistent.
-
----
-
-### Customizing Reheat Instructions
-
-Open `client/src/constants.ts`. Find `REHEAT_INSTRUCTIONS` and `getReheatedInstructions`:
-
-```javascript
-export const REHEAT_INSTRUCTIONS = {
-  stew:     'Stovetop, medium-low, 5–8 min with lid.',
-  curry:    'Stovetop, medium-low, add splash of water, 5–8 min.',
-  pasta:    'Oven 325°F covered 20 min, or microwave 2–3 min.',
-  meatball: 'Stovetop 5–8 min or microwave 2 min.',
-  bowl:     'Warm protein separately, serve over cold grain.',
-};
-
-export function getReheatedInstructions(dishName) {
-  const n = dishName.toLowerCase();
-  if (n.includes('curry') || n.includes('panang') || n.includes('massaman')) return REHEAT_INSTRUCTIONS.curry;
-  if (n.includes('stew') || n.includes('tagine') || n.includes('braised') || n.includes('osso')) return REHEAT_INSTRUCTIONS.stew;
-  if (n.includes('pasta') || n.includes('ziti') || n.includes('lasagna') || n.includes('spaghetti')) return REHEAT_INSTRUCTIONS.pasta;
-  if (n.includes('meatball')) return REHEAT_INSTRUCTIONS.meatball;
-  if (n.includes('bowl')) return REHEAT_INSTRUCTIONS.bowl;
-  return REHEAT_INSTRUCTIONS.stew; // default
-}
-```
-
-Modify existing instructions or add new keyword matches for your specific dishes.
 
 ---
 

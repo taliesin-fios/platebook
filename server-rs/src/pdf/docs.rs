@@ -4,7 +4,7 @@
 //! The data each PDF template reads: every string formatted here, the way
 //! `client/src/utils/pdfGen.ts` and the invoice preview format them.
 
-use chrono::{Duration, NaiveDate};
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
@@ -66,75 +66,6 @@ pub fn slug(name: Option<&str>, fallback: &str) -> String {
     }
 }
 
-// ── Reheat helpers (port of client/src/constants.ts) ─────────────────────────
-
-/// `getReheatedInstructions(name)`.
-pub fn reheat_instructions(name: &str) -> &'static str {
-    let n = name.to_lowercase();
-    let has = |words: &[&str]| words.iter().any(|w| n.contains(w));
-    if has(&["curry", "massaman", "panang"]) {
-        "Stovetop, medium-low, splash of water if needed, 5–8 min"
-    } else if has(&["ziti", "lasagna", "casserole", "gratin"]) {
-        "Oven 325°F covered 20 min, or microwave covered 2–3 min"
-    } else if has(&["meatball"]) {
-        "Stovetop, medium-low, 5–8 min, or microwave 2 min"
-    } else if has(&["bowl"]) {
-        "Warm meatballs separately, serve over cold grain"
-    } else {
-        "Stovetop, medium-low heat, stir occasionally, 5–8 min"
-    }
-}
-
-/// `getReheatedCategory(name)`: "stovetop" | "oven" | "cold".
-pub fn reheat_category(name: &str) -> &'static str {
-    let n = name.to_lowercase();
-    let has = |words: &[&str]| words.iter().any(|w| n.contains(w));
-    if has(&[
-        "salad",
-        "sashimi",
-        "ceviche",
-        "gazpacho",
-        "crudo",
-        "tartare",
-        "carpaccio",
-    ]) {
-        "cold"
-    } else if has(&[
-        "lasagna",
-        "ziti",
-        "casserole",
-        "gratin",
-        "bake",
-        "roast",
-        "frittata",
-        "quiche",
-        "enchilada",
-        "pot pie",
-    ]) {
-        "oven"
-    } else {
-        "stovetop"
-    }
-}
-
-/// `isFreezerFriendly(name)`: most cooked meals freeze well.
-pub fn freezer_friendly(name: &str) -> bool {
-    let n = name.to_lowercase();
-    ![
-        "salad",
-        "sashimi",
-        "ceviche",
-        "gazpacho",
-        "crudo",
-        "tartare",
-        "carpaccio",
-        "raw ",
-        "fresh herb",
-    ]
-    .iter()
-    .any(|w| n.contains(w))
-}
-
 fn serves(serving_size: Option<i32>) -> i32 {
     serving_size.filter(|n| *n != 0).unwrap_or(4)
 }
@@ -167,21 +98,14 @@ pub fn meal_plan(
 ) -> Value {
     let date = session.session.session_date;
     let serving = serves(session.session.serving_size);
-    let use_by = date
-        .map(|d| (d + Duration::days(4)).format("%b %-d").to_string())
-        .unwrap_or_default();
+    // Only what the chef entered: dish names. Reheating, freezing and "use by"
+    // guidance used to be guessed from dish names (any "bowl" got "warm
+    // meatballs separately") and from the session date + 4 days; nothing in a
+    // recipe records it, so the PDF no longer claims it.
     let dishes: Vec<Value> = session
         .dishes
         .iter()
-        .map(|d| {
-            let name = &d.recipe.name;
-            json!({
-                "name": name,
-                "reheat": reheat_instructions(name),
-                "category": reheat_category(name),
-                "freeze": freezer_friendly(name),
-            })
-        })
+        .map(|d| json!({ "name": d.recipe.name }))
         .collect();
     let on_file = string_list(session.client_allergens.as_ref());
     let unchecked: Vec<&String> = on_file
@@ -206,7 +130,6 @@ pub fn meal_plan(
         "client": session.client_name.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| "Client".into()),
         "date": long_date(date),
         "serves": serving,
-        "use_by": use_by,
         "dishes": dishes,
         "allergens": on_file,
         "contains": contains,
@@ -434,17 +357,6 @@ pub fn invoice_filename(inv: &InvoiceDetail) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn reheat_matches_client_constants() {
-        assert_eq!(reheat_category("Beef Lasagna"), "oven");
-        assert_eq!(reheat_category("Greek Salad"), "cold");
-        assert_eq!(reheat_category("Chicken Stew"), "stovetop");
-        assert!(reheat_instructions("Thai Panang Curry").contains("splash of water"));
-        assert!(reheat_instructions("Baked Ziti").starts_with("Oven 325°F"));
-        assert!(!freezer_friendly("Caesar Salad"));
-        assert!(freezer_friendly("Chili"));
-    }
 
     #[test]
     fn formats_like_the_client() {

@@ -12,7 +12,7 @@ import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
 import { emailSentMessage, errorCode, isRecordedEmailFailure } from '../utils/emailResult';
 import { useSingleFlight } from '../hooks/useSingleFlight';
-import { STATUS_COLORS, calcFeasibility, FEASIBILITY_COLORS, getReheatedInstructions, CATEGORY_BAR_COLORS, marginColor, REPEAT_OPTIONS } from '../constants';
+import { STATUS_COLORS, calcFeasibility, FEASIBILITY_COLORS, CATEGORY_BAR_COLORS, marginColor, REPEAT_OPTIONS } from '../constants';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
 import { regenerateWarning } from '../utils/groceryList';
@@ -377,11 +377,6 @@ export default function SessionDetail() {
   }
 
   const feasibility = calcFeasibility(session.dishes || []);
-  const useByDate = session.session_date
-    ? fmtSessionDate(
-        new Date(parseLocalDate(session.session_date).getTime() + 4 * 86400000).toISOString().slice(0, 10),
-        'MMMM d, yyyy', '')
-    : '';
 
   const grouped = STORE_SECTION_ORDER.reduce<Record<string, GroceryItem[]>>((acc, section) => {
     const items = groceryItems.filter(i => i.store_section === section);
