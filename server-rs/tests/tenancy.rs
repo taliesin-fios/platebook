@@ -9,7 +9,7 @@ mod common;
 
 use axum::http::StatusCode;
 use chef_server::db::{MIGRATOR, begin_tenant};
-use common::{Chef, app, get, post};
+use common::{Chef, app, delete_json, get, post};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
@@ -565,6 +565,133 @@ async fn intake_lands_with_the_slug_owner_and_tokens_dont_cross(pool: PgPool) {
         .status,
         StatusCode::NOT_FOUND
     );
+}
+
+/// Deleting an account removes every row it owns, and nothing of anyone else's.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn deleting_an_account_removes_only_its_own_data(pool: PgPool) {
+    let (a, b, a_ids) = two_chefs(&pool).await;
+    let b_ids = build(&b).await;
+    let count = |sql: &'static str, id: i64| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(sql)
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        }
+    };
+    const TABLES: [&str; 9] = [
+        "clients",
+        "recipes",
+        "sessions",
+        "session_templates",
+        "client_intakes",
+        "invoices",
+        "recipe_import_log",
+        "payment_events",
+        "settings",
+    ];
+    let owned = |account: i64| {
+        let pool = pool.clone();
+        async move {
+            let mut total = 0;
+            for t in TABLES {
+                total += sqlx::query_scalar::<_, i64>(&format!(
+                    "SELECT COUNT(*) FROM {t} WHERE account_id = $1"
+                ))
+                .bind(account)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            }
+            total
+        }
+    };
+    let b_before = owned(b.id).await;
+    assert!(owned(a.id).await > 0 && b_before > 0);
+
+    // The wrong confirmation, or another chef's email, deletes nothing.
+    for wrong in [
+        json!({}),
+        json!({ "confirm_email": "beta.kitchen@example.com" }),
+    ] {
+        let res = delete_json("/api/auth/account", wrong)
+            .cookie(&a.cookie)
+            .send(&a.app)
+            .await;
+        assert_eq!(res.status, StatusCode::BAD_REQUEST, "{}", res.text);
+        assert_eq!(res.body["code"], "CONFIRMATION_MISMATCH");
+    }
+    assert!(owned(a.id).await > 0);
+
+    let res = delete_json(
+        "/api/auth/account",
+        json!({ "confirm_email": " Alpha.Kitchen@Example.com " }),
+    )
+    .cookie(&a.cookie)
+    .send(&a.app)
+    .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.text);
+    assert!(res.set_cookie().unwrap().starts_with("authToken=;"));
+
+    // A's rows are gone, children included (they have no account_id).
+    assert_eq!(owned(a.id).await, 0);
+    assert_eq!(
+        count("SELECT COUNT(*) FROM accounts WHERE id = $1", a.id).await,
+        0
+    );
+    assert_eq!(
+        count(
+            "SELECT COUNT(*) FROM ingredients WHERE recipe_id = $1",
+            a_ids.recipe
+        )
+        .await,
+        0
+    );
+    assert_eq!(
+        count(
+            "SELECT COUNT(*) FROM grocery_items WHERE id = $1",
+            a_ids.grocery_item
+        )
+        .await,
+        0
+    );
+    assert_eq!(
+        count(
+            "SELECT COUNT(*) FROM invoice_line_items WHERE invoice_id = $1",
+            a_ids.invoice
+        )
+        .await,
+        0
+    );
+    // A's old cookie opens nothing.
+    assert_eq!(a.get("/api/auth/me").await.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(a.get("/api/clients").await.status, StatusCode::UNAUTHORIZED);
+
+    // B is untouched, down to the child rows.
+    assert_eq!(owned(b.id).await, b_before);
+    assert_eq!(
+        b.get("/api/clients").await.body.as_array().unwrap().len(),
+        1
+    );
+    assert!(
+        count(
+            "SELECT COUNT(*) FROM ingredients WHERE recipe_id = $1",
+            b_ids.recipe
+        )
+        .await
+            > 0
+    );
+    assert_eq!(
+        b.get(&format!("/api/sessions/{}", b_ids.session))
+            .await
+            .status,
+        StatusCode::OK
+    );
+    // B can't delete A's (already gone) account, or anyone's but its own:
+    // the route has no id to point elsewhere.
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

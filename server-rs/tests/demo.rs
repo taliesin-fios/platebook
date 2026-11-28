@@ -182,6 +182,17 @@ async fn demo_sends_no_email_and_saves_no_ai_key(pool: PgPool) {
     assert_eq!(ai.status, StatusCode::FORBIDDEN);
     assert_eq!(ai.body["code"], "DEMO_DISABLED");
 
+    // Visitors can't delete the shared demo account.
+    let gone = common::delete_json(
+        "/api/auth/account",
+        json!({ "confirm_email": chef_server::demo::DEMO_EMAIL }),
+    )
+    .cookie(&cookie)
+    .send(&app)
+    .await;
+    assert_eq!(gone.status, StatusCode::FORBIDDEN);
+    assert_eq!(gone.body["code"], "DEMO_DISABLED");
+
     // A booking-page inquiry to the demo gets no confirmation email either.
     let slug: String = get("/api/auth/me").cookie(&cookie).send(&app).await.body["slug"]
         .as_str()

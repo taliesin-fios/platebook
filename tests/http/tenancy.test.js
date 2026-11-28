@@ -288,3 +288,25 @@ describe('intake ownership', () => {
     assert.equal(res.status, 404);
   });
 });
+
+describe('deleting an account', () => {
+  test('removes only that account and its data', async () => {
+    const C = await makeAccount('Gamma Kitchen');
+    const c = as(C);
+    const client = await c.post('/api/clients').send({ name: 'Gamma Client' });
+    assert.equal(client.status, 201);
+    const aBefore = (await a.get('/api/clients')).body.length;
+
+    const wrong = await c.delete('/api/auth/account').send({ confirm_email: A.email, password: 'test-password-1234' });
+    assert.equal(wrong.status, 400);
+    const badPassword = await c.delete('/api/auth/account').send({ confirm_email: C.email, password: 'nope-nope-nope' });
+    assert.equal(badPassword.status, 403);
+
+    const res = await c.delete('/api/auth/account').send({ confirm_email: C.email, password: 'test-password-1234' });
+    assert.equal(res.status, 200);
+    assert.equal((await c.get('/api/clients')).status, 401);
+    assert.equal((await a.get('/api/clients')).body.length, aBefore);
+    assert.equal((await a.get(`/api/clients/${ids.client}`)).status, 200);
+    assert.equal((await b.get('/api/intake')).status, 200);
+  });
+});
