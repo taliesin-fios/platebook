@@ -149,11 +149,7 @@ async fn meal_plan_pdf(pool: PgPool) {
             "Sunday, March 15, 2026",
             "Serves 6",
             "Beef Lasagna",
-            "Oven 325°F covered 20 min",
             "Panang Curry",
-            "splash of water",
-            "Use by Mar 19",
-            "FREEZE",
             "Allergies on file: Peanuts, Shellfish.",
             "No ingredient in these dishes matched them.",
             "Prepared with care by your chef",
@@ -161,6 +157,26 @@ async fn meal_plan_pdf(pool: PgPool) {
         ],
     );
     assert!(!t.contains("planned to avoid"), "{t}");
+    // DEFECTS P1-3: nothing the chef didn't enter. Reheating, freezing,
+    // "use by" and storage advice used to be guessed from dish names and the
+    // session date.
+    for invented in [
+        "Oven 325",
+        "splash of water",
+        "Stovetop",
+        "Reheat",
+        "reheat",
+        "Use by",
+        "FREEZE",
+        "Freezer",
+        "Storage",
+        "41°F",
+        "yogurt",
+        "cucumber",
+        "3 months",
+    ] {
+        assert!(!t.contains(invented), "{invented:?} in {t}");
+    }
     assert_eq!(
         disposition(&res),
         "attachment; filename=\"meal-plan-morgan-lee-2026-03-15.pdf\""

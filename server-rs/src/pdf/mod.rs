@@ -302,7 +302,7 @@ mod tests {
     fn markup_in_data_renders_as_plain_text() {
         let data = json!({
             "business": "#strong[X] = *Y*", "client": "$x$ <b>", "date": "", "serves": 4,
-            "use_by": "", "dishes": [], "allergens": [], "website": "",
+            "dishes": [], "allergens": [], "website": "",
         });
         let t = text(&render(Template::MealPlan, &data, vec![]).unwrap());
         assert!(t.contains("#strong[X] = *Y*"), "{t}");
@@ -311,17 +311,12 @@ mod tests {
 
     #[test]
     fn long_documents_flow_onto_more_pages() {
-        const CATS: [&str; 3] = ["stovetop", "oven", "cold"];
-        let dishes: Vec<_> = (1..=14)
-            .map(|i| {
-                json!({ "name": format!("Dish number {i} with a fairly long descriptive name"),
-                             "reheat": "Stovetop, medium-low heat, stir occasionally, 5–8 min",
-                             "category": CATS[i % 3], "freeze": i % 2 == 0 })
-            })
+        let dishes: Vec<_> = (1..=30)
+            .map(|i| json!({ "name": format!("Dish number {i} with a fairly long descriptive name") }))
             .collect();
         let meal = json!({
             "business": "LONG KITCHEN", "client": "Pat", "date": "Monday, May 4, 2026", "serves": 4,
-            "use_by": "May 8", "dishes": dishes, "allergens": ["Sesame"], "website": "long.example",
+            "dishes": dishes, "allergens": ["Sesame"], "website": "long.example",
         });
         let items: Vec<_> = (1..=30)
             .map(|i| json!({ "name": format!("Item {i}"), "quantity": "2 cups", "sources": "Soup · Stew" }))

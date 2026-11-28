@@ -12,7 +12,7 @@ const FEATURES = [
   { icon: '✨', title: 'AI recipe import', body: 'Paste a link or any recipe text and it’s parsed into ingredients, times and store sections.' },
   { icon: '🗓️', title: 'Session planning', body: 'Build menus that fit the time you have, with allergen warnings and AI menu suggestions.' },
   { icon: '🛒', title: 'Smart grocery lists', body: 'Ingredients merged and scaled across dishes, sorted by store aisle, ready to check off.' },
-  { icon: '📄', title: 'Meal-plan PDFs', body: 'Branded menus with reheating instructions, emailed straight to your client.' },
+  { icon: '📄', title: 'Meal-plan PDFs', body: 'Branded menus with the dishes and allergies on file, emailed straight to your client.' },
   { icon: '💳', title: 'Invoices & deposits', body: 'Invoice from a session in one tap, track deposits and see what’s outstanding.' },
   { icon: '📈', title: 'Profit tracking', body: 'Revenue, grocery costs and margin per session and per client, plus CSV export for tax time.' },
 ];

@@ -7,6 +7,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **The client meal-plan PDF says only what the chef entered** (rehearsal defect P1-3). It used to add food-storage advice that nothing in Platebook records: reheating instructions guessed from the dish name (any dish with "bowl" in its name got "Warm meatballs separately, serve over cold grain"), a FREEZE badge on almost every dish, "Use by" the session date + 4 days, and a fixed storage box about yogurt sauces, cucumber and freezing for 3 months. The PDF now lists the dishes, servings, the client's allergies and which dishes contain them, and the chef's business details. The reheat colour legend, the freezer badges and the storage box are gone, as are the unused client-side reheat helpers. The welcome page and MANUAL no longer promise reheating instructions. No migration.
+
 ## [0.4.0] — 2026-11-24
 
 **Upgrading from 0.3.0:** on start, the server applies one migration, `0012_signup_invites.sql`. It only adds a new table, so it's safe on a database with data, but take a backup first as usual. Nothing changes unless you set the new options: `SIGNUP_MODE=invite` (invite links made with `chef-server invite create`) and `DEMO_MODE=true` (a public demo account that resets itself; don't use it on a server that holds real chefs' data without `SIGNUP_MODE=first`, `invite` or `closed`). Two API changes can affect scripts that call the API directly: creating or changing a session whose dishes contain an allergen the client lists now returns `409 ALLERGEN_CONFLICT` unless the request has `allergen_acknowledged: true`, and `POST`/`PUT /api/clients` refuse `allergens`, `dietary_styles`, `liked_proteins` or `equipment` that aren't a list (`400 VALIDATION_ERROR`). The app's own screens already handle both.
