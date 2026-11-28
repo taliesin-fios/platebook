@@ -369,11 +369,7 @@ pub fn is_public_route(method: &Method, path: &str) -> bool {
     }
 
     // Stripe webhook
-    if method == Method::POST && path == "/api/payments/webhook" {
-        return true;
-    }
-
-    false
+    method == Method::POST && path == "/api/payments/webhook"
 }
 
 /// Port of `requireAuth`: protects every `/api/*` route that isn't public.
