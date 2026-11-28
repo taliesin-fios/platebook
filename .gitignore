@@ -39,3 +39,7 @@ server/backups/
 
 # Maintainer-only Claude Code notes
 CLAUDE.local.md
+
+# Local mail sink output (tools/dev-mail-sink): raw messages can hold sign-in links
+mail-sink/
+platebook-mail-sink/

@@ -263,7 +263,7 @@ async fn emails_go_to_the_outbox_with_the_chefs_reply_to(pool: PgPool) {
         .await;
     assert_eq!(
         sent.body,
-        json!({ "success": true, "sent_to": "jo@example.com" })
+        json!({ "success": true, "sent_to": "jo@example.com", "delivery": "captured" })
     );
     let plan = state.outbox.messages().into_iter().last().unwrap();
     assert_eq!(plan.subject, "Your meal plan — Sunday, March 15");
@@ -275,6 +275,12 @@ async fn emails_go_to_the_outbox_with_the_chefs_reply_to(pool: PgPool) {
         c.get(&format!("/api/sessions/{}", s.body["id"])).await.body["pdf_emailed_at"].is_string()
     );
 
+    // Step past the repeat-send window (email::RESEND_WINDOW_SECS).
+    sqlx::query("UPDATE sessions SET pdf_emailed_at = NULL WHERE id = $1")
+        .bind(s.body["id"].as_i64())
+        .execute(&pool)
+        .await
+        .unwrap();
     let no_body = c
         .post(
             &format!("/api/sessions/{}/email-pdf", s.body["id"]),
@@ -331,6 +337,12 @@ async fn client_emails_are_rate_limited_per_account(pool: PgPool) {
     let url = format!("/api/invoices/{}/email", inv.body["id"]);
     for _ in 0..30 {
         assert_eq!(c.post(&url, json!({})).await.status, StatusCode::OK);
+        // Step past the repeat-send window (email::RESEND_WINDOW_SECS).
+        sqlx::query("UPDATE invoices SET emailed_at = NULL WHERE id = $1")
+            .bind(inv.body["id"].as_i64())
+            .execute(&pool)
+            .await
+            .unwrap();
     }
     let limited = c.post(&url, json!({})).await;
     assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
@@ -1420,19 +1432,9 @@ async fn failed_emails_are_recorded_and_cleared_by_a_retry(pool: PgPool) {
 
     // SMTP down: both sends fail, and the failure is recorded.
     let failed = c.post(&format!("{session_url}/email-pdf"), json!({})).await;
-    assert_eq!(
-        failed.status,
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "{}",
-        failed.body
-    );
+    assert_eq!(failed.status, StatusCode::BAD_GATEWAY, "{}", failed.body);
     let failed = c.post(&format!("{invoice_url}/email"), json!({})).await;
-    assert_eq!(
-        failed.status,
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "{}",
-        failed.body
-    );
+    assert_eq!(failed.status, StatusCode::BAD_GATEWAY, "{}", failed.body);
     let session = c.get(&session_url).await.body;
     assert!(session["pdf_email_failed_at"].is_string(), "{session}");
     assert!(session["pdf_emailed_at"].is_null());
@@ -1514,12 +1516,7 @@ async fn failed_booking_emails_are_recorded_and_the_confirmation_can_be_resent(p
     let retry = c
         .post(&format!("{url}/resend-confirmation"), json!({}))
         .await;
-    assert_eq!(
-        retry.status,
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "{}",
-        retry.body
-    );
+    assert_eq!(retry.status, StatusCode::BAD_GATEWAY, "{}", retry.body);
     assert!(c.get(&url).await.body["confirmation_email_failed_at"].is_string());
 
     // With mail working, the resend goes to the client with their edit link

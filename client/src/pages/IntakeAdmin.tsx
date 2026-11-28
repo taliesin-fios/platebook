@@ -13,6 +13,8 @@ import PageHeader from '../components/PageHeader';
 import EmailFailedBanner from '../components/EmailFailedBanner';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
+import { emailSentMessage } from '../utils/emailResult';
+import { useSingleFlight } from '../hooks/useSingleFlight';
 import { useAppSettings } from '../App';
 import { bookingUrl } from '../constants';
 import type { ClientLink, EmailSentResponse, Id, Intake, IntakeConvertResponse, IntakeRow, IntakeStatus, PaymentEventItem } from '../types';
@@ -77,10 +79,10 @@ function IntakeCard({ intake, onSelect }: { intake: Intake; onSelect: (intake: I
           <span>${(intake.booking_fee_amount || 0).toFixed(0)} deposit</span>
         )}
         {intake.confirmation_email_failed_at && (
-          <span className="text-danger font-medium">⚠ Confirmation email failed</span>
+          <span className="text-danger font-medium">⚠ Confirmation email not sent</span>
         )}
         {intake.chef_alert_failed_at && (
-          <span className="text-amber-600 font-medium">⚠ Alert email failed</span>
+          <span className="text-amber-600 font-medium">⚠ Alert email to you not sent</span>
         )}
         {intake.deleted_at && (
           <span className="text-gray-400">🗑 Deleted {fmtUtcTimestamp(intake.deleted_at, 'MMM d', intake.deleted_at)}</span>
@@ -177,7 +179,9 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
     }
   };
 
-  const resendConfirmation = async () => {
+  const sendOnce = useSingleFlight();
+  const resendConfirmation = () => sendOnce(resendConfirmationNow);
+  const resendConfirmationNow = async () => {
     setResending(true);
     const now = new Date().toISOString();
     try {
@@ -185,9 +189,9 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
       const patch = { confirmation_emailed_at: now, confirmation_email_failed_at: null };
       setIntake(prev => ({ ...prev, ...patch }));
       onEmailChange(intake.id, patch);
-      show(`Confirmation sent to ${res.sent_to}`, 'success');
+      show(emailSentMessage('Confirmation', res), 'success', 5000);
     } catch (err) {
-      show(errorMessage(err) || 'Could not send the confirmation', 'error');
+      show(errorMessage(err) || 'The confirmation was not sent', 'error', 8000);
       // Not every error is a failed send (rate limit, no address): show what the server recorded.
       try {
         const fresh = await apiCall<Intake>(`/api/intake/${intake.id}`);
@@ -311,8 +315,8 @@ function IntakeDetail({ intake: initialIntake, onClose, onStatusChange, onConver
             onRetry={resendConfirmation} retrying={resending} className="" />
           {intake.chef_alert_failed_at && (
             <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-700">
-              ⚠ We couldn’t email you about this inquiry ({fmtUtcTimestamp(intake.chef_alert_failed_at, "MMM d 'at' h:mm a")}).
-              Check the business email in Settings so you hear about the next one.
+              ⚠ Platebook couldn’t email you about this inquiry ({fmtUtcTimestamp(intake.chef_alert_failed_at, "MMM d 'at' h:mm a")}):
+              the mail server was unavailable or isn’t set up. Check this page for new inquiries until email works.
             </div>
           )}
 

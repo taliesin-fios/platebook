@@ -16,6 +16,7 @@ export function ForgotPassword() {
   const [busy, setBusy]   = useState(false);
   const [sent, setSent]   = useState(false);
   const [devLink, setDevLink] = useState<string | null>(null);
+  const [emailAvailable, setEmailAvailable] = useState(true);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
@@ -25,6 +26,7 @@ export function ForgotPassword() {
     try {
       const data = await apiCall<LinkSentResponse>('/api/auth/forgot-password', 'POST', { email });
       setSent(true);
+      setEmailAvailable(data.email_available);
       if (data.dev_link) setDevLink(data.dev_link);
     } catch (err) {
       setError(errorMessage(err));
@@ -42,7 +44,11 @@ export function ForgotPassword() {
       {error && <Alert>{error}</Alert>}
       {sent ? (
         <>
-          <Alert tone="info">If an account exists for <strong>{email}</strong>, a reset link is on its way. It expires in 30 minutes.</Alert>
+          {emailAvailable ? (
+            <Alert tone="info">If an account exists for <strong>{email}</strong>, we’ve asked the mail server to send it a reset link. It expires in 30 minutes. If nothing arrives, check your spam folder.</Alert>
+          ) : (
+            <Alert>This Platebook server isn’t set up to send email, so no reset link was sent. Ask whoever runs this server to configure email.</Alert>
+          )}
           {devLink && <a href={devLink} className="text-sm text-green-dark break-all">Dev mode: open reset link →</a>}
         </>
       ) : (

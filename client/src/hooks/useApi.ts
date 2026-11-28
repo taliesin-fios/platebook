@@ -62,6 +62,10 @@ export async function apiCall<T = unknown>(url: string, method: HttpMethod = 'GE
   } catch {
     throw new Error('Server returned an unexpected response');
   }
-  if (!res.ok) throw new Error((json as Partial<ApiError>).error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = json as Partial<ApiError>;
+    // Keep the server's `code` (e.g. EMAIL_SEND_FAILED) for callers that branch on it.
+    throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { code: body.code, status: res.status });
+  }
   return json as T;
 }

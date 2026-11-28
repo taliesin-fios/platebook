@@ -287,6 +287,36 @@ describe('intake ownership', () => {
     const res = await request(app).post('/api/intake').send({ slug: 'nobody-here', name: 'X', terms_accepted: true });
     assert.equal(res.status, 404);
   });
+
+  // DEFECTS P1-1: /intake/<anything> used to open account #1's form, and a
+  // submission without a slug landed in account #1.
+  test('a submission without a slug is refused, not given to another account', async () => {
+    const before = [(await a.get('/api/intake')).body.length, (await b.get('/api/intake')).body.length];
+    const res = await request(app).post('/api/intake')
+      .send({ name: 'Okafor Household', allergens: ['peanuts'], terms_accepted: true });
+    assert.equal(res.status, 404);
+    const after = [(await a.get('/api/intake')).body.length, (await b.get('/api/intake')).body.length];
+    assert.deepEqual(after, before);
+  });
+
+  test('B\'s own edit token neither loads nor edits A\'s intake', async () => {
+    const mine = await request(app).post('/api/intake').send({ slug: B.slug, name: 'Beta Token', terms_accepted: true });
+    const token = mine.body.edit_token;
+    const read = await request(app).get(`/api/intake/${ids.intake}?token=${token}`);
+    assert.equal(read.status, 403);
+    assert.ok(!JSON.stringify(read.body).includes('Lead'));
+    const edit = await request(app).put(`/api/intake/${ids.intake}?token=${token}`).send({ name: 'Hijacked' });
+    assert.equal(edit.status, 403);
+    const guess = await request(app).get(`/api/intake/${ids.intake + 1000}`);
+    assert.equal(guess.status, 401);
+    const stillA = await a.get(`/api/intake/${ids.intake}`);
+    assert.equal(stillA.body.name, 'Lead');
+  });
+
+  test('the account #1 booking profile is no longer public', async () => {
+    const res = await request(app).get('/api/settings/public');
+    assert.notEqual(res.status, 200);
+  });
 });
 
 describe('deleting an account', () => {
