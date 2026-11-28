@@ -268,6 +268,13 @@ export const SERVICE_TYPES = [
 
 export const PASSWORD_MIN_LENGTH = 10;
 
+/** Servings a session can be booked for (the server enforces the same range). */
+export const MIN_SERVINGS = 1;
+export const MAX_SERVINGS = 50;
+/** A whole number of servings within [MIN_SERVINGS, MAX_SERVINGS]. */
+export const clampServings = (n: number): number =>
+  Math.min(MAX_SERVINGS, Math.max(MIN_SERVINGS, Math.round(Number.isFinite(n) ? n : MIN_SERVINGS)));
+
 /** Public booking link a chef shares with prospective clients ('' until the slug is known). */
 export const bookingUrl = (slug: string | null | undefined, origin: string = window.location.origin): string =>
   slug ? `${origin}/book/${slug}` : '';

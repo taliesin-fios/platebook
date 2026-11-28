@@ -301,6 +301,27 @@ pub fn body_date(body: &JsonBody, key: &str) -> Result<Option<NaiveDate>, AppErr
     }
 }
 
+/// Servings a session can be booked for: any household from 1 to 50.
+pub const SERVINGS_RANGE: std::ops::RangeInclusive<i64> = 1..=50;
+
+/// `serving_size` from the body: `Ok(None)` when absent or blank, else a
+/// whole number in [`SERVINGS_RANGE`] (`400 VALIDATION_ERROR` otherwise).
+fn body_servings(body: &JsonBody) -> Result<Option<i32>, AppError> {
+    match body.get("serving_size") {
+        None | Some(Value::Null) => return Ok(None),
+        Some(Value::String(s)) if s.trim().is_empty() => return Ok(None),
+        Some(_) => {}
+    }
+    match body.opt_i64("serving_size") {
+        Some(n) if SERVINGS_RANGE.contains(&n) => Ok(Some(n as i32)),
+        _ => Err(AppError::validation(format!(
+            "serving_size must be a whole number from {} to {}",
+            SERVINGS_RANGE.start(),
+            SERVINGS_RANGE.end()
+        ))),
+    }
+}
+
 /// GET /api/sessions row.
 #[derive(Debug, Serialize, FromRow, TS)]
 #[ts(export)]
@@ -425,6 +446,7 @@ async fn create(mut t: Tenant, body: JsonBody) -> DbResult<(StatusCode, Json<Ses
     }
     let session_date = body_date(&body, "session_date")?;
     let repeat = body_repeat(&body)?.flatten();
+    let servings = body_servings(&body)?.unwrap_or(4);
 
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO sessions (
@@ -436,7 +458,7 @@ async fn create(mut t: Tenant, body: JsonBody) -> DbResult<(StatusCode, Json<Ses
     .bind(client_id)
     .bind(session_date)
     .bind(body.opt_text("session_time"))
-    .bind(body.i64_or("serving_size", 4) as i32)
+    .bind(servings)
     .bind(body.decimal_or("session_window_hours", Decimal::new(3, 0)))
     .bind(
         body.text_or_none("status")
@@ -524,8 +546,9 @@ async fn update(
         changed = true;
     }
     if body.has("serving_size") {
+        // Blank keeps the column's old meaning (NULL: "use the default").
         sets.push("serving_size = ")
-            .push_bind_unseparated(body.opt_i64("serving_size").map(|n| n as i32));
+            .push_bind_unseparated(body_servings(&body)?);
         changed = true;
     }
     for f in ["session_window_hours", "service_fee", "ingredient_cost"] {

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 taliesin-fios. Platebook: https://github.com/taliesin-fios/platebook
 
 import { describe, it, expect } from 'vitest';
-import { detectAllergens, calcFeasibility, marginColor, bookingUrl, dollarsToCents, centsToDollars, repeatLabel } from './constants';
+import { detectAllergens, calcFeasibility, marginColor, bookingUrl, dollarsToCents, centsToDollars, repeatLabel, clampServings, MIN_SERVINGS, MAX_SERVINGS } from './constants';
 
 const ing = (...names: string[]) => names.map(name => ({ name }));
 
@@ -122,5 +122,18 @@ describe('repeatLabel', () => {
     expect(repeatLabel(1)).toBe('Every week');
     expect(repeatLabel(2)).toBe('Every 2 weeks');
     expect(repeatLabel(6)).toBe('Every 6 weeks');
+  });
+});
+
+describe('clampServings', () => {
+  it('keeps any household size from 1 to 50', () => {
+    for (const n of [1, 2, 3, 5, 7, 50]) expect(clampServings(n)).toBe(n);
+  });
+  it('clamps and rounds everything else', () => {
+    expect(clampServings(0)).toBe(MIN_SERVINGS);
+    expect(clampServings(-3)).toBe(MIN_SERVINGS);
+    expect(clampServings(51)).toBe(MAX_SERVINGS);
+    expect(clampServings(2.6)).toBe(3);
+    expect(clampServings(NaN)).toBe(MIN_SERVINGS);
   });
 });

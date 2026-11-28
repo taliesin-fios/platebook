@@ -783,6 +783,210 @@ async fn grocery_generates_merges_and_toggles(pool: PgPool) {
     );
 }
 
+/// DEFECTS P1-2: a session can serve any household size, and the grocery
+/// list scales each recipe from its own base servings (it used to pick a fixed
+/// 4- or 6-serving column: a 6-serving chili came out at 1.5× for 6).
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn grocery_scales_every_recipe_to_any_household_size(pool: PgPool) {
+    let c = chef(&pool, "Scaling Kitchen").await;
+    let client = c
+        .post("/api/clients", json!({ "name": "Okafor Household" }))
+        .await
+        .body["id"]
+        .clone();
+    let bowl = c
+        .post(
+            "/api/recipes",
+            json!({ "name": "Rice Bowl", "servings_base": 4, "ingredients": [
+                { "name": "Rice", "qty_4_serving": "2 cups" },
+                { "name": "Olive oil", "qty_4_serving": "1 tbsp" },
+                { "name": "Garlic", "qty_4_serving": "2-3 cloves" },
+                { "name": "Parsley", "qty_4_serving": "some" },
+                { "name": "Salt", "qty_4_serving": "to taste" }] }),
+        )
+        .await
+        .body["id"]
+        .clone();
+    let chili = c
+        .post(
+            "/api/recipes",
+            json!({ "name": "Chili", "servings_base": 6, "ingredients": [
+                { "name": "Black beans", "qty_4_serving": "3 can" },
+                { "name": "Rice", "qty_4_serving": "1 1/2 cups" }] }),
+        )
+        .await
+        .body["id"]
+        .clone();
+
+    // servings → (rice: 2 cups/4 + 1 1/2 cups/6, oil: 1 tbsp/4, beans: 3 cans/6,
+    // garlic: 2-3 cloves/4)
+    let cases = [
+        (
+            1,
+            "3/4 cup",
+            "1/4 tbsp",
+            "1/2 can",
+            "Rice Bowl: 1/2 cup",
+            "1/2-3/4 clove",
+        ),
+        (
+            2,
+            "1 1/2 cups",
+            "1/2 tbsp",
+            "1 can",
+            "Rice Bowl: 1 cup",
+            "1-1 1/2 cloves",
+        ),
+        (
+            3,
+            "2 1/4 cups",
+            "3/4 tbsp",
+            "1 1/2 cans",
+            "Rice Bowl: 1 1/2 cups",
+            "1 1/2-2 1/4 cloves",
+        ),
+        (
+            5,
+            "3 3/4 cups",
+            "1 1/4 tbsp",
+            "2 1/2 cans",
+            "Rice Bowl: 2 1/2 cups",
+            "2 1/2-3 3/4 cloves",
+        ),
+        // At each recipe's own size nothing changes (the 6-serving chili
+        // used to come out at 4 1/2 cans here).
+        (
+            6,
+            "4 1/2 cups",
+            "1 1/2 tbsp",
+            "3 cans",
+            "Rice Bowl: 3 cups",
+            "3-4 1/2 cloves",
+        ),
+    ];
+    for (servings, rice, oil, beans, rice_source, garlic) in cases {
+        let session = c
+            .post(
+                "/api/sessions",
+                json!({ "client_id": client, "session_date": "2026-12-01",
+                        "serving_size": servings, "recipe_ids": [bowl, chili] }),
+            )
+            .await;
+        assert_eq!(session.status, StatusCode::CREATED, "{}", session.body);
+        assert_eq!(session.body["serving_size"], servings);
+        let id = session.body["id"].as_i64().unwrap();
+        for list in [
+            c.get(&format!("/api/sessions/{id}/grocery")).await.body,
+            c.post(&format!("/api/sessions/{id}/grocery/generate"), json!({}))
+                .await
+                .body,
+        ] {
+            let item = |name: &str| {
+                list["items"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|i| i["ingredient_name"] == name)
+                    .unwrap_or_else(|| panic!("{name} missing for {servings}: {list}"))
+                    .clone()
+            };
+            assert_eq!(item("Rice")["total_quantity"], rice, "rice for {servings}");
+            assert_eq!(
+                item("Olive oil")["total_quantity"],
+                oil,
+                "oil for {servings}"
+            );
+            assert_eq!(
+                item("Black beans")["total_quantity"],
+                beans,
+                "beans for {servings}"
+            );
+            assert_eq!(item("Rice")["source_dishes"][0], rice_source);
+            assert_eq!(item("Salt")["total_quantity"], "to taste");
+            assert_eq!(
+                item("Garlic")["total_quantity"],
+                garlic,
+                "garlic for {servings}"
+            );
+            // An amount that isn't a number can't be scaled; it says which
+            // size it was written for.
+            assert_eq!(item("Parsley")["total_quantity"], "some (as written for 4)");
+        }
+    }
+
+    // At the recipe's base size, amounts read as the recipe wrote them.
+    let four = c
+        .post(
+            "/api/sessions",
+            json!({ "client_id": client, "session_date": "2026-12-01",
+                    "serving_size": 4, "recipe_ids": [bowl] }),
+        )
+        .await
+        .body["id"]
+        .as_i64()
+        .unwrap();
+    let list = c.get(&format!("/api/sessions/{four}/grocery")).await.body;
+    let item = |name: &str| {
+        list["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["ingredient_name"] == name)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(item("Garlic")["total_quantity"], "2-3 cloves");
+    assert_eq!(item("Garlic")["source_dishes"][0], "Rice Bowl: 2-3 cloves");
+    assert_eq!(item("Parsley")["total_quantity"], "some");
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn session_servings_must_be_a_whole_number_from_1_to_50(pool: PgPool) {
+    let c = chef(&pool, "Servings Kitchen").await;
+    let (client, _, session) = basics(&c).await;
+    for bad in [json!(0), json!(-1), json!(51), json!("lots")] {
+        let created = c
+            .post(
+                "/api/sessions",
+                json!({ "client_id": client, "serving_size": bad }),
+            )
+            .await;
+        assert_eq!(
+            created.status,
+            StatusCode::BAD_REQUEST,
+            "{bad}: {}",
+            created.body
+        );
+        let updated = c
+            .put(
+                &format!("/api/sessions/{session}"),
+                json!({ "serving_size": bad }),
+            )
+            .await;
+        assert_eq!(
+            updated.status,
+            StatusCode::BAD_REQUEST,
+            "{bad}: {}",
+            updated.body
+        );
+    }
+    for good in [1, 2, 3, 5, 7, 50] {
+        let updated = c
+            .put(
+                &format!("/api/sessions/{session}"),
+                json!({ "serving_size": good }),
+            )
+            .await;
+        assert_eq!(updated.status, StatusCode::OK, "{good}: {}", updated.body);
+        assert_eq!(updated.body["serving_size"], good);
+    }
+    // Leaving it out still means the default.
+    let plain = c
+        .post("/api/sessions", json!({ "client_id": client }))
+        .await;
+    assert_eq!(plain.body["serving_size"], 4);
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn planner_scales_and_groups(pool: PgPool) {
     let c = chef(&pool, "Planner Kitchen").await;
