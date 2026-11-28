@@ -10,6 +10,11 @@ export type Chef = { id: number, email: string,
  */
 slug: string, onboarding_completed: boolean, 
 /**
+ * Whether this server can send email at all (a server-wide setting), so
+ * the app doesn't offer to retry a send that can't work.
+ */
+email_available: boolean, 
+/**
  * Only on the shared demo account (`DEMO_MODE`).
  */
 demo?: DemoInfo, };

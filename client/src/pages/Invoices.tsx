@@ -121,7 +121,7 @@ export default function Invoices() {
                           Overdue
                         </span>
                       )}
-                      {inv.email_failed_at && (
+                      {inv.email_failed_at && (inv.status === 'draft' || inv.status === 'sent') && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-600"
                           title="The last email of this invoice failed. Open it to try again.">
                           ⚠ Email failed

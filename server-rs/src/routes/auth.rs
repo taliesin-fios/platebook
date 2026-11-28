@@ -82,6 +82,9 @@ pub struct ChefAccount {
     /// Public booking-link slug (`/book/:slug`).
     pub slug: String,
     pub onboarding_completed: bool,
+    /// Whether this server can send email at all (a server-wide setting), so
+    /// the app doesn't offer to retry a send that can't work.
+    pub email_available: bool,
     /// Only on the shared demo account (`DEMO_MODE`).
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -114,8 +117,14 @@ pub struct SignupStatus {
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
 pub struct LinkSentResponse {
+    /// The request was handled. Always true, whether or not the account
+    /// exists (so the response doesn't reveal it).
     #[ts(type = "true")]
     pub sent: bool,
+    /// Whether this server has any email transport. A server-wide setting,
+    /// the same for every address, so it reveals nothing about accounts.
+    /// When false, no link was or could be emailed.
+    pub email_available: bool,
     /// Only in development, when email isn't configured and ALLOW_DEV_LINK=true.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -128,6 +137,7 @@ fn account_json(state: &AppState, a: &AccountRow) -> ChefAccount {
         email: a.email.clone(),
         slug: a.slug.clone(),
         onboarding_completed: a.onboarding_completed_at.is_some(),
+        email_available: state.config.email_available(),
         demo: state.demo.is_demo(a.id).then(|| DemoInfo {
             reset_hours: state.config.demo.reset_hours,
             next_reset_at: state
@@ -426,13 +436,20 @@ async fn send_link(
     ttl: Duration,
 ) -> AppResult<Response> {
     let email = norm_email(&body.str("email"));
+    let email_available = state.config.email_available();
     let sent = || {
         Json(LinkSentResponse {
             sent: true,
+            email_available,
             dev_link: None,
         })
         .into_response()
     };
+    // No transport: nothing to send, so don't look the account up or mint a
+    // token (unless the dev-only link echo is on).
+    if !email_available && !state.config.expose_dev_link() {
+        return Ok(sent());
+    }
 
     // No sign-in or reset links for the demo account.
     let account = if email.is_empty() || email == DEMO_EMAIL {
@@ -451,23 +468,34 @@ async fn send_link(
     };
     let token = auth::sign_one_time(&who, purpose, ttl, &state.config.jwt_secret);
     let client_url = &state.config.client_url;
-    let (url, result) = if purpose == "magic-login" {
-        let url = format!("{client_url}/api/auth/verify?token={token}");
-        let r = email::send_magic_link(state, account.id, &account.email, &url).await;
-        (url, r)
+    let magic = purpose == "magic-login";
+    let url = if magic {
+        format!("{client_url}/api/auth/verify?token={token}")
     } else {
-        let url = format!("{client_url}/reset?token={token}");
-        let r = email::send_password_reset(state, account.id, &account.email, &url).await;
-        (url, r)
+        format!("{client_url}/reset?token={token}")
     };
-    if let Err(err) = result {
-        tracing::error!(error = %err, purpose, "[auth] sending link failed");
+    // Sent in the background, so neither the response nor its timing (SMTP
+    // can take seconds, with a retry) reveals that the account exists. The
+    // logged error never includes the link.
+    {
+        let (state, url, purpose) = (state.clone(), url.clone(), purpose.to_string());
+        tokio::spawn(async move {
+            let result = if magic {
+                email::send_magic_link(&state, account.id, &account.email, &url).await
+            } else {
+                email::send_password_reset(&state, account.id, &account.email, &url).await
+            };
+            if let Err(err) = result {
+                tracing::error!(error = %err, purpose, "[auth] sending link failed");
+            }
+        });
     }
 
     // SEC7: dev link only when explicitly opted in; never in production.
     if state.config.expose_dev_link() {
         return Ok(Json(LinkSentResponse {
             sent: true,
+            email_available,
             dev_link: Some(url),
         })
         .into_response());

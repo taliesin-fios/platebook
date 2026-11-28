@@ -28,7 +28,8 @@
         "id": 1,
         "email": "alpha.kitchen@example.com",
         "slug": "alpha-kitchen",
-        "onboarding_completed": true
+        "onboarding_completed": true,
+        "email_available": false
       },
       "/api/settings": {
         "account_id": 1,
@@ -3539,7 +3540,8 @@
         "id": 2,
         "email": "beta.bistro@example.com",
         "slug": "beta-bistro",
-        "onboarding_completed": true
+        "onboarding_completed": true,
+        "email_available": false
       },
       "/api/settings": {
         "account_id": 2,

@@ -1,0 +1,20 @@
+# Retest after fixing rehearsal findings D1 (duplicate emails on rapid clicks) and D3 (stale
+# "email failed" banner on a paid invoice). Run against the rehearsal instance (localhost:4310,
+# mail sink :2580) with the rebuilt client. Scripts: five element.click() calls in ONE JavaScript
+# tick (harsher than a human double/quintuple click), then count new messages in the sink.
+meal plan: 5 clicks in one tick -> 1 message(s)      (leg 3 before the fix: 5 messages)
+invoice: 5 clicks in one tick -> 1 message(s)        (leg 3 before the fix: 2 messages)
+paid invoice INV-2026-0001 email_failed_at: 2026-11-24 15:55:07   (stale failure still stored)
+banner on paid invoice: 0                             (leg 3 before the fix: banner + "Try again")
+"Email failed" badges in list: 0
+
+# CORRECTION (added after the observer's audit): the retest above was incomplete and is superseded.
+# - It fired clicks in one JavaScript tick only. With real mouse clicks 60 ms apart the client-only
+#   guard still let 5 meal-plan emails through (each local send finished before the next click):
+#   see 21-run-all-demo.txt history / commit message. A server-side 10 s repeat window
+#   (409 EMAIL_JUST_SENT) was added; docs/rehearsal/demo/retest-rapid-clicks.mjs now tests both click
+#   styles on the meal plan and the invoice, and 21-run-all-demo.txt records 4/4 PASS.
+# - Side effect of this retest on the rehearsal database: it emailed draft invoice INV-2026-0002 to
+#   lucia.castellano@example.com (mail sink message #23, fictional), so that invoice is now "sent",
+#   and it cleared Okafor's pdf_email_failed_at with a successful meal-plan send (sink #22). Leg 3's
+#   "state left behind" section predates this.

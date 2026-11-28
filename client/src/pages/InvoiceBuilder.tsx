@@ -12,6 +12,8 @@ import { useToast } from '../components/Toast';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
 import { FINAL_STATUSES, needsFinalConfirm } from '../utils/invoiceStatus';
+import { emailSentMessage, isRecordedEmailFailure } from '../utils/emailResult';
+import { useSingleFlight } from '../hooks/useSingleFlight';
 import type { ClientLink, EmailSentResponse, Invoice, Settings } from '../types';
 
 interface LineItemDraft {
@@ -378,7 +380,9 @@ export default function InvoiceBuilder() {
     }
   };
 
-  const handleEmail = async () => {
+  const sendOnce = useSingleFlight();
+  const handleEmail = () => sendOnce(emailInvoice);
+  const emailInvoice = async () => {
     if (!form.client_email) {
       show('Add a client email address before sending', 'error');
       return;
@@ -392,16 +396,16 @@ export default function InvoiceBuilder() {
       const r = await fetch(`/api/invoices/${saved.id}/email`, { method: 'POST' });
       const data: ApiResult<EmailSentResponse> = await r.json();
       if (!r.ok) {
-        if (data.code !== 'NO_EMAIL') setEmailFailedAt(new Date().toISOString());
-        show(data.error || 'Failed to send invoice', 'error');
+        if (isRecordedEmailFailure(data.code)) setEmailFailedAt(new Date().toISOString());
+        show(data.error || 'The invoice was not sent', 'error', 8000);
         return;
       }
       setEmailFailedAt(null);
-      show(`Invoice sent to ${data.sent_to}`, 'success');
+      show(emailSentMessage('Invoice', data), 'success', 5000);
       // Reflect status change (draft → sent) in form
       if (form.status === 'draft') setForm(f => ({ ...f, status: 'sent' }));
     } catch {
-      show('Could not generate or send the invoice PDF', 'error');
+      show('The invoice was not sent: could not reach the server', 'error', 8000);
     } finally {
       setEmailing(false);
       if (isNew && saved) openSaved(saved.id);
@@ -432,7 +436,7 @@ export default function InvoiceBuilder() {
           </span>
         }
       />
-      <EmailFailedBanner what="invoice" failedAt={emailFailedAt} onRetry={handleEmail} retrying={emailing} />
+      <EmailFailedBanner what="invoice" failedAt={form.status === 'draft' || form.status === 'sent' ? emailFailedAt : null} onRetry={handleEmail} retrying={emailing} onDownload={handlePrint} />
 
       </div>{/* end invoice-no-print (page header) */}
 

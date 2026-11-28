@@ -9,6 +9,8 @@ import { SkeletonList } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { STATUS_COLORS, marginColor, repeatLabel } from '../constants';
 import { errorMessage } from '../hooks/useApi';
+import { emailSentMessage, errorCode, isRecordedEmailFailure } from '../utils/emailResult';
+import { useSingleFlight } from '../hooks/useSingleFlight';
 import type { EmailSentResponse, SessionListItem } from '../types';
 import { pressable } from '../utils/keyboardActivate';
 
@@ -52,33 +54,37 @@ export default function Sessions() {
   const formatSentDate = (ts: string | null) => fmtUtcTimestamp(ts, 'MMM d');
 
   // Re-send meal plan PDF from the list without navigating into detail
-  const handleResend = async (s: SessionListItem, e: MouseEvent) => {
+  const sendOnce = useSingleFlight();
+  const handleResend = (s: SessionListItem, e: MouseEvent) => {
     e.stopPropagation();
+    return sendOnce(() => resendMealPlan(s));
+  };
+  const resendMealPlan = async (s: SessionListItem) => {
     setSendingId(s.id);
     try {
       // The server renders and attaches the meal plan itself.
       const res = await fetch(`/api/sessions/${s.id}/email-pdf`, { method: 'POST' });
       const data: EmailSentResponse & { error?: string; code?: string } = await res.json();
       if (!res.ok) {
-        // The server records a failed send (not a missing address)
-        if (data.code !== 'NO_EMAIL') {
+        // The server records a failed send (not a missing address or a rate limit)
+        if (isRecordedEmailFailure(data.code)) {
           setSessions(prev => prev.map(x =>
             x.id === s.id ? { ...x, pdf_email_failed_at: new Date().toISOString() } : x
           ));
         }
-        throw new Error(data.error || 'Failed to send');
+        throw Object.assign(new Error(data.error || 'Failed to send'), { code: data.code });
       }
 
       // Update badge in local list state immediately
       setSessions(prev => prev.map(x =>
         x.id === s.id ? { ...x, pdf_emailed_at: new Date().toISOString(), pdf_email_failed_at: null } : x
       ));
-      show(`Meal plan sent to ${data.sent_to}`, 'success', 4000);
+      show(emailSentMessage('Meal plan', data), 'success', 5000);
     } catch (err) {
-      if (errorMessage(err)?.includes('NO_EMAIL') || errorMessage(err)?.includes('no email')) {
+      if (errorCode(err) === 'NO_EMAIL') {
         show('No email on file for this client — add one in the client profile', 'error', 4000);
       } else {
-        show(errorMessage(err) || 'Could not send meal plan', 'error', 4000);
+        show(errorMessage(err) || 'The meal plan was not sent', 'error', 8000);
       }
     } finally {
       setSendingId(null);

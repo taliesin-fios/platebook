@@ -1,0 +1,4 @@
+# tests 6
+# pass 6
+# fail 0
+migrate e2e passed
