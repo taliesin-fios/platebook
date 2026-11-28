@@ -1,0 +1,38 @@
+                                                                                  Juniper Table Kitchen
+                                                                                                           Robin Hale
+                                                                                     hello@juniper-table.example.com
+
+INVOICE
+                                                                                         Issued: November 24, 2026
+INV-2026-0001                                                                                Due: December 8, 2026
+
+
+
+
+BILL TO
+Okafor Household (Ada Okafor)
+ada.okafor@example.com
+(555) 010-0101
+
+DESCRIPTION                                                                 QTY            PRICE           AMOUNT
+
+Weekly meal prep service, Mon Dec 7 (4 servings, 2 dishes)                   1           $240.00           $240.00
+
+Groceries (at cost, receipt available)                                       1            $86.40             $86.40
+
+
+Subtotal                                                                                                   $326.40
+
+Total Due                                                                                                 $326.40
+
+   Note
+   Thank you, Ada! Payment by Venmo, Zelle, or check within 14 days.
+
+
+
+
+                                                    Juniper Table Kitchen
+
+
+                                                      Made with Platebook
+

@@ -10,6 +10,8 @@ import EmailFailedBanner from '../components/EmailFailedBanner';
 import ConfirmModal from '../components/ConfirmModal';
 import { useToast } from '../components/Toast';
 import { apiCall, errorMessage } from '../hooks/useApi';
+import { emailSentMessage, errorCode, isRecordedEmailFailure } from '../utils/emailResult';
+import { useSingleFlight } from '../hooks/useSingleFlight';
 import { STATUS_COLORS, calcFeasibility, FEASIBILITY_COLORS, CATEGORY_BAR_COLORS, marginColor, REPEAT_OPTIONS } from '../constants';
 import { downloadServerPdf, pdfFilename } from '../utils/serverPdf';
 import { parseNum, type NumInput } from '../utils/numbers';
@@ -168,7 +170,9 @@ export default function SessionDetail() {
     }
   };
 
-  const handleEmailPDF = async () => {
+  const sendOnce = useSingleFlight();
+  const handleEmailPDF = () => sendOnce(emailMealPlan);
+  const emailMealPlan = async () => {
     if (!session) return;
     const clientEmail = session.client_email;
     if (!clientEmail) {
@@ -181,13 +185,16 @@ export default function SessionDetail() {
       const result = await apiCall<EmailSentResponse>(`/api/sessions/${id}/email-pdf`, 'POST');
       // Mirror what the server recorded (sent, failure cleared)
       setSession(prev => prev && ({ ...prev, pdf_emailed_at: new Date().toISOString(), pdf_email_failed_at: null }));
-      show(`Meal plan sent to ${result.sent_to}`, 'success', 4000);
+      show(emailSentMessage('Meal plan', result), 'success', 5000);
     } catch (err) {
-      if (errorMessage(err)?.includes('NO_EMAIL') || errorMessage(err)?.includes('no email')) {
+      if (errorCode(err) === 'NO_EMAIL') {
         show('No email on file for this client', 'error', 4000);
       } else {
-        setSession(prev => prev && ({ ...prev, pdf_email_failed_at: new Date().toISOString() }));
-        show(errorMessage(err) || 'Could not send email — check server email settings', 'error', 5000);
+        // The server recorded the failed attempt; mirror it so the banner shows.
+        if (isRecordedEmailFailure(errorCode(err))) {
+          setSession(prev => prev && ({ ...prev, pdf_email_failed_at: new Date().toISOString() }));
+        }
+        show(errorMessage(err) || 'The meal plan was not sent', 'error', 8000);
       }
     } finally {
       setEmailing(false);
@@ -395,7 +402,7 @@ export default function SessionDetail() {
       />
 
       <EmailFailedBanner what="meal plan" failedAt={session.pdf_email_failed_at}
-        onRetry={handleEmailPDF} retrying={emailing} />
+        onRetry={handleEmailPDF} retrying={emailing} onDownload={handleGeneratePDF} />
 
       {/* Stat row */}
       <div className="grid grid-cols-4 gap-0 bg-white border-b border-gray-100">

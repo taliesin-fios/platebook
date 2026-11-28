@@ -267,6 +267,53 @@ pub async fn get_settings(
     }))
 }
 
+/// Deletes every row the account owns (children go with their parents), in
+/// foreign-key order. Run it inside the account's tenant
+/// ([`crate::db::enter_tenant`]) so RLS limits it to that account.
+pub async fn wipe_data(conn: &mut PgConnection, id: i64) -> Result<(), sqlx::Error> {
+    for table in [
+        "payment_events",
+        "invoices",
+        "recipe_import_log",
+        "client_intakes",
+        "sessions",
+        "session_templates",
+        "recipes",
+        "clients",
+    ] {
+        sqlx::query(&format!("DELETE FROM {table} WHERE account_id = $1"))
+            .bind(id)
+            .execute(&mut *conn)
+            .await?;
+    }
+    Ok(())
+}
+
+/// Deletes an account and everything it owns, in one transaction: its data
+/// under its own tenant (RLS keeps it to that account), then its settings and
+/// the account row as the connecting user (`chef_app` can't delete accounts).
+/// An invite it used keeps its record with `used_by_account_id` cleared.
+pub async fn delete_account(pool: &sqlx::PgPool, id: i64) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    crate::db::enter_tenant(&mut tx, id).await?;
+    wipe_data(&mut tx, id).await?;
+    sqlx::query("DELETE FROM settings WHERE account_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("RESET ROLE").execute(&mut *tx).await?;
+    // Rate-limit counters keyed to the account (`acct:<id>`).
+    sqlx::query("DELETE FROM rate_limit_hits WHERE key = $1")
+        .bind(crate::rate_limit::AccountLimits::key(id))
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM accounts WHERE id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await
+}
+
 #[cfg(test)]
 mod tests {
     use super::slugify;

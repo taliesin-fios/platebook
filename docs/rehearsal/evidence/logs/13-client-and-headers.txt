@@ -1,0 +1,7 @@
+# client gates at bc8f985 (source unchanged since dec3af1)
+✖ 20 problems (0 errors, 20 warnings)
+Icon buttons: all labelled.
+ Test Files  24 passed (24)
+      Tests  172 passed (172)
+✓ built in 3.06s
+License headers: 191 files OK.

@@ -5,7 +5,6 @@
 //!
 //! GET    /api/settings              — this account's settings + account meta
 //! PUT    /api/settings              — partial update (only fields present change)
-//! GET    /api/settings/public       — SEC6 legacy: account #1's public profile
 //! GET    /api/settings/export       — this account's data as JSON
 //! DELETE /api/settings/clear-sample — remove the demo client and its history
 
@@ -31,13 +30,11 @@ use crate::models::{
     SessionRow, SessionTemplateRow,
 };
 use crate::routes::JsonBody;
-use crate::routes::public::{PublicProfile, profile_for};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_settings).put(put_settings))
-        .route("/public", get(legacy_public))
         .route("/export", get(export))
         .route("/clear-sample", delete(clear_sample))
 }
@@ -267,16 +264,6 @@ fn fmt_num(n: f64) -> String {
     } else {
         format!("{n}")
     }
-}
-
-/// GET /api/settings/public — SEC6 legacy: intake links shared before
-/// accounts existed (/intake/new) belong to account #1.
-async fn legacy_public(State(state): State<AppState>) -> DbResult<Response> {
-    let profile: Option<PublicProfile> = profile_for(&state, 1).await?;
-    Ok(match profile {
-        Some(p) => Json(p).into_response(),
-        None => Json(json!({})).into_response(),
-    })
 }
 
 /// GET /api/settings/export — everything this account owns. Same layout as

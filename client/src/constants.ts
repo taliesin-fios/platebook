@@ -231,9 +231,9 @@ export const SERVICE_TYPES = [
 
 export const PASSWORD_MIN_LENGTH = 10;
 
-/** Public booking link a chef shares with prospective clients. */
+/** Public booking link a chef shares with prospective clients ('' until the slug is known). */
 export const bookingUrl = (slug: string | null | undefined, origin: string = window.location.origin): string =>
-  slug ? `${origin}/book/${slug}` : `${origin}/intake/new`;
+  slug ? `${origin}/book/${slug}` : '';
 
 /** Dollars (string/number) ⇄ integer cents for the deposit field. */
 export const dollarsToCents = (v: unknown): number => {

@@ -47,7 +47,7 @@ cp .env.selfhost.example .env        # fill in the secrets
 docker compose -f docker-compose.selfhost.yml up -d --build
 ```
 
-Then put a reverse proxy with HTTPS in front of it. **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)** covers HTTPS, email, Stripe, AI, backups, upgrades and who can sign up.
+Then put a reverse proxy with HTTPS in front of it. **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)** covers HTTPS, email, Stripe, AI, backups, upgrades and who can sign up. **[docs/DATA.md](docs/DATA.md)** says in plain English what data Platebook stores and who can see it.
 
 > **Allergen detection is advisory.** Platebook flags likely allergens by matching keywords in ingredient names. It isn't a certified check: always confirm allergies with the client.
 >
@@ -150,14 +150,17 @@ All configuration lives in `server-rs/.env` (gitignored). The annotated template
 | `BOOKING_FEE_CENTS` | Optional | Stripe fallback deposit when a chef hasn't set one (default `5000`) |
 | `EMAIL_HOST` | Optional | SMTP host (e.g. `smtp.hostinger.com`) |
 | `EMAIL_PORT` | Optional | SMTP port (default `587`) |
-| `EMAIL_USER` | Optional | SMTP login |
+| `EMAIL_USER` | Optional | SMTP login (set together with `EMAIL_PASS`, or neither for a relay that needs no login) |
 | `EMAIL_PASS` | Optional | SMTP password |
 | `EMAIL_FROM` | Optional | From address for outgoing mail |
+| `EMAIL_TLS` | Optional | `starttls` (default), `tls` (default on port 465) or `none` (plain SMTP, for a local mail sink; refused in production with a login) |
+| `EMAIL_TIMEOUT_SECS` | Optional | Longest one SMTP attempt may take (default `20`, 1–120) |
+| `EMAIL_CAPTURE` | Optional | `true` (dev/test only, refused in production and with `EMAIL_HOST`) keeps mail in memory and the log instead of sending it; the app labels it "captured", never "sent" |
 | `ALLOW_DEV_LINK` | Optional | `true` (dev only, no SMTP) returns magic/reset links in the API response |
 | `AUTO_BACKUP` | Optional | `true` runs a daily `pg_dump` into `BACKUP_DIR` (at `AUTO_BACKUP_HOUR`) |
 | `RUST_LOG` | Optional | Log filter (default `info,tower_http=info`) |
 
-> When `EMAIL_HOST` is not set, emails are **logged** instead of sent, so you can develop without an SMTP server.
+> Without `EMAIL_HOST` the server has **no email**: sending an invoice, meal plan or booking confirmation fails with a clear message (and offers the PDF download), nothing is marked sent, reminders wait, and the sign-in/reset pages say email isn't available. For local development set `EMAIL_CAPTURE=true`, or point `EMAIL_HOST` at a local mail sink (`EMAIL_PORT=1025 EMAIL_TLS=none`). A successful send means the mail server *accepted* the message; Platebook can't confirm it reached the inbox.
 
 ### Accounts & Onboarding
 

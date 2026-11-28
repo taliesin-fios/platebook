@@ -12,7 +12,7 @@ use axum::http::{StatusCode, header};
 use chef_server::auth::{Account, sign_one_time};
 use chef_server::config::SignupMode;
 use chef_server::db::MIGRATOR;
-use common::{JWT_SECRET, app, app_with, get, make_account, post, test_config};
+use common::{JWT_SECRET, app, app_with, delete_json, get, make_account, post, test_config};
 use serde_json::json;
 use sqlx::PgPool;
 
@@ -516,7 +516,11 @@ async fn forgot_password_and_request_link_respond_uniformly(pool: PgPool) {
         for email in ["ghost@example.com", "real.kitchen@example.com"] {
             let res = post(path, json!({ "email": email })).send(&app).await;
             assert_eq!(res.status, StatusCode::OK);
-            assert_eq!(res.body, json!({ "sent": true }), "{path} {email}");
+            assert_eq!(
+                res.body,
+                json!({ "sent": true, "email_available": true }),
+                "{path} {email}"
+            );
         }
     }
 }
@@ -757,4 +761,65 @@ async fn one_time_tokens_are_not_session_cookies(pool: PgPool) {
             .await;
         assert_eq!(res.status, StatusCode::UNAUTHORIZED, "{purpose}");
     }
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn deleting_an_account_needs_its_password_and_frees_the_email(pool: PgPool) {
+    let app = app(pool.clone());
+    let signup = post("/api/auth/signup", signup_body("leaving@example.com"))
+        .send(&app)
+        .await;
+    assert_eq!(signup.status, StatusCode::CREATED);
+    let cookie = signup.auth_cookie().unwrap();
+    let id = signup.body["id"].as_i64().unwrap();
+
+    // No session: refused before anything is checked.
+    let anon = delete_json(
+        "/api/auth/account",
+        json!({ "confirm_email": "leaving@example.com" }),
+    )
+    .send(&app)
+    .await;
+    assert_eq!(anon.status, StatusCode::UNAUTHORIZED);
+
+    for password in [json!(null), json!("wrong-password-123")] {
+        let res = delete_json(
+            "/api/auth/account",
+            json!({ "confirm_email": "leaving@example.com", "password": password }),
+        )
+        .cookie(&cookie)
+        .send(&app)
+        .await;
+        assert_eq!(res.status, StatusCode::FORBIDDEN, "{}", res.text);
+        assert_eq!(res.body["code"], "WRONG_PASSWORD");
+    }
+    let still: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM accounts WHERE id = $1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(still, 1);
+
+    let res = delete_json(
+        "/api/auth/account",
+        json!({ "confirm_email": "leaving@example.com", "password": "correct-horse-battery" }),
+    )
+    .cookie(&cookie)
+    .send(&app)
+    .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.text);
+
+    let login = post(
+        "/api/auth/login",
+        json!({ "email": "leaving@example.com", "password": "correct-horse-battery" }),
+    )
+    .send(&app)
+    .await;
+    assert_eq!(login.status, StatusCode::UNAUTHORIZED);
+    // The address can sign up again, as a new, empty account.
+    let again = post("/api/auth/signup", signup_body("leaving@example.com"))
+        .send(&app)
+        .await;
+    assert_eq!(again.status, StatusCode::CREATED, "{}", again.text);
+    assert_ne!(again.body["id"].as_i64().unwrap(), id);
 }

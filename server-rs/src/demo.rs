@@ -138,31 +138,10 @@ pub async fn reset(pool: &PgPool) -> Result<i64, sqlx::Error> {
     .await?;
 
     db::enter_tenant(&mut tx, id).await?;
-    wipe(&mut tx, id).await?;
+    accounts::wipe_data(&mut tx, id).await?;
     seed_demo(&mut tx, id).await?;
     tx.commit().await?;
     Ok(id)
-}
-
-/// Deletes every row the account owns (children go with their parents),
-/// in foreign-key order.
-async fn wipe(conn: &mut PgConnection, id: i64) -> Result<(), sqlx::Error> {
-    for table in [
-        "payment_events",
-        "invoices",
-        "recipe_import_log",
-        "client_intakes",
-        "sessions",
-        "session_templates",
-        "recipes",
-        "clients",
-    ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE account_id = $1"))
-            .bind(id)
-            .execute(&mut *conn)
-            .await?;
-    }
-    Ok(())
 }
 
 struct DemoClient {

@@ -9,7 +9,7 @@ mod common;
 
 use axum::http::StatusCode;
 use chef_server::db::{MIGRATOR, begin_tenant};
-use common::{Chef, app, get, post};
+use common::{Chef, app, delete_json, get, post};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
@@ -565,6 +565,241 @@ async fn intake_lands_with_the_slug_owner_and_tokens_dont_cross(pool: PgPool) {
         .status,
         StatusCode::NOT_FOUND
     );
+}
+
+/// Deleting an account removes every row it owns, and nothing of anyone else's.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn deleting_an_account_removes_only_its_own_data(pool: PgPool) {
+    let (a, b, a_ids) = two_chefs(&pool).await;
+    let b_ids = build(&b).await;
+    let count = |sql: &'static str, id: i64| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(sql)
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        }
+    };
+    const TABLES: [&str; 9] = [
+        "clients",
+        "recipes",
+        "sessions",
+        "session_templates",
+        "client_intakes",
+        "invoices",
+        "recipe_import_log",
+        "payment_events",
+        "settings",
+    ];
+    let owned = |account: i64| {
+        let pool = pool.clone();
+        async move {
+            let mut total = 0;
+            for t in TABLES {
+                total += sqlx::query_scalar::<_, i64>(&format!(
+                    "SELECT COUNT(*) FROM {t} WHERE account_id = $1"
+                ))
+                .bind(account)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            }
+            total
+        }
+    };
+    let b_before = owned(b.id).await;
+    assert!(owned(a.id).await > 0 && b_before > 0);
+
+    // The wrong confirmation, or another chef's email, deletes nothing.
+    for wrong in [
+        json!({}),
+        json!({ "confirm_email": "beta.kitchen@example.com" }),
+    ] {
+        let res = delete_json("/api/auth/account", wrong)
+            .cookie(&a.cookie)
+            .send(&a.app)
+            .await;
+        assert_eq!(res.status, StatusCode::BAD_REQUEST, "{}", res.text);
+        assert_eq!(res.body["code"], "CONFIRMATION_MISMATCH");
+    }
+    assert!(owned(a.id).await > 0);
+
+    let res = delete_json(
+        "/api/auth/account",
+        json!({ "confirm_email": " Alpha.Kitchen@Example.com " }),
+    )
+    .cookie(&a.cookie)
+    .send(&a.app)
+    .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.text);
+    assert!(res.set_cookie().unwrap().starts_with("authToken=;"));
+
+    // A's rows are gone, children included (they have no account_id).
+    assert_eq!(owned(a.id).await, 0);
+    assert_eq!(
+        count("SELECT COUNT(*) FROM accounts WHERE id = $1", a.id).await,
+        0
+    );
+    assert_eq!(
+        count(
+            "SELECT COUNT(*) FROM ingredients WHERE recipe_id = $1",
+            a_ids.recipe
+        )
+        .await,
+        0
+    );
+    assert_eq!(
+        count(
+            "SELECT COUNT(*) FROM grocery_items WHERE id = $1",
+            a_ids.grocery_item
+        )
+        .await,
+        0
+    );
+    assert_eq!(
+        count(
+            "SELECT COUNT(*) FROM invoice_line_items WHERE invoice_id = $1",
+            a_ids.invoice
+        )
+        .await,
+        0
+    );
+    // A's old cookie opens nothing.
+    assert_eq!(a.get("/api/auth/me").await.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(a.get("/api/clients").await.status, StatusCode::UNAUTHORIZED);
+
+    // B is untouched, down to the child rows.
+    assert_eq!(owned(b.id).await, b_before);
+    assert_eq!(
+        b.get("/api/clients").await.body.as_array().unwrap().len(),
+        1
+    );
+    assert!(
+        count(
+            "SELECT COUNT(*) FROM ingredients WHERE recipe_id = $1",
+            b_ids.recipe
+        )
+        .await
+            > 0
+    );
+    assert_eq!(
+        b.get(&format!("/api/sessions/{}", b_ids.session))
+            .await
+            .status,
+        StatusCode::OK
+    );
+    // B can't delete A's (already gone) account, or anyone's but its own:
+    // the route has no id to point elsewhere.
+}
+
+/// DEFECTS P1-1: `/intake/<anything>` used to open account #1's booking form,
+/// and a submission without a slug landed in account #1. Now an intake is
+/// reachable only with its own signed token (or its owner's session), and
+/// nothing falls back to account #1.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn intake_ids_are_useless_without_their_own_token_and_nothing_defaults_to_account_1(
+    pool: PgPool,
+) {
+    let (a, b, i) = two_chefs(&pool).await;
+    assert_eq!(a.id, 1, "A must be account #1, the old fallback target");
+    let intakes = || async {
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM client_intakes")
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    };
+    let before = intakes().await;
+
+    // B's own intake and its genuine token.
+    let beta = post(
+        "/api/intake",
+        json!({ "slug": "beta-kitchen", "name": "Beta Lead", "terms_accepted": true }),
+    )
+    .send(&b.app)
+    .await;
+    assert_eq!(beta.status, StatusCode::CREATED);
+    let b_token = beta.body["edit_token"].as_str().unwrap().to_string();
+    let b_id = beta.body["id"].as_i64().unwrap();
+
+    // Loading: A's id (and guesses around it) with no token, B's real token,
+    // or a junk token never returns A's intake.
+    for target in [
+        i.intake.to_string(),
+        (b_id + 1).to_string(),
+        "999".to_string(),
+        "abc".to_string(),
+    ] {
+        let bare = get(format!("/api/intake/{target}")).send(&b.app).await;
+        assert_eq!(bare.status, StatusCode::UNAUTHORIZED, "{target}: no token");
+        for token in [b_token.as_str(), "0.0000"] {
+            let r = get(format!("/api/intake/{target}?token={token}"))
+                .send(&b.app)
+                .await;
+            // 403 for a numeric id with a bad token; a non-numeric id never
+            // reaches the route (401 from the auth middleware). Never data.
+            let refused = [StatusCode::FORBIDDEN, StatusCode::UNAUTHORIZED];
+            assert!(
+                refused.contains(&r.status),
+                "{target} with {token}: {}",
+                r.status
+            );
+            assert!(!r.text.contains("Lead"), "{target}: {}", r.text);
+            // Signed in as B doesn't help either.
+            let signed_in = b.get(&format!("/api/intake/{target}?token={token}")).await;
+            assert!(
+                refused.contains(&signed_in.status),
+                "{target}: {}",
+                signed_in.status
+            );
+            assert!(
+                !signed_in.text.contains("Lead"),
+                "{target}: {}",
+                signed_in.text
+            );
+        }
+    }
+
+    // Submitting to A's intake: an edit or a deposit checkout with B's token.
+    let edit = b
+        .put(
+            &format!("/api/intake/{}?token={b_token}", i.intake),
+            json!({ "name": "Hijacked", "allergens": ["peanuts"] }),
+        )
+        .await;
+    assert_eq!(edit.status, StatusCode::FORBIDDEN);
+    let checkout = b
+        .post(
+            &format!("/api/intake/{}/checkout?token={b_token}", i.intake),
+            json!({}),
+        )
+        .await;
+    assert_eq!(checkout.status, StatusCode::FORBIDDEN);
+    let a_rows = a.get("/api/intake").await.body;
+    assert_eq!(a_rows.as_array().unwrap().len(), 1);
+    assert_eq!(a_rows[0]["name"], "Lead");
+
+    // A new submission without a slug (what /intake/new and /intake/<id>
+    // without a token used to send) is refused, not given to account #1.
+    let orphan = post(
+        "/api/intake",
+        json!({ "name": "Okafor Household", "allergens": ["peanuts"], "terms_accepted": true }),
+    )
+    .send(&b.app)
+    .await;
+    assert_eq!(orphan.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        intakes().await,
+        before + 1,
+        "only B's own submission was stored"
+    );
+    assert_eq!(a.get("/api/intake").await.body.as_array().unwrap().len(), 1);
+
+    // Account #1's booking profile is no longer served to anyone without a slug.
+    let legacy = get("/api/settings/public").send(&b.app).await;
+    assert_ne!(legacy.status, StatusCode::OK);
+    assert!(!legacy.text.contains("Alpha"), "{}", legacy.text);
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

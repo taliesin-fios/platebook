@@ -26,6 +26,7 @@ export default function Login() {
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState('');
   const [linkSent, setLinkSent] = useState(false);
+  const [emailAvailable, setEmailAvailable] = useState(true);
   const [devLink, setDevLink] = useState<string | null>(null);
 
   const urlError = LINK_ERRORS[searchParams.get('error') ?? ''];
@@ -50,6 +51,7 @@ export default function Login() {
     try {
       const data = await apiCall<LinkSentResponse>('/api/auth/request-link', 'POST', { email });
       setLinkSent(true);
+      setEmailAvailable(data.email_available);
       if (data.dev_link) setDevLink(data.dev_link); // dev-only shortcut (ALLOW_DEV_LINK)
     } catch (err) {
       setError(errorMessage(err));
@@ -62,13 +64,20 @@ export default function Login() {
 
   if (linkSent) {
     return (
-      <AuthLayout title="Check your inbox">
+      <AuthLayout title={emailAvailable ? 'Check your inbox' : 'Email isn’t available'}>
         <div className="text-center">
-          <div className="text-5xl mb-4" aria-hidden="true">📬</div>
-          <p className="text-sm text-gray-600 leading-relaxed mb-5">
-            If an account exists for <strong className="text-olive">{email}</strong>, a sign-in link is on its way.
-            It expires in 15 minutes.
-          </p>
+          <div className="text-5xl mb-4" aria-hidden="true">{emailAvailable ? '📬' : '✉️'}</div>
+          {emailAvailable ? (
+            <p className="text-sm text-gray-600 leading-relaxed mb-5">
+              If an account exists for <strong className="text-olive">{email}</strong>, we’ve asked the mail server to send it a
+              sign-in link. It expires in 15 minutes. If nothing arrives, check your spam folder or sign in with your password.
+            </p>
+          ) : (
+            <p className="text-sm text-gray-600 leading-relaxed mb-5">
+              This Platebook server isn’t set up to send email, so no sign-in link was sent. Sign in with your password, or
+              ask whoever runs this server to configure email.
+            </p>
+          )}
           {devLink && (
             <div className="bg-sage border border-herb rounded-lg p-3.5 mb-4 text-left">
               <div className="text-[11px] font-bold text-green-dark uppercase tracking-wide mb-1.5">Dev mode — no SMTP configured</div>
