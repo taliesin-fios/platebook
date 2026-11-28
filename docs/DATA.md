@@ -26,7 +26,7 @@ In the browser, Platebook sets one sign-in cookie, and remembers whether the che
 
 - **Email:** messages to clients (invoices, meal plans, booking confirmations, reminders) go through the email provider the server owner sets up. That provider handles the message contents.
 - **Online payments:** with Stripe switched on, clients pay on Stripe's own page; Stripe sees the payment details. Platebook never sees card numbers.
-- **AI features:** these are off unless a key is set up. Recipe import sends the recipe text or web address to the chef's chosen AI provider. Menu suggestions send the client's household size, allergies and food preferences, but not their name or contact details.
+- **AI features:** these are off unless the chef adds an AI key, or the server owner sets up a shared one. Importing a recipe from a web address has the Platebook server fetch that page itself, with no AI; pasted recipe text is sent to the AI provider. Menu suggestions send the client's household size, allergies and food preferences, but not their name or contact details.
 
 ## Keeping and deleting
 
@@ -36,4 +36,4 @@ In the browser, Platebook sets one sign-in cookie, and remembers whether the che
 
 ## Questions
 
-Clients should ask their chef first: the chef decides what to record about them and can correct or delete it. Chefs can ask the server owner about hosting, backups and email.
+Clients should ask their chef first: the chef decides what to record about them and can correct it. Deleting a client hides them from lists but keeps them with past sessions and invoices; only deleting the chef's whole account removes them completely. Chefs can ask the server owner about hosting, backups and email.
