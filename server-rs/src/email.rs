@@ -3,9 +3,15 @@
 
 //! Port of `server/utils/email.js`: SMTP via lettre, same templates.
 //!
-//! Without SMTP settings (`EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASS`) nothing is
-//! sent: the message is logged (dev) and recorded in the in-memory
-//! [`Outbox`], which is how tests check mail without sending any.
+//! How mail leaves depends on [`Config::email_mode`]:
+//! - SMTP (`EMAIL_HOST` set): handed to that server. Success means the server
+//!   accepted the message ([`Delivery::Smtp`]), not that it reached an inbox.
+//! - Capture (`EMAIL_CAPTURE=true`, never in production): recorded in the
+//!   in-memory [`Outbox`] and reported as [`Delivery::Captured`], never as
+//!   sent. This is how tests and local development see mail.
+//! - Otherwise there is no transport and every send fails with
+//!   [`EmailError::NotConfigured`], so nothing records a send that didn't
+//!   happen.
 //!
 //! Client-facing mail sets `Reply-To` to the chef's business email from
 //! settings; chef-facing mail goes to that business email (falling back to
@@ -19,7 +25,11 @@ use lettre::message::{Attachment, Mailbox, MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
-use crate::config::Config;
+use axum::http::StatusCode;
+use serde::Serialize;
+use ts_rs::TS;
+
+use crate::config::{Config, EmailMode, EmailTls};
 use crate::db::begin_tenant;
 use crate::error::AppError;
 use crate::rate_limit::AccountLimits;
@@ -27,14 +37,85 @@ use crate::state::AppState;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EmailError {
+    /// No usable transport: see [`Config::email_mode`].
+    #[error("email is not configured: {0}")]
+    NotConfigured(&'static str),
+    /// The demo account's mail is never sent.
+    #[error("email is turned off for the demo account")]
+    Demo,
+    /// No address to send to.
+    #[error("no recipient address")]
+    NoRecipient,
     #[error("invalid email address: {0}")]
     Address(String),
     #[error("could not build the message: {0}")]
     Build(String),
+    /// A transient SMTP failure (connection, timeout, 4xx): may work later.
     #[error("SMTP error: {0}")]
     Smtp(String),
+    /// A permanent SMTP rejection (5xx: unknown recipient, bad login, …).
+    #[error("SMTP rejected: {0}")]
+    Rejected(String),
     #[error("database error: {0}")]
     Db(#[from] sqlx::Error),
+}
+
+/// How a message left (or didn't leave) the server, for the response.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum Delivery {
+    /// Accepted by the SMTP server. Not proof that it reached an inbox.
+    Smtp,
+    /// Kept in the local capture outbox (`EMAIL_CAPTURE`); not sent.
+    Captured,
+}
+
+impl EmailError {
+    /// The response for a chef-facing send that failed. `what` names the
+    /// message ("invoice", "meal plan", "confirmation"); `download` says
+    /// whether the chef can download a PDF and send it themselves.
+    pub fn to_app_error(&self, what: &str, download: bool) -> AppError {
+        let fallback = if download {
+            " Download the PDF and send it yourself"
+        } else {
+            " Contact the client directly"
+        };
+        match self {
+            EmailError::NotConfigured(_) => AppError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "EMAIL_NOT_CONFIGURED",
+                format!(
+                    "Email isn't set up on this Platebook server, so the {what} was not sent.{fallback}, or ask whoever runs the server to add SMTP settings."
+                ),
+            ),
+            EmailError::Smtp(_) => AppError::new(
+                StatusCode::BAD_GATEWAY,
+                "EMAIL_SEND_FAILED",
+                format!(
+                    "The mail server couldn't be reached or didn't accept the {what}, so it was not sent. Try again in a minute.{fallback} if it keeps failing."
+                ),
+            ),
+            EmailError::Rejected(_) => AppError::new(
+                StatusCode::BAD_GATEWAY,
+                "EMAIL_REJECTED",
+                format!(
+                    "The mail server refused the {what}, so it was not sent. Check the email address; if it looks right, the server's mail settings may need attention.{fallback} meanwhile."
+                ),
+            ),
+            EmailError::Address(_) | EmailError::NoRecipient => AppError::new(
+                StatusCode::BAD_REQUEST,
+                "INVALID_EMAIL",
+                format!("The {what} was not sent: the email address isn't valid."),
+            ),
+            EmailError::Demo => AppError::new(
+                StatusCode::FORBIDDEN,
+                "DEMO_DISABLED",
+                "Email is turned off in the demo, so nothing leaves this server.",
+            ),
+            EmailError::Build(_) | EmailError::Db(_) => AppError::internal_bare(self),
+        }
+    }
 }
 
 /// A message as handed to the transport (recorded in the [`Outbox`] when
@@ -87,19 +168,26 @@ fn mailbox(addr: &str) -> Result<Mailbox, EmailError> {
 }
 
 fn transport(config: &Config) -> Result<AsyncSmtpTransport<Tokio1Executor>, EmailError> {
-    let builder = if config.email_port == 465 {
-        AsyncSmtpTransport::<Tokio1Executor>::relay(&config.email_host)
-    } else {
-        AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.email_host)
+    let mut builder = match config.email_tls {
+        EmailTls::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(&config.email_host)
+            .map_err(|_| EmailError::NotConfigured("EMAIL_HOST is not a valid host name"))?,
+        EmailTls::Starttls => {
+            AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.email_host)
+                .map_err(|_| EmailError::NotConfigured("EMAIL_HOST is not a valid host name"))?
+        }
+        EmailTls::None => {
+            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.email_host)
+        }
     }
-    .map_err(|e| EmailError::Smtp(e.to_string()))?;
-    Ok(builder
-        .port(config.email_port)
-        .credentials(Credentials::new(
+    .port(config.email_port)
+    .timeout(Some(config.email_timeout));
+    if !config.email_user.is_empty() {
+        builder = builder.credentials(Credentials::new(
             config.email_user.clone(),
             config.email_pass.clone(),
-        ))
-        .build())
+        ));
+    }
+    Ok(builder.build())
 }
 
 /// Per-account limit on the routes that email a client (`acct.email`).
@@ -113,38 +201,85 @@ pub async fn check_limit(state: &AppState, account_id: i64) -> Result<(), AppErr
         .map_err(|e| e.with_code())
 }
 
-/// Core send for `account_id`'s mail. Falls back to logging + the outbox if
-/// SMTP isn't configured. Mail for the demo account is dropped: anyone can
-/// use the demo, so it must not reach real inboxes.
+/// A send of the same invoice, meal plan or confirmation that succeeded this
+/// recently is refused as an accidental repeat (double clicks, a second tab).
+pub const RESEND_WINDOW_SECS: f64 = 10.0;
+
+/// The response for a repeat inside [`RESEND_WINDOW_SECS`].
+pub fn just_sent(what: &str) -> AppError {
+    AppError::new(
+        StatusCode::CONFLICT,
+        "EMAIL_JUST_SENT",
+        format!(
+            "This {what} was sent a few seconds ago, so it wasn't sent again. Wait a moment if you meant to send another copy."
+        ),
+    )
+}
+
+/// SQL condition: `col` is a successful send inside the repeat window ($2).
+pub fn recently(col: &str) -> String {
+    format!("COALESCE({col} > now() - make_interval(secs => $2), false)")
+}
+
+/// `Some(error)` when this server has no email transport, so a route can
+/// fail fast (and record the failure) before rendering an attachment.
+pub fn unavailable(state: &AppState) -> Option<EmailError> {
+    match state.config.email_mode() {
+        EmailMode::Disabled(reason) => Some(EmailError::NotConfigured(reason)),
+        _ => None,
+    }
+}
+
+/// Core send for `account_id`'s mail (see the module docs for the modes).
+/// Mail for the demo account is dropped and reported as [`EmailError::Demo`]:
+/// anyone can use the demo, so it must not reach real inboxes.
+///
+/// Message bodies are never logged: they can hold sign-in and reset links.
 pub async fn send(
     state: &AppState,
     account_id: i64,
     email: OutgoingEmail,
-) -> Result<(), EmailError> {
+) -> Result<Delivery, EmailError> {
     if state.demo.is_demo(account_id) {
         tracing::info!(subject = %email.subject, "[demo] email not sent");
-        return Ok(());
+        return Err(EmailError::Demo);
+    }
+    if email.to.trim().is_empty() {
+        return Err(EmailError::NoRecipient);
     }
     let config = &state.config;
-    if !config.email_configured() {
-        if !config.production {
+    match config.email_mode() {
+        EmailMode::Disabled(reason) => {
+            tracing::warn!(reason, subject = %email.subject, "[email] not sent: no email transport");
+            return Err(EmailError::NotConfigured(reason));
+        }
+        EmailMode::Capture => {
             tracing::info!(
                 to = %email.to,
                 subject = %email.subject,
-                text = %email.text,
-                "[EMAIL — dev preview, not sent]"
+                "[email] captured locally (EMAIL_CAPTURE), not sent"
             );
+            state.outbox.push(email);
+            return Ok(Delivery::Captured);
         }
-        state.outbox.push(email);
-        return Ok(());
+        EmailMode::Smtp => {}
     }
 
+    let from = mailbox(&config.email_from)
+        .map_err(|_| EmailError::NotConfigured("EMAIL_FROM is not a valid address"))?;
     let mut builder = Message::builder()
-        .from(mailbox(&config.email_from)?)
+        .from(from)
         .to(mailbox(&email.to)?)
         .subject(email.subject.clone());
     if let Some(r) = email.reply_to.as_deref().filter(|r| !r.is_empty()) {
-        builder = builder.reply_to(mailbox(r)?);
+        // A bad chef Reply-To (their Settings email) shouldn't block the
+        // client's mail; send without it.
+        match mailbox(r) {
+            Ok(m) => builder = builder.reply_to(m),
+            Err(_) => tracing::warn!(
+                "[email] business email is not a valid address; sent without Reply-To"
+            ),
+        }
     }
     let body = MultiPart::alternative_plain_html(email.text.clone(), email.html.clone());
     let message = if email.attachments.is_empty() {
@@ -164,15 +299,53 @@ pub async fn send(
 
     // One retry after RETRY_DELAY for transient failures (4xx, timeouts,
     // dropped connections). A permanent rejection (5xx) fails straight away.
+    // Each attempt is bounded as a whole: lettre's own timeout doesn't cover
+    // a server that accepts the connection and never sends its greeting. A
+    // timed-out attempt isn't retried: the server may have taken the message
+    // and just been slow to confirm, and a retry would send it twice.
     let transport = transport(config)?;
+    let limit = config.email_timeout;
     retry_once(
         RETRY_DELAY,
-        |e: &lettre::transport::smtp::Error| !e.is_permanent(),
-        || transport.send(message.clone()),
+        |e: &Attempt| match e {
+            Attempt::TimedOut => false,
+            Attempt::Smtp(e) => !e.is_permanent(),
+        },
+        || {
+            let send = transport.send(message.clone());
+            async move {
+                match tokio::time::timeout(limit, send).await {
+                    Ok(r) => r.map_err(Attempt::Smtp),
+                    Err(_) => Err(Attempt::TimedOut),
+                }
+            }
+        },
     )
     .await
-    .map_err(|e| EmailError::Smtp(e.to_string()))?;
-    Ok(())
+    .map_err(|e| match e {
+        Attempt::TimedOut => EmailError::Smtp(format!("no answer within {limit:?}")),
+        // 530/535: the server refused our login, a settings problem, not the
+        // recipient's address.
+        Attempt::Smtp(e) if is_auth_failure(&e) => {
+            tracing::error!(error = %e, "[email] SMTP login refused (check EMAIL_USER / EMAIL_PASS)");
+            EmailError::NotConfigured("the mail server refused the login (EMAIL_USER / EMAIL_PASS)")
+        }
+        Attempt::Smtp(e) if e.is_permanent() => EmailError::Rejected(e.to_string()),
+        Attempt::Smtp(e) => EmailError::Smtp(e.to_string()),
+    })?;
+    Ok(Delivery::Smtp)
+}
+
+fn is_auth_failure(e: &lettre::transport::smtp::Error) -> bool {
+    e.status()
+        .map(|code| matches!(code.to_string().as_str(), "530" | "535"))
+        .unwrap_or(false)
+}
+
+/// Why one SMTP attempt failed.
+enum Attempt {
+    TimedOut,
+    Smtp(lettre::transport::smtp::Error),
 }
 
 /// Pause before the single retry of a failed SMTP send.
@@ -199,10 +372,22 @@ where
     }
 }
 
-/// Verifies SMTP credentials at startup so misconfiguration fails loudly.
+/// Reports the email setup at startup, and verifies an SMTP connection, so
+/// misconfiguration shows in the log instead of at the first send.
 pub async fn verify_transporter(config: &Config) {
-    if !config.email_configured() {
-        return;
+    match config.email_mode() {
+        EmailMode::Smtp => {}
+        EmailMode::Capture => {
+            tracing::warn!("EMAIL_CAPTURE=true: mail is kept in memory and logged, never sent");
+            return;
+        }
+        EmailMode::Disabled(reason) => {
+            tracing::error!(
+                reason,
+                "Email is not configured: invoices, meal plans, booking confirmations, reminders and sign-in links will not be sent"
+            );
+            return;
+        }
     }
     match transport(config) {
         Ok(t) => match t.test_connection().await {
@@ -305,9 +490,9 @@ pub async fn send_intake_confirmation(
     name: &str,
     email: &str,
     edit_url: &str,
-) -> Result<(), EmailError> {
+) -> Result<Delivery, EmailError> {
     if email.is_empty() {
-        return Ok(());
+        return Err(EmailError::NoRecipient);
     }
     let s = biz(state, account_id).await?;
     let biz_name = non_empty(&s.business_name)
@@ -397,7 +582,7 @@ pub struct MealPlan<'a> {
 }
 
 /// Sends the meal plan PDF to the client.
-pub async fn send_meal_plan_pdf(state: &AppState, m: MealPlan<'_>) -> Result<(), EmailError> {
+pub async fn send_meal_plan_pdf(state: &AppState, m: MealPlan<'_>) -> Result<Delivery, EmailError> {
     let s = biz(state, m.account_id).await?;
     let biz_name = non_empty(&s.business_name)
         .unwrap_or("Your Chef")
@@ -486,7 +671,10 @@ pub struct InvoiceMail<'a> {
 }
 
 /// Sends an invoice PDF to the client.
-pub async fn send_invoice_pdf(state: &AppState, m: InvoiceMail<'_>) -> Result<(), EmailError> {
+pub async fn send_invoice_pdf(
+    state: &AppState,
+    m: InvoiceMail<'_>,
+) -> Result<Delivery, EmailError> {
     let s = biz(state, m.account_id).await?;
     let biz_name = m
         .business_name
@@ -664,9 +852,12 @@ fn dish_list_text(dishes: &[String]) -> String {
 }
 
 /// The day-before reminder to the client: when, and what's on the menu.
-pub async fn send_client_reminder(state: &AppState, r: &Reminder<'_>) -> Result<(), EmailError> {
+pub async fn send_client_reminder(
+    state: &AppState,
+    r: &Reminder<'_>,
+) -> Result<Delivery, EmailError> {
     let Some(to) = r.client_email.filter(|e| !e.is_empty()) else {
-        return Ok(());
+        return Err(EmailError::NoRecipient);
     };
     let s = biz(state, r.account_id).await?;
     let biz_name = non_empty(&s.business_name)
@@ -727,10 +918,13 @@ pub async fn send_client_reminder(state: &AppState, r: &Reminder<'_>) -> Result<
 
 /// The day-before prep sheet to the chef: where to go, who to call, what to
 /// avoid, what to cook.
-pub async fn send_chef_reminder(state: &AppState, r: &Reminder<'_>) -> Result<(), EmailError> {
+pub async fn send_chef_reminder(
+    state: &AppState,
+    r: &Reminder<'_>,
+) -> Result<Delivery, EmailError> {
     let s = biz(state, r.account_id).await?;
     let Some(chef_email) = non_empty(&s.notify_email).map(str::to_string) else {
-        return Ok(());
+        return Err(EmailError::NoRecipient);
     };
     let biz_name = non_empty(&s.business_name)
         .unwrap_or("Your Chef")
@@ -839,10 +1033,10 @@ pub async fn send_chef_new_intake(
     email: Option<&str>,
     phone: Option<&str>,
     admin_url: &str,
-) -> Result<(), EmailError> {
+) -> Result<Delivery, EmailError> {
     let s = biz(state, account_id).await?;
     let Some(chef_email) = non_empty(&s.notify_email).map(str::to_string) else {
-        return Ok(());
+        return Err(EmailError::NoRecipient);
     };
     let biz_name = non_empty(&s.business_name)
         .unwrap_or("Your Chef")
@@ -941,7 +1135,7 @@ pub async fn send_magic_link(
     account_id: i64,
     email: &str,
     verify_url: &str,
-) -> Result<(), EmailError> {
+) -> Result<Delivery, EmailError> {
     let s = biz(state, account_id).await?;
     let biz_name = non_empty(&s.business_name)
         .unwrap_or("Platebook")
@@ -995,7 +1189,7 @@ pub async fn send_password_reset(
     account_id: i64,
     email: &str,
     reset_url: &str,
-) -> Result<(), EmailError> {
+) -> Result<Delivery, EmailError> {
     let s = biz(state, account_id).await?;
     let biz_name = non_empty(&s.business_name)
         .unwrap_or("your kitchen")

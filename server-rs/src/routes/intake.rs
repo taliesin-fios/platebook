@@ -260,6 +260,10 @@ pub struct IntakeSubmitted {
     pub edit_token: String,
     pub edit_url: String,
     pub message: String,
+    /// Whether a confirmation email will be attempted (the intake has an
+    /// address and the server can send mail). Sent after this response, so
+    /// it is never a promise that one arrived.
+    pub confirmation_email: bool,
 }
 
 /// POST /api/intake/:id/convert.
@@ -491,6 +495,9 @@ async fn submit(
     // outcome is recorded on the intake, so a failure shows on the chef's
     // intake screens instead of only in the log.
     let intake_id = res.intake.id;
+    let confirmation_email = res.intake.email.as_deref().is_some_and(|e| !e.is_empty())
+        && state.config.email_available()
+        && !state.demo.is_demo(account.id);
     if let Some(email) = res.intake.email.clone().filter(|e| !e.is_empty()) {
         let (state, name, url, account_id) = (
             state.clone(),
@@ -502,8 +509,11 @@ async fn submit(
             let sent =
                 crate::email::send_intake_confirmation(&state, account_id, &name, &email, &url)
                     .await;
-            if let Err(e) = &sent {
-                tracing::error!(error = %e, "[intake] Client confirmation email failed");
+            match &sent {
+                // The demo sends nothing and claims nothing.
+                Err(crate::email::EmailError::Demo) => return,
+                Err(e) => tracing::error!(error = %e, "[intake] Client confirmation email failed"),
+                Ok(_) => {}
             }
             if let Err(e) = record_confirmation(&state, account_id, intake_id, sent.is_ok()).await {
                 tracing::error!(error = %e, "[intake] Could not record the confirmation email");
@@ -528,6 +538,7 @@ async fn submit(
                 "/intake",
             )
             .await
+                && !matches!(e, crate::email::EmailError::Demo)
             {
                 tracing::error!(error = %e, "[intake] Chef notification email failed");
                 if let Err(e) = record_chef_alert_failure(&state, account_id, intake_id).await {
@@ -543,6 +554,7 @@ async fn submit(
             intake: res,
             edit_token: token,
             edit_url,
+            confirmation_email,
             message: "Intake submitted successfully. Your chef will be in touch soon.".into(),
         }),
     ))
@@ -927,6 +939,17 @@ async fn resend_confirmation(
     .fetch_optional(&mut *t.tx)
     .await?;
     let (name, email) = row.ok_or_else(intake_not_found)?;
+    let just_sent: bool = sqlx::query_scalar(&format!(
+        "SELECT {} FROM client_intakes WHERE id = $1",
+        crate::email::recently("confirmation_emailed_at")
+    ))
+    .bind(id)
+    .bind(crate::email::RESEND_WINDOW_SECS)
+    .fetch_one(&mut *t.tx)
+    .await?;
+    if just_sent && crate::email::unavailable(&state).is_none() {
+        return Err(crate::email::just_sent("confirmation").into());
+    }
     let Some(to) = email.filter(|e| !e.is_empty()) else {
         return Err(AppError::new(
             StatusCode::BAD_REQUEST,
@@ -943,13 +966,14 @@ async fn resend_confirmation(
     let url = format!("/intake/{id}?token={token}");
     let sent = crate::email::send_intake_confirmation(&state, account_id, &name, &to, &url).await;
     record_confirmation(&state, account_id, id, sent.is_ok()).await?;
-    sent.map_err(|e| {
+    let delivery = sent.map_err(|e| {
         tracing::error!(error = %e, "[intake] resend-confirmation");
-        AppError::internal_bare(e)
+        e.to_app_error("booking confirmation", false)
     })?;
     Ok(Json(EmailSentResponse {
         success: true,
         sent_to: to,
+        delivery,
     }))
 }
 

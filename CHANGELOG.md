@@ -7,6 +7,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Email no longer reports sends that didn't happen.** Without SMTP settings the server used to keep mail in an in-memory outbox and report success: invoices became **Sent** with an emailed time, meal plans and booking confirmations showed "sent", reminders were marked sent, and the sign-in and reset pages said a link was on its way. Now:
+  - Without `EMAIL_HOST` (or with `EMAIL_USER` but no `EMAIL_PASS`, or a `EMAIL_FROM` that isn't an address) the server has no email. Sends fail with `503 EMAIL_NOT_CONFIGURED` and a message offering the PDF download; nothing is marked sent; reminders wait; the startup log says email isn't configured.
+  - A mail-server failure returns `502 EMAIL_SEND_FAILED` (transient: try again) or `EMAIL_REJECTED` (permanent: check the address). The invoice stays as it was, and the failure banner offers **Download PDF** next to **Try again**.
+  - A successful send says the mail server **accepted** it (`delivery: "smtp"` in the response). Platebook can't confirm inbox delivery and no longer implies it.
+  - Bookings still save when their emails fail. The booking page says "We'll email a confirmation" only when one will be attempted (`confirmation_email` in the response), instead of "Confirmation sent".
+  - `request-link` / `forgot-password` return `email_available` (a server-wide setting, the same for every address). They send the email after responding, so neither the response nor its timing shows whether an account exists. The pages say so when no email can be sent.
+  - Message bodies are no longer logged. Dev logs used to include live sign-in and reset links.
+  - Each SMTP attempt is bounded by `EMAIL_TIMEOUT_SECS` (default 20). A server that never answered could hold a request for minutes. A timed-out attempt isn't retried, since the server may already have the message.
+  - New settings: `EMAIL_TLS` (`starttls` | `tls` | `none` for a local mail sink), `EMAIL_TIMEOUT_SECS`, and `EMAIL_CAPTURE=true` (dev/test only) to keep mail in memory, labelled "captured", never "sent". Captured mail still sets the sent timestamps in a dev database.
+  - Repeated clicks on an Email button send once (the button now ignores clicks while a send is running). A paid or void invoice can't be emailed (`409 INVOICE_CLOSED`) and shows no "Try again". On a server with no email, failure banners offer only the PDF download (`/api/auth/me` has `email_available`). A refused SMTP login reads as a settings problem, not as a bad client address.
+  - **Upgrade notes:** `EMAIL_HOST` with no login now means SMTP without authentication (a relay or sink), not "email off". A plain-text relay needs `EMAIL_TLS=none`, which is refused in production when a login is set. `EMAIL_CAPTURE` is refused with `NODE_ENV=production` or alongside `EMAIL_HOST`. Installs with host, user and password set behave as before. No migration.
+- `tools/dev-mail-sink/` is a zero-dependency local SMTP sink with a web view and accept/reject/tempfail/down modes, for development and rehearsals.
+
 ### Security
 - **A booking link with no chef in it no longer goes to account #1** (rehearsal defect P1-1). On a server with several chefs, `/intake/<anything>` without its edit token, and old `/intake/new` links, opened the first account's booking form, and a submission from it (household, allergies and all) landed in that account. Now:
   - The form opens only from a chef's `/book/<slug>` link, or from a client's own edit link with its token. Anything else says the link isn't active or is incomplete, and shows no form.

@@ -6,6 +6,8 @@
 
 #![allow(dead_code)]
 
+pub mod smtp;
+
 use std::net::SocketAddr;
 
 use axum::Router;
@@ -221,5 +223,14 @@ impl Chef {
             set.spawn(async move { req.send(&app).await });
         }
         set.join_all().await
+    }
+}
+
+/// A server with no email transport at all: no SMTP settings and no explicit
+/// local capture. Every send must fail, never pretend to succeed.
+pub fn no_email_config() -> Config {
+    Config {
+        email_capture: false,
+        ..test_config()
     }
 }

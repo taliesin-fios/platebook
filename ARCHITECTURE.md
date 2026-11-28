@@ -15,7 +15,7 @@
 | Auth | Accounts: email + password (bcrypt) or magic link → httpOnly JWT cookie `{ accountId, email }` |
 | AI | Per-account provider (`llm.rs`, reqwest): Anthropic Messages API or OpenAI-style Chat Completions; keys encrypted at rest (`ai_keys.rs`) |
 | PDF | Typst, rendered on the server (`server-rs/src/pdf/`); the client only downloads them |
-| Email | lettre (SMTP); logged when `EMAIL_HOST` is empty |
+| Email | lettre (SMTP); without `EMAIL_HOST`, sends fail (no fake success); `EMAIL_CAPTURE=true` keeps mail in memory in dev/tests |
 | Payments | Mode-gated: `manual` (default) / `stripe` / `disabled` |
 | Deploy | Docker image (`server-rs/Dockerfile`); self-hosting with `docker-compose.selfhost.yml` (`docs/SELF_HOSTING.md`) |
 | Data migration | `tools/migrate-sqlite/`: one-time copy of the old Express server's SQLite file into Postgres |

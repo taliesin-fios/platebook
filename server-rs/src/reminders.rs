@@ -97,6 +97,11 @@ pub fn start(state: AppState) {
 /// One pass: sends every reminder due at `now` (up to [`BATCH`] per kind).
 pub async fn run_once(state: &AppState, now: DateTime<Utc>) -> Result<RunStats, sqlx::Error> {
     let mut stats = RunStats::default();
+    // No transport: leave every reminder unsent (startup already logged why)
+    // rather than failing each one every run.
+    if !state.config.email_available() {
+        return Ok(stats);
+    }
     for kind in [Kind::Client, Kind::Chef] {
         // Failures stay unsent for the next run, not retried in a loop now.
         let mut failed: Vec<i64> = Vec::new();
@@ -106,6 +111,11 @@ pub async fn run_once(state: &AppState, now: DateTime<Utc>) -> Result<RunStats, 
             else {
                 break;
             };
+            // The demo sends nothing; leave its reminders unsent, quietly.
+            if state.demo.is_demo(account_id) {
+                failed.push(session_id);
+                continue;
+            }
             match deliver(state, &mut tx, kind, session_id, account_id, now).await {
                 Ok(()) => {
                     tx.commit().await?;
@@ -255,7 +265,7 @@ async fn deliver(
     match kind {
         Kind::Client => email::send_client_reminder(state, &r).await?,
         Kind::Chef => email::send_chef_reminder(state, &r).await?,
-    }
+    };
     Ok(())
 }
 
