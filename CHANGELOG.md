@@ -21,6 +21,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - **Upgrade notes:** `EMAIL_HOST` with no login now means SMTP without authentication (a relay or sink), not "email off". A plain-text relay needs `EMAIL_TLS=none`, which is refused in production when a login is set. `EMAIL_CAPTURE` is refused with `NODE_ENV=production` or alongside `EMAIL_HOST`. Installs with host, user and password set behave as before. No migration.
 - `tools/dev-mail-sink/` is a zero-dependency local SMTP sink with a web view and accept/reject/tempfail/down modes, for development and rehearsals.
 
+### Security
+- **A booking link with no chef in it no longer goes to account #1** (rehearsal defect P1-1). On a server with several chefs, `/intake/<anything>` without its edit token, and old `/intake/new` links, opened the first account's booking form, and a submission from it (household, allergies and all) landed in that account. Now:
+  - The form opens only from a chef's `/book/<slug>` link, or from a client's own edit link with its token. Anything else says the link isn't active or is incomplete, and shows no form.
+  - `POST /api/intake` requires `slug` (`404` without one); there is no default account.
+  - `GET /api/settings/public` (account #1's public profile) is removed from the API and the public-route allowlist.
+  - Reading, editing or paying for an intake still needs that intake's own HMAC token (or its owner's session); another account's token or session gets `403`/`401`. New cross-account tests cover loading and submitting with another account's id.
+  - **Upgrade note:** links of the form `/intake/new` stop working; chefs share `/book/<slug>` (Settings → Booking link). Client edit links already sent keep working. No migration.
+
 ## [0.4.0] — 2026-11-24
 
 **Upgrading from 0.3.0:** on start, the server applies one migration, `0012_signup_invites.sql`. It only adds a new table, so it's safe on a database with data, but take a backup first as usual. Nothing changes unless you set the new options: `SIGNUP_MODE=invite` (invite links made with `chef-server invite create`) and `DEMO_MODE=true` (a public demo account that resets itself; don't use it on a server that holds real chefs' data without `SIGNUP_MODE=first`, `invite` or `closed`). Two API changes can affect scripts that call the API directly: creating or changing a session whose dishes contain an allergen the client lists now returns `409 ALLERGEN_CONFLICT` unless the request has `allergen_acknowledged: true`, and `POST`/`PUT /api/clients` refuse `allergens`, `dietary_styles`, `liked_proteins` or `equipment` that aren't a list (`400 VALIDATION_ERROR`). The app's own screens already handle both.

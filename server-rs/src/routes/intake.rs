@@ -4,8 +4,9 @@
 //! Port of `server/routes/intake.js` — client intake forms.
 //!
 //! Public (no auth):
-//!   POST /api/intake              — submit ({ slug } picks the chef; omitted = account #1,
-//!                                   for pre-account /intake/new links)
+//!   POST /api/intake              — submit ({ slug } picks the chef; required: a
+//!                                   submission without one is refused, never
+//!                                   routed to another account)
 //!   GET  /api/intake/:id?token=   — read with the HMAC edit token
 //!   PUT  /api/intake/:id?token=   — client-editable fields via the token
 //!   POST /api/intake/:id/checkout?token= — pay the booking deposit online (Stripe)
@@ -67,8 +68,6 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/client-link", get(client_link))
         .route("/{id}/restore", post(restore))
 }
-
-const LEGACY_ACCOUNT_ID: i64 = 1;
 
 /// An intake plus the owning chef's booking slug.
 #[derive(Debug, Serialize, TS)]
@@ -409,12 +408,16 @@ async fn submit(
         .check(&state.limits_pool, &ip)
         .await
         .map_err(|e| e.with_code())?;
-    let mut conn = state.pool.acquire().await?;
+    // The chef comes only from the booking link's slug. There is no default
+    // account: a form opened from a bad or old link must not hand a
+    // household's details (allergies included) to whoever is account #1.
     let account = match body.text_or_none("slug") {
-        Some(slug) => accounts::get_account_by_slug(&mut conn, &slug).await?,
-        None => accounts::get_account(&mut conn, LEGACY_ACCOUNT_ID).await?,
+        Some(slug) => {
+            let mut conn = state.pool.acquire().await?;
+            accounts::get_account_by_slug(&mut conn, &slug).await?
+        }
+        None => None,
     };
-    drop(conn);
     let Some(account) = account else {
         return Err(AppError::not_found_msg("This booking link is no longer active").into());
     };
