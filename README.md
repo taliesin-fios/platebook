@@ -47,7 +47,7 @@ cp .env.selfhost.example .env        # fill in the secrets
 docker compose -f docker-compose.selfhost.yml up -d --build
 ```
 
-Then put a reverse proxy with HTTPS in front of it. **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)** covers HTTPS, email, Stripe, AI, backups, upgrades and who can sign up.
+Then put a reverse proxy with HTTPS in front of it. **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)** covers HTTPS, email, Stripe, AI, backups, upgrades and who can sign up. **[docs/DATA.md](docs/DATA.md)** says in plain English what data Platebook stores and who can see it.
 
 > **Allergen detection is advisory.** Platebook flags likely allergens by matching keywords in ingredient names. It isn't a certified check: always confirm allergies with the client.
 >
